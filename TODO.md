@@ -1,70 +1,44 @@
 # TODO
 
 Improvements identified while reviewing this template against
-python_repo_template (2026-06-11). Roughly in priority order.
+python_repo_template (2026-06-11). Updated as items land.
 
-## High value
+## Open
 
-- [ ] **Add `ci.yml` workflow.** Run `Tests.ps1 ModuleSyntax`, `Tests.ps1 PSSA`,
-  and `Tests.ps1 Offline` on `windows-latest` for every push/PR to main
-  (install Pester/PSScriptAnalyzer via `Install-Module`). Mirror the Python
-  template's header comments explaining the one-time branch-protection setup
-  so CI actually blocks failing merges.
-- [ ] **Fix `docs.yml` path filter.** It triggers on `paths: docs/**` but the
-  folder is `Docs/`; GitHub path filters are case-sensitive, so docs pushes
-  may never deploy. Also covers `mkdocs.yml` -- verify both.
-- [ ] **Fix `CLAUDE.md`.** It contains the literal text `AGENTS.md`, which does
-  not import the file. Use Claude Code's import syntax (`@AGENTS.md`) or a
-  symlink (see python_repo_template README for the New-Item command).
+- [ ] **Make formatting checks exit nonzero on findings.** The `Tests\Test-*.ps1`
+  scripts print findings but exit 0, so the ModuleSyntax/PSSA steps in
+  `ci.yml` cannot gate merges yet (only the Pester step does, via the exit
+  code added to Tests.ps1). Add a common `-AsGate`/exit-code convention to
+  the check scripts, then remove the caveat comment from ci.yml.
+- [ ] **PSFramework debug-output convention.** AGENTS.md documents
+  `Write-PSFMessage` for in-domain debug output, but the template declares no
+  PSFramework dependency. Decide: ship a dependency-free wrapper, or add
+  PSFramework to RequiredModules, or leave as a documented option.
+- [ ] **Online test scaffolding.** Tests.ps1's Online section is a plain
+  `Invoke-Pester -TagFilter 'Online'` with a comment describing where session
+  setup belongs. Consider a worked example (session setup + .env.ps1 loading
+  in a Pester BeforeAll) once a real consumer module exists.
 
-## Template adoption experience
+## Done
 
-- [ ] **Setup automation script.** Port the idea of
-  `scripts/template_setup/` from python_repo_template: a
-  `Scripts\Setup-NewProject.ps1` that (1) renames
-  PowershellRepoTemplate -> new module name across files and filenames,
-  (2) sets the GitHub owner in URLs, (3) generates a fresh manifest GUID,
-  (4) strips TEMPLATE SETUP NOTES blocks, (5) lists remaining FIXMEs
-  (reuse `Tests\Test-FixmeComments.ps1`), (6) optionally reinits git.
-  Preview changes and confirm before applying; support -DryRun and -Yes.
-- [ ] **License chooser.** Replace the single LICENSE with
-  `LICENSE.mit.FIXME` / `LICENSE.apache.FIXME` / `LICENSE.gnu.FIXME`
-  variants like the Python template, plus a setup step (or script) to pick
-  one and fill in the copyright line.
-- [ ] **README "Tool choices" section.** Short rationale per tool, like the
-  Python template: ModuleBuilder (build), Pester (tests), PSScriptAnalyzer
-  (lint/format), PlatyPS (command docs), mkdocs-material (docs site),
-  GitHub Actions (CI/docs deploy), VSCode (editor config included).
-- [ ] **README badges.** CI / PowerShell Gallery / license badges with FIXME
-  links.
-
-## Repo hygiene
-
-- [ ] **pre-commit + secret scanning.** pre-commit is language-agnostic:
-  reuse the generic hygiene hooks (trailing whitespace, EOF, large files,
-  line endings) and detect-secrets from the Python template's
-  `.pre-commit-config.yaml`, plus a local hook running
-  `Tests.ps1 AutoFormat -Quiet`. Include `.secrets.baseline` setup notes.
-- [ ] **Community files.** Add CONTRIBUTING.md, SECURITY.md,
-  `.github/dependabot.yml` (github-actions ecosystem at minimum), and
-  `.github/ISSUE_TEMPLATE/` (bug report, feature request, config).
-- [ ] **Add `.github/pull_request_template.md`.** AGENTS.WORKTREE.md already
-  instructs agents to use it as the PR.md template, but it does not exist.
-- [ ] **Decide on committed root build artifacts.** `Build.ps1` defaults to
-  `-BuildToRoot $true` (see FIXME at the param) so a fresh clone is
-  importable by name, at the cost of noisy diffs of generated files.
-  Either commit to that default and document it in README, or flip the
-  default to versioned `Output\` builds for Gallery publishing.
-- [ ] **`.gitattributes`.** Normalize line endings explicitly (the Python
-  template ships one; this repo relies on git defaults).
-
-## Open questions
-
-- [ ] Should AGENTS.md's PSFramework debug-output convention
-  (`Write-PSFMessage`) stay, or be replaced with a dependency-free wrapper?
-  `Tests.ps1 WriteVerboseDebug` enforces the no-Write-Verbose rule either
-  way; the template currently has no PSFramework dependency declared.
-- [ ] Online test pattern: Tests.ps1's Online section is now a plain
-  `Invoke-Pester -TagFilter 'Online'` with a comment. Document (or
-  scaffold) where session setup and `Tests\.env.ps1` loading should live
-  for modules that talk to live services.
+- [x] `ci.yml` workflow: syntax, PSSA, offline Pester on windows-latest, with
+  branch-protection setup notes. Pester failures gate via Tests.ps1 exit code.
+- [x] `docs.yml` path filter fixed (`Docs/**`; GitHub filters are
+  case-sensitive).
+- [x] `CLAUDE.md` now imports AGENTS.md via `@AGENTS.md`.
+- [x] `Scripts\Setup-NewProject.ps1`: guided rename, GUID, GitHub URLs,
+  license selection, template-header stripping, FIXME report, git reinit.
+- [x] License chooser: `LICENSE.mit.FIXME` / `LICENSE.apache.FIXME` /
+  `LICENSE.gnu.FIXME` (single LICENSE removed).
+- [x] README: badges, tool-choices rationale, template adoption steps, layout
+  overview.
+- [x] `.pre-commit-config.yaml`: hygiene hooks + detect-secrets (PSSA
+  intentionally excluded from commit hooks -- too slow; CI covers it).
+- [x] Community files: CONTRIBUTING.md, SECURITY.md,
+  `.github/dependabot.yml` (github-actions ecosystem),
+  `.github/ISSUE_TEMPLATE/` (bug, feature, config),
+  `.github/pull_request_template.md`.
+- [x] `.gitattributes` with line-ending normalization.
+- [x] Build default flipped: `Build.ps1` now builds versioned to `Output\`;
+  `-BuildToRoot` remains as an option. `Tests.ps1 -Built` prefers a root
+  build, then falls back to the newest versioned Output build.
