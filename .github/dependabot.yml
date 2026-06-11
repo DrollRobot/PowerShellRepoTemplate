@@ -1,0 +1,28 @@
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This dependabot.yml is part of PowershellRepoTemplate, a starter repo
+# scaffold.
+#
+# Purpose: Dependabot is a GitHub service that automatically opens pull
+# requests to bump outdated dependencies. PowerShell Gallery modules are not
+# a supported Dependabot ecosystem, so only GitHub Actions workflow pins are
+# covered here. Keep module versions in the manifest current by hand (or via
+# Install-Dependencies.ps1).
+#
+# To customize:
+#   - Change interval to "monthly" if weekly PRs are too noisy.
+#   - Adjust open-pull-requests-limit if you want more or fewer open at once.
+#   - Add a target-branch key if your default branch is not "main".
+# =============================================================================
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]

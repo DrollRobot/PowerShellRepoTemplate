@@ -1,0 +1,20 @@
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This config.yml is part of PowershellRepoTemplate, a starter repo scaffold.
+#
+# Purpose: Controls the GitHub "New Issue" chooser. Setting
+# blank_issues_enabled: false forces contributors to use one of the issue
+# forms (bug_report.yml, feature_request.yml) rather than opening a blank
+# issue. The contact_links entry points them to your docs site first.
+#
+# To customize:
+#   - Replace the FIXME owner/repo in the docs URL.
+#   - Update the URL if you host docs somewhere other than GitHub Pages.
+# =============================================================================
+
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://FIXME.github.io/FIXME/
+    about: Check the docs before opening an issue.

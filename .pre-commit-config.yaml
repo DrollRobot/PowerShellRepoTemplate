@@ -1,0 +1,48 @@
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This .pre-commit-config.yaml is part of PowershellRepoTemplate, a starter
+# repo scaffold. pre-commit runs a suite of checks automatically on every
+# git commit, catching hygiene issues and accidentally committed secrets
+# before they reach the repo.
+#
+# pre-commit itself is a Python tool (the hooks below are language-agnostic).
+# Install it once per machine with pipx, uv, or pip:
+#   pipx install pre-commit detect-secrets
+#
+# First-time setup (run once after cloning):
+#   pre-commit install              # install the git hook
+#   pre-commit run --all-files      # optional: check existing files now
+#   detect-secrets scan > .secrets.baseline   # create the secrets baseline
+#
+# To keep hook versions current:
+#   pre-commit autoupdate           # bump all rev: pins to latest
+#
+# Hooks included in this config:
+#   pre-commit-hooks  -- trailing whitespace, EOF newline, YAML syntax,
+#                        large file guard, merge conflict markers
+#   detect-secrets    -- prevents secrets from being committed; requires the
+#                        .secrets.baseline file created above
+#
+# The repo's PowerShell formatting checks (Tests.ps1 AutoFormat / PSSA) are
+# intentionally NOT run here -- PSScriptAnalyzer is too slow for a commit
+# hook. Run them via Tests.ps1, or rely on CI.
+# =============================================================================
+
+repos:
+  # Generic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  # detect-secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']

@@ -1,0 +1,64 @@
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This ci.yml is part of PowershellRepoTemplate, a starter repo scaffold.
+#
+# Purpose: Runs on every push and pull request to main. Blocks merges if
+# syntax checks or offline Pester tests fail. Online tests (tagged 'Online')
+# are excluded because they require credentials; run them separately in a
+# secrets-aware workflow if needed.
+#
+# Note: only the Pester step gates today. The formatting checks (ModuleSyntax,
+# PSSA) print findings but do not yet exit nonzero -- see TODO.md.
+#
+# GitHub setup (one-time, to make CI actually block merges):
+#   1. Push this file to your repo so the workflow runs at least once.
+#   2. Go to Settings -> Branches -> Add branch protection rule.
+#   3. Set the pattern to: main
+#   4. Enable "Require status checks to pass before merging".
+#   5. Search for and add the "check" job (the job name from this file).
+#   6. Optionally enable "Require branches to be up to date before merging".
+#   7. Save the rule.
+#
+# Without branch protection, CI will still run and report pass/fail, but
+# it will not prevent merging a failing PR.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PowerShell modules
+        shell: pwsh
+        run: Install-Module Pester, PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
+
+      - name: Syntax check
+        shell: pwsh
+        run: .\Tests.ps1 ModuleSyntax -Quiet
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: .\Tests.ps1 PSSA -Quiet
+
+      - name: Offline Pester tests
+        shell: pwsh
+        run: .\Tests.ps1 Offline

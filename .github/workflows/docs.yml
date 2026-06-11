@@ -5,7 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'docs/**'
+      # NOTE: GitHub path filters are case-sensitive; this must match the
+      # capitalized Docs/ folder in this repo.
+      - 'Docs/**'
       - 'mkdocs.yml'
 
   # Allow manual trigger from the Actions tab

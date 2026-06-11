@@ -1,0 +1,74 @@
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This bug_report.yml is part of PowershellRepoTemplate, a starter repo
+# scaffold.
+#
+# Purpose: Defines a structured GitHub issue form for bug reports. GitHub
+# renders this as a web form instead of a blank text box, which produces
+# more complete and consistent reports.
+#
+# To customize:
+#   - Update the version label ("PowershellRepoTemplate version") to your
+#     module name (Setup-NewProject.ps1 does this automatically).
+#   - Replace the placeholder text in "Steps to reproduce" with a
+#     relevant example from your own commands.
+# =============================================================================
+
+name: Bug report
+description: Something is not working as documented or expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this report. Please search
+        existing issues before opening a new one.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: "When I call <Verb-Noun> with ... it throws ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal command sequence that reproduces the issue.
+      render: powershell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: PowershellRepoTemplate version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: powershell-version
+    attributes:
+      label: PowerShell version ($PSVersionTable.PSVersion)
+      placeholder: "7.5.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Logs, error records, or anything else relevant.
