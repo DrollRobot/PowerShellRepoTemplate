@@ -38,8 +38,10 @@
     Defaults to the 'source' folder next to this script.
 
 .PARAMETER OutputDirectory
-    Path for the versioned build output. Defaults to the 'output' folder next to this
-    script. Ignored when -BuildToRoot is specified.
+    Optional override for the build output location. When omitted, the
+    OutputDirectory value in Source\Build.psd1 is used (resolved relative to
+    Source\), falling back to the 'Output' folder next to this script.
+    Ignored when -BuildToRoot is specified.
 
 .PARAMETER Version
     Optional version to stamp into the built manifest, overriding the source manifest's
@@ -72,7 +74,7 @@
 [CmdletBinding()]
 param(
     [string] $SourcePath = (Join-Path -Path $PSScriptRoot -ChildPath 'Source'),
-    [string] $OutputDirectory = (Join-Path -Path $PSScriptRoot -ChildPath 'Output'),
+    [string] $OutputDirectory,
     [string] $Version,
 
     [switch] $BuildToRoot
@@ -88,6 +90,25 @@ $srcManifest = Get-ChildItem -Path $SourcePath -Filter '*.psd1' |
     Select-Object -First 1
 if (-not $srcManifest) { throw "No source manifest found under $SourcePath" }
 $ModuleName = $srcManifest.BaseName
+
+# Build.psd1 supplies Build-Module's defaults. Build.ps1 reads it too so the
+# clean step and CopyPaths handling agree with what Build-Module will do.
+$buildPsd1Path = Join-Path -Path $SourcePath -ChildPath 'Build.psd1'
+$buildConfig = @{}
+if (Test-Path $buildPsd1Path) {
+    $buildConfig = Import-PowerShellDataFile -Path $buildPsd1Path
+}
+
+# Resolve the output directory: explicit -OutputDirectory wins, then
+# Build.psd1's OutputDirectory (relative to Source\), then .\Output.
+if (-not $OutputDirectory) {
+    $OutputDirectory = if ($buildConfig.OutputDirectory) {
+        $OutDirJoin = Join-Path -Path $SourcePath -ChildPath $buildConfig.OutputDirectory
+        [System.IO.Path]::GetFullPath($OutDirJoin)
+    } else {
+        Join-Path -Path $PSScriptRoot -ChildPath 'Output'
+    }
+}
 
 function Resolve-Dependency {
     param([string] $Name, [version] $MinimumVersion)
@@ -114,12 +135,8 @@ if ($BuildToRoot) {
     )
 
     # Add CopyPaths folders declared in Build.psd1
-    $buildPsd1Path = Join-Path -Path $SourcePath -ChildPath 'Build.psd1'
-    if (Test-Path $buildPsd1Path) {
-        $buildConfig = Import-PowerShellDataFile -Path $buildPsd1Path
-        foreach ($cp in $buildConfig.CopyPaths) {
-            $rootArtifacts += Join-Path -Path $RepoRoot -ChildPath (Split-Path -Path $cp -Leaf)
-        }
+    foreach ($cp in $buildConfig.CopyPaths) {
+        $rootArtifacts += Join-Path -Path $RepoRoot -ChildPath (Split-Path -Path $cp -Leaf)
     }
 
     # Add any culture-named help folders present in the source tree (e.g. en-US)
@@ -165,12 +182,12 @@ if ($BuildToRoot) {
     Write-Host $Msg -ForegroundColor Cyan
 }
 else {
-    # Versioned build for the Gallery: output\<ModuleName>\<version>\
+    # Default build. Versioning behavior comes from Build.psd1
+    # (VersionedOutputDirectory); only the resolved output path is passed.
     $buildParams = @{
-        SourcePath               = $srcManifest.FullName
-        OutputDirectory          = $OutputDirectory
-        VersionedOutputDirectory = $true
-        Passthru                 = $true
+        SourcePath      = $srcManifest.FullName
+        OutputDirectory = $OutputDirectory
+        Passthru        = $true
     }
     if ($Version) { $buildParams.Version = $Version }
     $built = Build-Module @buildParams

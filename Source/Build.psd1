@@ -26,8 +26,11 @@
         './Data'
     )
 
-    # OutputDirectory          = '../Output'
-    # VersionedOutputDirectory = $true
+    # Output location for default (non -BuildToRoot) builds. Relative paths
+    # are resolved against this Source/ folder. Build.ps1 reads these values
+    # too (for its clean step); -BuildToRoot overrides them.
+    OutputDirectory          = '../Output'
+    VersionedOutputDirectory = $true
 
     # Optional: text injected at the very top / bottom of the generated .psm1.
     Prefix = 'Prefix.ps1'
