@@ -8,10 +8,15 @@ the module root.
 
 ## Build
 ```powershell
+# default: versioned build to Output\<ModuleName>\<version>\ (Gallery layout)
 .\Build.ps1
+
+# alternative: flat build to the repo root, for repos distributed by git clone
+.\Build.ps1 -BuildToRoot
 ```
 Test built module
-Run pester tests again on the built module:
+Run pester tests again on the built module (-Built prefers a root build,
+then falls back to the newest versioned build under Output\):
 ```powershell
 .\Tests.ps1 Offline,Online -Built
 ```

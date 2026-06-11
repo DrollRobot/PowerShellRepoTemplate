@@ -45,8 +45,10 @@
 
 
 .PARAMETER Built
-    Load the module from the built artifact at the repo root instead of the
-    source manifest. Only valid with Offline and Online.
+    Load the module from the built artifact instead of the source manifest.
+    Looks for a root build first (Build.ps1 -BuildToRoot), then falls back to
+    the newest versioned build under Output\. Only valid with Offline and
+    Online.
 
 .PARAMETER Quiet
     Forward -Quiet to the individual formatting checks so each prints only its
@@ -121,11 +123,22 @@ if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
 # access to full parameter metadata for all module functions and cmdlets.
 $ModuleName = Split-Path -Path $PSScriptRoot -Leaf
 $ManifestPath = if ($Built) {
-    Join-Path -Path $PSScriptRoot -ChildPath "$ModuleName.psd1"
+    # Prefer a flat root build (Build.ps1 -BuildToRoot) when one exists.
+    $RootManifest = Join-Path -Path $PSScriptRoot -ChildPath "$ModuleName.psd1"
+    if (Test-Path $RootManifest) {
+        $RootManifest
+    } else {
+        # Default build layout: Output\<ModuleName>\<version>\<ModuleName>.psd1
+        $OutputRoot = Join-Path -Path $PSScriptRoot -ChildPath "Output\$ModuleName"
+        Get-ChildItem -Path $OutputRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1 |
+            ForEach-Object { Join-Path -Path $_.FullName -ChildPath "$ModuleName.psd1" }
+    }
 } else {
     Join-Path -Path $PSScriptRoot -ChildPath "source\$ModuleName.psd1"
 }
-if (Test-Path $ManifestPath) {
+if ($ManifestPath -and (Test-Path $ManifestPath)) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $RelManifestPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ManifestPath)
     Write-Host "Loading module from: $RelManifestPath" -ForegroundColor Cyan
@@ -176,10 +189,14 @@ $FormattingScriptMap = @{
 
 $IndividualTests = @($Test | Where-Object { $FormattingScriptMap.ContainsKey($_) })
 
+# Track Pester failures across sections so the script can exit nonzero for CI.
+$PesterFailedCount = 0
+
 # --- Offline ---
 if ('Offline' -in $Test) {
     Write-Host "`n=== Invoke-Pester (Offline) ===" -ForegroundColor Cyan
-    Invoke-Pester -Path $PesterTestsFolder -ExcludeTagFilter 'Online'
+    $OfflineResult = Invoke-Pester -Path $PesterTestsFolder -ExcludeTagFilter 'Online' -PassThru
+    $PesterFailedCount += $OfflineResult.FailedCount
 }
 
 # --- Individual formatting tests ---
@@ -264,5 +281,9 @@ if ('Online' -in $Test) {
     # any overridden state in a finally block). Test secrets belong in
     # Tests\.env.ps1 (gitignored) -- see Tests\.env.ps1.example.
     Write-Host "`n=== Invoke-Pester (Online) ===" -ForegroundColor Cyan
-    Invoke-Pester -Path $PesterTestsFolder -TagFilter 'Online'
+    $OnlineResult = Invoke-Pester -Path $PesterTestsFolder -TagFilter 'Online' -PassThru
+    $PesterFailedCount += $OnlineResult.FailedCount
 }
+
+# Nonzero exit so CI and callers can gate on Pester results.
+if ($PesterFailedCount -gt 0) { exit 1 }
