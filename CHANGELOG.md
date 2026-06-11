@@ -2,9 +2,11 @@
 =============================================================================
 TEMPLATE SETUP NOTES -- remove this block - FIXME
 =============================================================================
-This CHANGELOG.md is part of python_repo_template, a starter repo scaffold.
-- Replace "python-repo-template" in the comparison/release URLs with your repo name.
-- Fill in the [1.0.0] release date and describe your initial release under ### Added.
+This CHANGELOG.md is part of PowershellRepoTemplate, a starter repo scaffold.
+- Replace "FIXME/FIXME" in the comparison/release URLs with your GitHub
+  owner/repo.
+- Fill in the [1.0.0] release date and describe your initial release under
+  ### Added.
 =============================================================================
 -->
 
@@ -23,5 +25,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- FIXME: describe the initial public API here -->
 
-[Unreleased]: https://github.com/FIXME/python-repo-template/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/FIXME/python-repo-template/releases/tag/v1.0.0
+[Unreleased]: https://github.com/FIXME/FIXME/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/FIXME/FIXME/releases/tag/v1.0.0

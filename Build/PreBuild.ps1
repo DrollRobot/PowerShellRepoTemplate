@@ -13,33 +13,5 @@
 
 $ErrorActionPreference = 'Stop'
 
-# Ensure ImportExcel is available
-if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
-    Write-Host "Installing ImportExcel module..." -ForegroundColor Cyan
-    Install-Module -Name ImportExcel -Scope CurrentUser -Force -AllowClobber
-}
-Import-Module -Name ImportExcel -Force
-
-# Reapply conditional formatting rules to the template to prevent drift
-$RepoRoot = Split-Path -Path $PSScriptRoot -Parent
-$JoinPathParams = @{
-    Path                = $RepoRoot
-    ChildPath           = 'Source'
-    AdditionalChildPath = @('Data', 'IpAddressConditionalFormattingTemplate.xlsx')
-}
-$TemplatePath = Join-Path @JoinPathParams
-
-$ScriptParams = @{
-    Path          = $TemplatePath
-    ColumnName    = 'ipaddress'
-    ClearExisting = $true
-}
-
-$ScriptPathParams = @{
-    Path                = $RepoRoot
-    ChildPath           = 'Build'
-    AdditionalChildPath = @('Add-IpAddressConditionalFormattingTemplate.ps1')
-}
-$ScriptPath = Join-Path @ScriptPathParams
-
-& $ScriptPath @ScriptParams
+# FIXME: add project-specific pre-build steps here, or delete this file.
+Write-Host 'PreBuild: nothing to do.' -ForegroundColor Cyan

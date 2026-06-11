@@ -21,7 +21,7 @@ foreach ($folder in $folders) {
 }
 
 # Suffix (build.psd1 Suffix = 'suffix.ps1'): module init, runs after functions
-# are defined so it can call them and populate $Global:IRT_* state.
+# are defined so it can call them and populate module global state.
 $suffix = Join-Path -Path $PSScriptRoot -ChildPath 'suffix.ps1'
 if (Test-Path $suffix) { . $suffix }
 

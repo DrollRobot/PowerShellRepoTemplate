@@ -13,10 +13,8 @@ After making changes, ask the user if we're ready to move on to tests.
 ```powershell
 # run offline pester tests for rapid feedback
 .\Tests.ps1 Offline
-# then run online tests
+# then run online tests (requires a live session to the module's external service)
 .\Tests.ps1 Online
-# (if changes touched interactive auth code, use -InteractiveAuth to force a fresh sign-in)
-.\Tests.ps1 Online -InteractiveAuth
 ```
 Do not move on to formatting until all Pester tests are passing.
 
@@ -44,7 +42,7 @@ Do not move on to formatting until all Pester tests are passing.
 `.\Tests.ps1 <Category>` scans all in-scope files. To check just one file , call the standalone
 check directly with `-Path`. Prefer this over hand-rolling grep/regex checks:
 
-    .\Tests\Test-LineLength.ps1 -Path .\Scripts\Invoke-RandomEmailTraffic.ps1
+    .\Tests\Test-LineLength.ps1 -Path .\Source\Public\Get-Greeting.ps1
 
 These standalone checks accept `-Path` (a file or folder): Test-LineLength,
 Test-BacktickContinuation, Test-FormatOperator, Test-JoinPath, Test-ModuleSyntax,

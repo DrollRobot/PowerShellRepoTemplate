@@ -70,24 +70,9 @@ $Yellow = @{ForegroundColor = 'Yellow' }
 # Hard-coded fallback module list
 # Used only when the manifest's RequiredModules cannot be read (missing,
 # empty, or the manifest itself can't be found).
-$HardCodedRequiredModules = @(
-    @{ModuleName = 'Microsoft.Graph.Applications'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Authentication'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.DeviceManagement'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Beta.Identity.Signins'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Beta.Reports'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.DirectoryObjects'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Groups'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Identity.DirectoryManagement'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Identity.Signins'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Reports'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Users'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'Microsoft.Graph.Users.Actions'; ModuleVersion = '2.30.0' }
-    @{ModuleName = 'ExchangeOnlineManagement'; ModuleVersion = '3.6.0' }
-    @{ModuleName = 'ImportExcel'; ModuleVersion = '7.8.0' }
-    @{ModuleName = 'PSToml'; ModuleVersion = '0.4.0' }
-    @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.0' }
-)
+# FIXME: optionally mirror your manifest's RequiredModules here, e.g.:
+#   @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.0' }
+$HardCodedRequiredModules = @()
 
 # Discover manifest
 $ManifestFiles = @(Get-ChildItem -Path $PSScriptRoot -Filter '*.psd1' -File)
@@ -118,7 +103,7 @@ if (-not $RequiredModules) {
 
 # if modules not found in either, return
 if (-not $RequiredModules) {
-    Write-Warning 'No required modules to install.'
+    if (-not $Quiet) { Write-Host @DarkCyan 'No required modules declared. Nothing to do.' }
     return
 }
 

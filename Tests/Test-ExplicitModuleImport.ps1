@@ -6,8 +6,8 @@
     For each .ps1 file under Source\, parses the file with Find-ScriptCommand,
     resolves each command to its owning module with Resolve-CommandModule, and
     checks that every module classified as Installed appears as a literal string
-    in the file. The intent is to ensure each file explicitly calls
-    Import-IRTModule for every external module it depends on.
+    in the file. The intent is to ensure each file explicitly imports (or at
+    least names) every external module it depends on.
 
     To suppress all findings for a file, add this comment anywhere in the file:
 
@@ -39,7 +39,7 @@ param(
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Resolve-CommandModule.ps1')
 
-# This check enforces the Import-IRTModule convention from AGENTS.md, which
+# This check enforces the explicit-import convention from AGENTS.md, which
 # applies only to in-domain code under Source\. Dev tooling, build scripts,
 # and tests are non-domain and exempt.
 $ExcludedFolders = @('Scripts', 'Tests', 'Build', 'Docs', '.local')

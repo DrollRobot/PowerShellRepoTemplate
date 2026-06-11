@@ -3,7 +3,7 @@
 
 <#
 .SYNOPSIS
-    Runs selected test categories for M365IncidentResponseTools.
+    Runs selected test categories for this module.
 
 .DESCRIPTION
     Selects and runs one or more test categories by name. Nothing runs by
@@ -17,9 +17,9 @@
     One or more test categories to run. Accepted values:
 
       Offline              -- Pester tests that do not require connectivity.
-      Online               -- Pester tests tagged Online. Requires an active
-                             Microsoft 365 session; Connect-IRT is called
-                             automatically.
+      Online               -- Pester tests tagged Online. These require a live
+                             connection to whatever external service the module
+                             targets; establish the session before running.
       AutoFormat           -- Trailing-whitespace fix followed by PSScriptAnalyzer
                              auto-fix and format; suppresses lint findings output.
       LineLength           -- Check lines exceeding 100 characters.
@@ -32,7 +32,7 @@
       FixmeComments        -- Report FIXME comments.
       WriteVerboseDebug    -- Check for Write-Verbose and Write-Debug calls.
       ExplicitModuleImport -- Check that each source file names every external module
-                             it uses, so Import-IRTModule calls are explicit.
+                             it uses, so module imports are explicit.
       PSSA                 -- PSScriptAnalyzer detection only; reports issues without
                              modifying any files.
 
@@ -43,17 +43,6 @@
       TrailingWhitespace   -- Remove trailing whitespace (auto-fixes in place).
                              Included in AutoFormat.
 
-
-.PARAMETER InteractiveAuth
-    Used with Online. Deletes the test token cache and prompts for interactive
-    sign-in, then immediately reconnects silently to verify the cache
-    round-trip.
-
-    When omitted (default), Connect-IRT runs in silent-only mode: MSAL
-    attempts a token refresh from the test cache and fails immediately if no
-    cached credentials exist. This is the default for non-interactive runs.
-
-    Requires Online; rejected without it.
 
 .PARAMETER Built
     Load the module from the built artifact at the repo root instead of the
@@ -90,10 +79,6 @@
     Fixes trailing whitespace then runs PSSA auto-fix and formatting; suppresses lint findings.
 
 .EXAMPLE
-    .\Tests.ps1 Online -InteractiveAuth
-    Runs online tests with interactive sign-in.
-
-.EXAMPLE
     .\Tests.ps1 Offline Online -Built
     Runs Pester tests against the compiled module artifact.
 #>
@@ -111,9 +96,6 @@ param(
     [string[]] $Test,
 
     [Parameter()]
-    [switch] $InteractiveAuth,
-
-    [Parameter()]
     [switch] $Built,
 
     [Parameter()]
@@ -122,11 +104,6 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-if ($InteractiveAuth -and 'Online' -notin $Test) {
-    Write-Host '-InteractiveAuth requires -Test Online.' -ForegroundColor Yellow
-    exit 1
-}
 
 # error when requesting formatting tests on built module
 $FormattingOnlyValues = @(
@@ -141,7 +118,7 @@ if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
 }
 
 # Import the module under test so Pester tests and PSScriptAnalyzer both have
-# access to full parameter metadata for all IRT functions and cmdlets.
+# access to full parameter metadata for all module functions and cmdlets.
 $ModuleName = Split-Path -Path $PSScriptRoot -Leaf
 $ManifestPath = if ($Built) {
     Join-Path -Path $PSScriptRoot -ChildPath "$ModuleName.psd1"
@@ -155,21 +132,6 @@ if (Test-Path $ManifestPath) {
     Import-Module $ManifestPath -Force
     $ModuleStopwatch.Stop()
     Write-Host "Module loaded in $($ModuleStopwatch.Elapsed.TotalSeconds)s." -ForegroundColor Cyan
-
-    # Import-IRTConfig runs automatically on module load (via suffix.ps1) and always
-    # populates $Global:IRT_Config -- either from the user's config file in $env:APPDATA
-    # or, on first run, by creating that file from the bundled template. If the variable
-    # is still unset after module import, something is wrong with the installation and
-    # tests should not proceed with silent defaults.
-    $IrtConfigVar = Get-Variable -Name 'IRT_Config' -Scope Global -ErrorAction SilentlyContinue
-    if (-not $IrtConfigVar -or -not $IrtConfigVar.Value) {
-        $ErrMsg = '$Global:IRT_Config not found. ' +
-        "If you've never run the module before, try importing to create the user config file."
-        Write-Error $ErrMsg
-        exit 1
-    }
-    $KeyCount = ($Global:IRT_Config.PSObject.Properties.Name).Count
-    Write-Host "Config loaded ($KeyCount keys)." -ForegroundColor Cyan
 }
 else {
     $ErrMsg = "Module manifest not found at $ManifestPath. " +
@@ -297,69 +259,10 @@ if ('Formatting' -in $Test) {
 
 # --- Online ---
 if ('Online' -in $Test) {
-    # Derive the test cache path alongside the primary cache.
-    $PrimaryCache = $Global:IRT_Config.MsalCachePath
-    $CacheParentDir = Split-Path $PrimaryCache -Parent
-    $TestCachePath = Join-Path -Path $CacheParentDir -ChildPath 'irt-testing-cache.bin'
-
-    # Override config for this run: always use the test cache with caching forced on.
-    $OriginalCachePath = $Global:IRT_Config.MsalCachePath
-    $OriginalCacheEnable = $Global:IRT_Config.EnableTokenCache
-    $Global:IRT_Config.MsalCachePath = $TestCachePath
-    $Global:IRT_Config.EnableTokenCache = $true
-
-    if (-not $OriginalCacheEnable) {
-        Write-Host ''
-        Write-Host '  WARNING: Online tests override the token cache config.' -ForegroundColor Red
-        Write-Host "           Test cache : $TestCachePath" -ForegroundColor Red
-        Write-Host '         EnableTokenCache has been forced on for this run.' -ForegroundColor Red
-    }
-
-    if ($InteractiveAuth) {
-        $env:IRT_TEST_SILENT_AUTH = '0'
-        if (Test-Path $TestCachePath) {
-            Remove-Item -Path $TestCachePath -Force
-            Write-Host ''
-            $Msg = '  Deleted existing test token cache. Interactive sign-in will be required.'
-            Write-Host $Msg -ForegroundColor Cyan
-        }
-    }
-    else {
-        $env:IRT_TEST_SILENT_AUTH = '1'
-    }
-
-    # Pass 1: Connect-IRT.Tests.ps1 runs first. Its BeforeAll genuinely tests
-    # Connect-IRT by clearing $Global:IRT_Session and calling it from scratch.
-    # On success the session is populated and available to all subsequent files.
-    $ConnectTestFile = Join-Path -Path $PesterTestsFolder -ChildPath 'Connect-IRT.Tests.ps1'
-    try {
-        Write-Host "`n=== Invoke-Pester (Online: Connect-IRT) ===" -ForegroundColor Cyan
-        $ConnectResult = Invoke-Pester -Path $ConnectTestFile -TagFilter 'Online' -PassThru
-
-        # Pass 2: remaining online tests, only if the connection is now active.
-        # Skipping when the connection tests failed avoids a cascade of misleading
-        # failures in every downstream test file that relies on the session.
-        if ($ConnectResult.FailedCount -gt 0 -or -not $Global:IRT_Session) {
-            Write-Host ''
-            $Msg = '  Connect-IRT online tests failed or no session was established.'
-            Write-Host $Msg -ForegroundColor Red
-            Write-Host '  Skipping remaining online tests.' -ForegroundColor Red
-        }
-        else {
-            $RemainingTests = Get-ChildItem -Path $PesterTestsFolder -Filter '*.Tests.ps1' |
-                Where-Object { $_.Name -ne 'Connect-IRT.Tests.ps1' } |
-                Select-Object -ExpandProperty FullName
-
-            if ($RemainingTests) {
-                Write-Host "`n=== Invoke-Pester (Online: remaining) ===" -ForegroundColor Cyan
-                Invoke-Pester -Path $RemainingTests -TagFilter 'Online'
-            }
-        }
-    }
-    finally {
-        # Always restore the original config, even if Pester throws.
-        $Global:IRT_Config.MsalCachePath = $OriginalCachePath
-        $Global:IRT_Config.EnableTokenCache = $OriginalCacheEnable
-        $env:IRT_TEST_SILENT_AUTH = $null
-    }
+    # Runs every Pester test tagged 'Online'. If your module needs a live session,
+    # connection setup belongs here (establish it before invoking Pester, restore
+    # any overridden state in a finally block). Test secrets belong in
+    # Tests\.env.ps1 (gitignored) -- see Tests\.env.ps1.example.
+    Write-Host "`n=== Invoke-Pester (Online) ===" -ForegroundColor Cyan
+    Invoke-Pester -Path $PesterTestsFolder -TagFilter 'Online'
 }

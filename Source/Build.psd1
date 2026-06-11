@@ -11,7 +11,7 @@
     #   (or just: Build-Module  -- if run from the Source/ folder)
     # =========================================================================
 
-    Path = 'M365IncidentResponseTools.psd1'
+    Path = 'PowershellRepoTemplate.psd1'
 
     SourceDirectories = @(
         'Classes'
@@ -26,7 +26,7 @@
         './Data'
     )
 
-    # OutputDirectory          = '../output'
+    # OutputDirectory          = '../Output'
     # VersionedOutputDirectory = $true
 
     # Optional: text injected at the very top / bottom of the generated .psm1.

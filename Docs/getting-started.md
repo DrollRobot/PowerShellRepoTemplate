@@ -3,49 +3,31 @@
 ## Prerequisites
 
 - PowerShell 7.5 or later
-- A Microsoft 365 tenant and a Global Admin account to sign in with.
-- Recommended: ip_info installed as a uv tool - https://github.com/DrollRobot/ip_info
+- FIXME: list any services, accounts, or external tools your module needs.
 
 ## Module Install
 
 ### Clone from Github
 
 ```powershell
-# install the module to a folder in $env:PsModulePath
-# if not sure, use C:\Users\USER\(OneDrive??)\Documents\Powershell\Modules\
+# install the module to a folder in $env:PSModulePath
+# if not sure, use C:\Users\USER\(OneDrive??)\Documents\PowerShell\Modules\
 $Documents = [environment]::getfolderpath('MyDocuments')
-Set-Location "$Documents\Powershell\Modules\"
+Set-Location "$Documents\PowerShell\Modules\"
 
 # clone module from github
-git clone https://github.com/DrollRobot/M365IncidentResponseTools.git
+git clone https://github.com/FIXME/FIXME.git
 ```
 
 ### Install Dependencies
 
-On the first import of the module, (`Import-Module M365IncidentResponseTools`) 
-Install-Dependencies.ps1 will verify you have the required modules installed. If not, 
-it will tell you to run a command similar to the one below:
+On the first import of the module (`Import-Module FIXME`),
+Confirm-Dependencies.ps1 verifies you have the required modules installed.
+If any are missing, it tells you to run a command similar to:
+
 ```powershell
-& "C:\Users\USER\Documents\Powershell\Modules\M365IncidentResponseTools\Install-Dependencies.ps1"
+& "C:\Users\USER\Documents\PowerShell\Modules\FIXME\Install-Dependencies.ps1"
 ```
 
-**The script will install the following modules:**
-Microsoft.Graph.Applications
-Microsoft.Graph.Authentication
-Microsoft.Graph.Beta.Identity.Signins
-Microsoft.Graph.Beta.Reports
-Microsoft.Graph.DeviceManagement
-Microsoft.Graph.DirectoryObjects
-Microsoft.Graph.Groups
-Microsoft.Graph.Identity.DirectoryManagement
-Microsoft.Graph.Identity.Signins
-Microsoft.Graph.Reports
-Microsoft.Graph.Users
-Microsoft.Graph.Users.Actions
-ExchangeOnlineManagement
-ImportExcel
-PSToml
-PSFramework
-
-**Connecting to an M365 tenant:**
-[Connect to M365](connect.md)
+The script installs every module listed in `RequiredModules` in the module
+manifest.

@@ -1,27 +1,16 @@
-
 # local scratch space (never committed)
 .local/
-
-# investigation files
-/*.xml
-/*.xlsx
-/*Investigation/
 
 # test credentials (local only - never commit)
 *.env*
 !*.env.ps1.example
 
+# build artifacts
+.staging/
+/Output/
+
 # mkdocs documentation
 /site
-
-# Build artifacts
-.staging/
-
-# Abstra
-# Abstra is an AI-powered process automation framework.
-# Ignore directories containing user credentials, local state, and settings.
-# Learn more at https://abstra.io/docs
-.abstra/
 
 # Visual Studio Code
 #  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
@@ -30,15 +19,3 @@
 #  you could uncomment the following to ignore the entire vscode folder
 .vscode/
 *.code-workspace
-
-# Cursor
-#  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
-#  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
-#  refer to https://docs.cursor.com/context/ignore-files
-.cursorignore
-.cursorindexingignore
-
-# Marimo
-marimo/_static/
-marimo/_lsp/
-__marimo__/

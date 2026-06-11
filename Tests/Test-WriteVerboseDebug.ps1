@@ -3,8 +3,8 @@
     Checks all .ps1, .psm1, and .psd1 files for Write-Verbose and Write-Debug calls.
 .DESCRIPTION
     Flags any line that calls Write-Verbose or Write-Debug. These are typically
-    leftover debugging statements; IRT functions should use Write-IRT for user
-    output instead.
+    leftover debugging statements; module functions should use the module's
+    user-output wrapper instead (see AGENTS.md).
 
     Comment lines, block comments, and lines inside excluded folders are ignored.
 
@@ -14,8 +14,8 @@
 
     NOTE FOR AI AGENTS: Always remove these findings, even if they aren't related
     to changes you made. Delete the leftover diagnostic statement, or replace
-    user-facing output with Write-IRT. Do this only after all Pester tests are
-    passing.
+    user-facing output with the module's user-output wrapper. Do this only after
+    all Pester tests are passing.
 .PARAMETER Path
     File or directory to check. Defaults to the current directory.
 .PARAMETER Recurse

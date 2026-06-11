@@ -57,7 +57,8 @@ $AnalyzerSettings = @{
     Rules        = @{
         PSAvoidUsingPositionalParameters = @{
             Enable           = $true
-            CommandAllowList = @('Write-IRT', 'Write-Trace')
+            # FIXME: add your module's user-output wrapper (e.g. Write-XYZ).
+            CommandAllowList = @('Write-Trace')
         }
     }
 }
@@ -68,12 +69,9 @@ $AnalyzerSettings = @{
 $PerFileSuppressions = @{
     # FunctionsToExport = '*' is intentional in the Source manifest;
     # ModuleBuilder replaces it with the real export list on build.
-    'Source\M365IncidentResponseTools.psd1'             = @('PSUseToExportFieldsInManifest')
-    # Format-Tree internal helpers use positional parameters intentionally.
-    'Source\Private\Lib\Format-Tree\Format-Tree.ps1'   = @('PSAvoidUsingPositionalParameters')
+    'Source\PowershellRepoTemplate.psd1' = @('PSUseToExportFieldsInManifest')
     # Build scripts use Write-Host for user-facing output.
-    'Build\PreBuild.ps1'                                = @('PSAvoidUsingWriteHost')
-    'Build\Add-IpAddressConditionalFormattingTemplate.ps1' = @('PSAvoidUsingWriteHost')
+    'Build\PreBuild.ps1'                 = @('PSAvoidUsingWriteHost')
 }
 
 # Per-path rule suppressions. Each key is a relative path prefix.
