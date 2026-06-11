@@ -1,0 +1,132 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "PowerShell: Launch Current File",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${file}",
+            "args": [
+                "auth-redesign"
+            ]
+        },
+        // tests
+        {
+            "name": "Tests.ps1 offline",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Tests.ps1",
+            "args": [
+                "offline",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Tests.ps1 online",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Tests.ps1",
+            "args": [
+                "online",
+                "-Interactive"
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "M365IncidentResponseTools (module load)",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\M365IncidentResponseTools.psm1_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Test-ExplicitModuleImport",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Test-ExplicitModuleImport_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Get-MsalCacheStats",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Get-MsalCacheStats_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        // functions
+        {
+            "name": "Connect-IRTTenant",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Connect-IRTTenant_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Get-IRTAdminRole",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Get-IRTAdminRole_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Get-IRTEntraSignInLog",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Get-IRTEntraSignInLog_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Get-IRTTenantOwner",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Get-IRTTenantOwner_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Get-IRTUnifiedAuditLog",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Get-IRTUnifiedAuditLog_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "New-IRTEmailSearch",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\New-IRTEmailSearch_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Set-IRTConfig",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Set-IRTConfig_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+
+        {
+            "name": "Show-IRTServicePrincipal",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Show-IRTServicePrincipal_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Show-IRTUser",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Show-IRTUser_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Start-IRTPlaybook",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${workspaceFolder}\\Scripts\\Debug\\Start-IRTPlaybook_DEBUG.ps1",
+            "cwd": "${workspaceFolder}",
+        },
+    ]
+}
