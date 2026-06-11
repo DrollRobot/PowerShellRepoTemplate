@@ -1,5 +1,3 @@
-# local scratch space (never committed)
-.local/
 
 # test credentials (local only - never commit)
 *.env*
