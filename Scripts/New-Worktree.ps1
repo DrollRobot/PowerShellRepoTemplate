@@ -49,7 +49,9 @@
     .\New-Worktree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.2.0.
+    Script version 1.3.1, which records the integration base as
+    branch.<branch>.prBase so Complete-WorkTree.ps1 can recover the PR base even
+    after `git push -u` repoints the branch's upstream.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
@@ -84,7 +86,7 @@ $ErrorActionPreference = 'Stop'
 # Version of this helper script itself. Bump on every change so copies in other
 # repos can be compared: patch = bugfix, minor = new flag/behavior, major =
 # breaking CLI change.
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.3.1'
 
 # --- output helpers ---------------------------------------------------------
 
@@ -356,6 +358,11 @@ Confirm-Step "Create worktree at '$wtPath' on new branch '$branch' from 'origin/
 New-Item -ItemType Directory -Path $wtHome -Force | Out-Null
 Invoke-Run git worktree add -b $branch $wtPath "origin/$Base"
 
+# Record the integration base durably. A later `git push -u` repoints the
+# branch's upstream (branch.<branch>.merge) to the branch itself, so
+# Complete-WorkTree.ps1 reads this custom key first to recover the real PR base.
+Invoke-Run git config "branch.$branch.prBase" $Base
+
 # --- step: generate the workspace -------------------------------------------
 
 Write-Section 'Step: generate workspace'
@@ -390,7 +397,7 @@ if (-not $ws) {
 $exclude = Join-Path -Path $commonDir -ChildPath 'info/exclude'
 $pattern = '*.code-workspace'
 $needExclude = -not (Test-Path -LiteralPath $exclude) -or
-    -not (Select-String -LiteralPath $exclude -Pattern $pattern -SimpleMatch -Quiet)
+-not (Select-String -LiteralPath $exclude -Pattern $pattern -SimpleMatch -Quiet)
 
 if ($needExclude) {
     Confirm-Step "Write '$wsName' and add '$pattern' to .git/info/exclude?"
@@ -448,6 +455,21 @@ if (-not $NoBootstrap) {
             Src   = $envFile.FullName
             Dst   = Join-Path -Path $wtPath -ChildPath $envFile.Name
             Label = $envFile.Name
+        }
+    }
+
+    # Link the testing env file (Tests/.env.ps1, gitignored test secrets) so each
+    # worktree shares the repo's single copy. The .example template is committed,
+    # so the worktree already checks it out; only the real file needs linking.
+    $srcTestsDir = Join-Path -Path $repoRoot -ChildPath 'Tests'
+    $dstTestsDir = Join-Path -Path $wtPath -ChildPath 'Tests'
+    $testEnvSrc = Join-Path -Path $srcTestsDir -ChildPath '.env.ps1'
+    $testEnvDst = Join-Path -Path $dstTestsDir -ChildPath '.env.ps1'
+    if ((Test-Path -LiteralPath $testEnvSrc) -and -not (Test-Path -LiteralPath $testEnvDst)) {
+        $links += [pscustomobject]@{
+            Src   = $testEnvSrc
+            Dst   = $testEnvDst
+            Label = 'Tests/.env.ps1'
         }
     }
 

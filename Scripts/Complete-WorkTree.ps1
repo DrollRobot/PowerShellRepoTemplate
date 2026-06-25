@@ -18,8 +18,10 @@
       2. Verify the working tree is clean -- everything is committed. PR.md
          itself is exempt; it may stay uncommitted since it only feeds
          `gh pr create`.
-      3. Resolve the PR base from the branch's UPSTREAM *before* pushing, since
-         `git push -u` repoints tracking. Refuses to target main.
+      3. Resolve the PR base: the base recorded at worktree creation
+         (branch.<branch>.prBase) if present, else the branch's upstream -- but
+         only while it still names an integration branch, since `git push -u`
+         repoints tracking to the branch itself. Refuses to target main.
       4. Show the PR.md body and confirm the title.
       5. Push the branch with -u.
       6. Open the PR with `gh pr create --base <base> --body-file PR.md`.
@@ -43,13 +45,16 @@
 
 .PARAMETER Title
     PR title. Defaults to the subject line of the most recent commit (or the
-    title carried in the note, for the -*FromNotes modes). You are always given
-    a chance to confirm or edit it interactively.
+    title carried in the note, for the -*FromNotes modes). The default is shown
+    and confirmed with a y/n prompt; answer 'n' to abort and re-run with -Title
+    to set a different one.
 
 .PARAMETER Base
-    Override the PR base branch. By default it is read from the branch's
-    upstream (e.g. origin/develop -> develop), or from the note for the
-    -*FromNotes modes. Targeting main is refused unless you pass it here.
+    Override the PR base branch. By default it is taken from the base recorded
+    when the worktree was created (branch.<branch>.prBase), falling back to the
+    branch's upstream when that still names an integration branch, or from the
+    note for the -*FromNotes modes. Targeting main is refused unless you pass it
+    here.
 
 .PARAMETER BodyFile
     Path to the PR body file. Defaults to PR.md at the worktree root. This file
@@ -93,8 +98,10 @@
     .\Complete-WorkTree.ps1 -WebFromNotes -Slug issue-42
 
 .NOTES
-    Script version 1.1.0, which adds the
-    -PushPRToNotes/-GHFromNotes/-WebFromNotes cross-device handoff.
+    Script version 1.2.1, which resolves the PR base from the worktree's
+    recorded base (branch.<branch>.prBase) and ignores an upstream that a
+    `git push -u` has repointed to the branch itself, so PRs no longer
+    occasionally target the worktree branch instead of develop.
 
     Requirements:
       - PowerShell 7.4 or later.
@@ -130,7 +137,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 # Version of this helper script itself. Bump on every change so copies in other
 # repos can be compared: patch = bugfix, minor = new flag/behavior, major =
 # breaking CLI change.
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.2.1'
 
 # The cross-device PR-body handoff stores one note per slug
 # (refs/notes/pr-body-<slug>) so concurrent PRs never share - or force-push
@@ -483,18 +490,33 @@ if ($branch -notlike 'wt/*') {
 
 $repoRoot = (Invoke-Native git rev-parse --show-toplevel).Trim()
 
-# Resolve the PR base. Read it from the branch's configured upstream, because a
-# later `git push -u` will repoint tracking to origin/<branch> and lose it.
-# Refuse main/master only for a base we resolved here; an explicit -Base is
-# taken as a deliberate override.
+# Resolve the PR base. Prefer the base recorded when the worktree was created
+# (the custom 'branch.<branch>.prBase' key, which `git push -u` never rewrites).
+# Otherwise fall back to the branch's tracking ref -- but only while it still
+# names an integration branch. Once the branch has been pushed with -u,
+# 'branch.<branch>.merge' is repointed to the branch itself, so reading it then
+# would target the worktree branch instead of develop. Refuse main/master only
+# for a base we resolved here; an explicit -Base is a deliberate override.
 if (-not $Base) {
-    $merge = git config "branch.$branch.merge"
-    if ([string]::IsNullOrWhiteSpace($merge)) {
-        Write-Host "  No upstream configured for '$branch'." -ForegroundColor Yellow
-        $Base = Read-WithDefault "  Enter the PR base branch" 'develop'
+    $prBase = "$(Invoke-NativeOk git config "branch.$branch.prBase")".Trim()
+    $merge = "$(Invoke-NativeOk git config "branch.$branch.merge")".Trim()
+    $merge = $merge -replace '^refs/heads/', ''
+    if ($prBase) {
+        $Base = $prBase
+    }
+    elseif ($merge -and $merge -ne $branch -and $merge -notlike 'wt/*') {
+        $Base = $merge
     }
     else {
-        $Base = $merge -replace '^refs/heads/', ''
+        if ($merge) {
+            $WarnMsg = "  Upstream of '$branch' is '$merge', not an integration " +
+            'branch (likely pushed with -u); ignoring it for the PR base.'
+            Write-Host $WarnMsg -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "  No usable upstream for '$branch'." -ForegroundColor Yellow
+        }
+        $Base = Read-WithDefault "  Enter the PR base branch" 'develop'
     }
     if ($Base -in 'main', 'master') {
         $ErrMsg = "Refusing to target '$Base'. This project uses git flow; PRs go to " +
@@ -531,10 +553,19 @@ Write-Host ($bodyText.TrimEnd()) -ForegroundColor Gray
 if (-not $Title) {
     $Title = (git log -1 --pretty=%s).Trim()
 }
-Write-Section "PR title"
-$Title = Read-WithDefault "Confirm or edit the PR title" $Title
 if ([string]::IsNullOrWhiteSpace($Title)) {
-    throw "PR title cannot be empty."
+    throw "PR title cannot be empty. Pass -Title to set one explicitly."
+}
+Write-Section "PR title"
+Write-Info "PR title" $Title
+# A y/n confirmation (not an editable prompt) keeps this step consistent with
+# every other prompt, so an absent-minded 'y' can't become the PR title itself.
+# To use a different title, answer 'n' and re-run with -Title.
+if (-not (Confirm-Step "Use this title?")) {
+    Write-Host ''
+    $HintMsg = 'Re-run with -Title "your title here" to set a different PR title.'
+    Write-Host $HintMsg -ForegroundColor Yellow
+    exit 1
 }
 
 # --- working tree status ---------------------------------------------------
