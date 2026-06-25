@@ -15,7 +15,9 @@
     The procedure:
       1. Confirm we are on a wt/ branch in a worktree (never the integration
          or release branch).
-      2. Verify the working tree is clean -- everything is committed.
+      2. Verify the working tree is clean -- everything is committed. PR.md
+         itself is exempt; it may stay uncommitted since it only feeds
+         `gh pr create`.
       3. Resolve the PR base from the branch's UPSTREAM *before* pushing, since
          `git push -u` repoints tracking. Refuses to target main.
       4. Show the PR.md body and confirm the title.
@@ -23,6 +25,8 @@
       6. Open the PR with `gh pr create --base <base> --body-file PR.md`.
       7. Report the PR URL and stop. The worktree is NOT cleaned up -- that is
          left to the user (see Remove-WorkTree.ps1).
+
+    Pass -Yes to answer every prompt with 'y' for non-interactive use.
 
 .PARAMETER Title
     PR title. Defaults to the subject line of the most recent commit. You are
@@ -34,10 +38,15 @@
     you pass it here explicitly.
 
 .PARAMETER BodyFile
-    Path to the PR body file. Defaults to PR.md at the worktree root.
+    Path to the PR body file. Defaults to PR.md at the worktree root. This file
+    does not need to be committed; it is exempt from the clean-tree check.
 
 .PARAMETER Draft
     Open the PR as a draft.
+
+.PARAMETER Yes
+    Assume 'yes' to every confirmation prompt (non-interactive). The prompt is
+    still printed with the auto-answer so the transcript records each step.
 
 .EXAMPLE
     .\Complete-WorkTree.ps1
@@ -45,10 +54,17 @@
 .EXAMPLE
     .\Complete-WorkTree.ps1 -Title "feat(auth): add SSO login" -Draft
 
+.EXAMPLE
+    .\Complete-WorkTree.ps1 -Yes
+
 .NOTES
+    Script version 1.0.0. Kept functionally in step with the maintained
+    complete_worktree.py source of truth; bump on every change.
+
     Requirements:
       - PowerShell 7.4 or later.
-      - Run from inside the worktree, on a wt/ branch with all work committed.
+      - Run from inside the worktree, on a wt/ branch with all work committed
+        (PR.md itself does not need to be committed).
       - `git` and `gh` installed and authenticated.
       - A PR.md body file written by the agent at the worktree root.
 #>
@@ -60,12 +76,23 @@ param(
     [string]$Title,
     [string]$Base,
     [string]$BodyFile = 'PR.md',
-    [switch]$Draft
+    [switch]$Draft,
+    [Alias('y')]
+    [switch]$Yes
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
+
+# Version of this helper script itself. Bump on every change so copies in other
+# repos can be compared: patch = bugfix, minor = new flag/behavior, major =
+# breaking CLI change.
+$ScriptVersion = '1.0.0'
+
+# Answer every confirmation prompt with 'y' (set from -Yes). Script-scoped so
+# the helper functions below can read it.
+$script:AssumeYes = [bool]$Yes
 
 # --- helpers ---------------------------------------------------------------
 
@@ -101,6 +128,11 @@ function Invoke-Native {
 
 function Confirm-Step {
     param([string]$Prompt)
+    if ($script:AssumeYes) {
+        Write-Host "$Prompt [y/n] y " -NoNewline
+        Write-Host '(auto: -Yes)' -ForegroundColor DarkGray
+        return $true
+    }
     while ($true) {
         $answer = (Read-Host "$Prompt [y/n]").Trim().ToLowerInvariant()
         switch ($answer) {
@@ -113,26 +145,31 @@ function Confirm-Step {
 
 function Read-WithDefault {
     param([string]$Prompt, [string]$Default)
+    if ($script:AssumeYes) {
+        Write-Host "$Prompt`n  [$Default]: $Default " -NoNewline
+        Write-Host '(auto: -Yes)' -ForegroundColor DarkGray
+        return $Default
+    }
     $entered = Read-Host "$Prompt`n  [$Default]"
     if ([string]::IsNullOrWhiteSpace($entered)) { return $Default }
     return $entered.Trim()
 }
 
-# Resolve the integration branch to suggest when the wt/ branch has no
-# upstream: $env:WT_BASE, then origin/develop, then origin/dev, then origin's
-# default branch. Keeps the script portable across repos with different
-# conventions.
-function Get-DefaultBase {
-    if ($env:WT_BASE) { return $env:WT_BASE }
-    foreach ($name in @('develop', 'dev')) {
-        if (git branch --list --remotes "origin/$name") { return $name }
+# Filter `git status --porcelain` lines, ignoring the exempt PR body file. The
+# PR body only feeds `gh pr create`, so it may stay uncommitted; every other
+# changed file still counts as a dirty tree.
+function Get-DirtyStatusLine {
+    param([string[]]$StatusLines, [string]$ExemptPath)
+    $dirty = @()
+    foreach ($line in $StatusLines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        # Porcelain v1: two status letters, a space, then the path. Paths with
+        # special characters are quoted; the plain trim covers the simple case.
+        $path = $line.Substring(3).Trim().Trim('"')
+        if ($ExemptPath -and $path -eq $ExemptPath) { continue }
+        $dirty += $line
     }
-    try {
-        $head = git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>$null
-        if ($head) { return ($head -replace '^origin/', '') }
-    }
-    catch { }
-    return 'main'
+    return $dirty
 }
 
 # Prompt before running an action. Answering 'n' aborts the whole script and
@@ -151,6 +188,9 @@ function Invoke-Step {
 }
 
 # --- gather state ----------------------------------------------------------
+
+Write-Info "Script version" $ScriptVersion
+Write-Host ''
 
 Write-Section "Worktree setup"
 
@@ -178,21 +218,22 @@ $repoRoot = (Invoke-Native git rev-parse --show-toplevel).Trim()
 
 # Resolve the PR base. Read it from the branch's configured upstream, because a
 # later `git push -u` will repoint tracking to origin/<branch> and lose it.
+# Refuse main/master only for a base we resolved here; an explicit -Base is
+# taken as a deliberate override.
 if (-not $Base) {
     $merge = git config "branch.$branch.merge"
     if ([string]::IsNullOrWhiteSpace($merge)) {
         Write-Host "  No upstream configured for '$branch'." -ForegroundColor Yellow
-        $Base = Read-WithDefault "  Enter the PR base branch" (Get-DefaultBase)
+        $Base = Read-WithDefault "  Enter the PR base branch" 'develop'
     }
     else {
         $Base = $merge -replace '^refs/heads/', ''
     }
-}
-
-if ($Base -in 'main', 'master') {
-    $ErrMsg = "Refusing to target '$Base'. Worktree PRs go to the integration " +
-    'branch (e.g. develop/dev). Pass -Base to override deliberately.'
-    throw $ErrMsg
+    if ($Base -in 'main', 'master') {
+        $ErrMsg = "Refusing to target '$Base'. This project uses git flow; PRs go to " +
+        'develop. Pass -Base to override deliberately.'
+        throw $ErrMsg
+    }
 }
 
 Write-Info "Worktree" $repoRoot
@@ -235,22 +276,28 @@ Write-Section "Working tree status"
 Write-Run "git status --short --branch"
 git status --short --branch
 
-$treeClean = $true
-try {
-    git diff-index --quiet HEAD --
+# The PR body file only feeds `gh pr create`, so it may stay uncommitted; exempt
+# it from the clean-tree check (when it lives inside the worktree). Compute its
+# repo-root-relative POSIX path to match what `git status --porcelain` reports.
+$exempt = $null
+$resolvedBody = (Resolve-Path -LiteralPath $bodyPath).Path
+$relBody = [System.IO.Path]::GetRelativePath($repoRoot, $resolvedBody)
+if (-not $relBody.StartsWith('..')) {
+    $exempt = $relBody -replace '\\', '/'
 }
-catch {
-    $treeClean = $false
-}
-# diff-index ignores untracked files; catch those too (PR.md may be untracked).
-$untracked = git ls-files --others --exclude-standard
-if (-not $treeClean -or $untracked) {
+$bodyName = Split-Path -Path $bodyPath -Leaf
+
+$statusLines = @(git status --porcelain)
+$dirty = Get-DirtyStatusLine -StatusLines $statusLines -ExemptPath $exempt
+if ($dirty) {
     Write-Host ''
-    Write-Host '  Working tree is not clean. Commit everything' -ForegroundColor Yellow
-    Write-Host '  (including PR.md if it should be tracked) first.' -ForegroundColor Yellow
+    $WarnMsg = "  Working tree is not clean. Commit everything except $bodyName"
+    Write-Host $WarnMsg -ForegroundColor Yellow
+    Write-Host '  before completing the worktree.' -ForegroundColor Yellow
     throw "Uncommitted changes present; refusing to push."
 }
-Write-Host "  Working tree is clean; all changes committed." -ForegroundColor Green
+$CleanMsg = "  Working tree is clean; all changes committed ($bodyName is exempt)."
+Write-Host $CleanMsg -ForegroundColor Green
 
 # --- existing PR guard -----------------------------------------------------
 
