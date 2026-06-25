@@ -49,8 +49,7 @@
     .\New-Worktree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.2.0. Kept functionally in step with the maintained
-    new_worktree.py source of truth; bump on every change.
+    Script version 1.2.0.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]

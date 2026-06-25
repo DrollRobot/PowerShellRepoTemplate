@@ -64,7 +64,7 @@
     Progress text to the host. No pipeline output.
 
 .NOTES
-    Inspired by python_repo_template's scripts/template_setup helpers.
+    Run once, right after creating a repo from this template.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]

@@ -68,8 +68,7 @@
     .\Remove-WorkTree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.2.1. Kept functionally in step with the maintained
-    remove_worktree.py source of truth; bump on every change.
+    Script version 1.2.1.
 
     Requirements:
       - PowerShell 7.4 or later.
@@ -121,7 +120,7 @@ $ScriptVersion = '1.2.1'
 $script:AssumeYes = [bool]$Yes
 
 # A slug is required when auto-answering: the interactive picker has nobody to
-# answer it. Fail fast, mirroring the Python parser's argument error.
+# answer it. Fail fast.
 if ($script:AssumeYes -and -not $Slug) {
     throw "A slug is required with -Yes (there is nobody to answer the picker)."
 }

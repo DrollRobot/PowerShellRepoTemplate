@@ -61,8 +61,7 @@
     .\Push-NewTagToMain.ps1 patch -Yes
 
 .NOTES
-    Script version 1.1.0. Kept functionally in step with the maintained
-    push_new_tag_to_main.py source of truth; bump on every change.
+    Script version 1.1.0.
 
     Requirements:
       - PowerShell 7.4 or later.
