@@ -3,10 +3,6 @@
 *.env*
 !*.env.ps1.example
 
-# build artifacts
-.staging/
-/Output/
-
 # mkdocs documentation
 /site
 
