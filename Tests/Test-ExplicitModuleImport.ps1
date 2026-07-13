@@ -226,3 +226,6 @@ $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$hitCount missing module reference(s) -- $totalFiles file(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Nonzero exit so pre-commit and CI can gate on findings.
+exit ([int]($hitCount -gt 0))

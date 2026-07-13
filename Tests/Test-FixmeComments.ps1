@@ -116,3 +116,7 @@ $SummaryColor = if ($Hits.Count -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$($Hits.Count) FIXME comment(s) -- $FileCount file(s), " +
 "$TotalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Nonzero exit so pre-commit and CI can gate on findings. This check is
+# informational (see notes above); it is not wired into pre-commit or CI.
+exit ([int]($Hits.Count -gt 0))

@@ -337,3 +337,8 @@ if ($IssueCount -gt 0 -and -not $Quiet) {
 $SummaryColor = if ($IssueCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$IssueCount issue(s) -- $FileCount file(s) checked. (${ElapsedSec}s)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Nonzero exit so pre-commit and CI can gate on findings. Note: the early
+# returns above (VS Code host, PSSA not installed, analyzer error) intentionally
+# leave a zero exit -- they are environment skips, not clean passes.
+exit ([int]($IssueCount -gt 0))

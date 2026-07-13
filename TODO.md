@@ -5,11 +5,6 @@ python_repo_template (2026-06-11). Updated as items land.
 
 ## Open
 
-- [ ] **Make formatting checks exit nonzero on findings.** The `Tests\Test-*.ps1`
-  scripts print findings but exit 0, so the ModuleSyntax/PSSA steps in
-  `ci.yml` cannot gate merges yet (only the Pester step does, via the exit
-  code added to Tests.ps1). Add a common `-AsGate`/exit-code convention to
-  the check scripts, then remove the caveat comment from ci.yml.
 - [ ] **PSFramework debug-output convention.** AGENTS.md documents
   `Write-PSFMessage` for in-domain debug output, but the template declares no
   PSFramework dependency. Decide: ship a dependency-free wrapper, or add
@@ -21,6 +16,12 @@ python_repo_template (2026-06-11). Updated as items land.
 
 ## Done
 
+- [x] **Formatting checks exit nonzero on findings.** Each `Tests\Test-*.ps1`
+  check now exits nonzero when it finds something. Tests.ps1 tallies these
+  across a multi-check run so it gates on all requested checks. The fast checks
+  run in pre-commit (`.pre-commit-config.yaml`) against staged files and in CI
+  (`ci.yml`); PSSA gates in CI only. Fixers (AutoFormat, TrailingWhitespace) do
+  not gate.
 - [x] `ci.yml` workflow: syntax, PSSA, offline Pester on windows-latest, with
   branch-protection setup notes. Pester failures gate via Tests.ps1 exit code.
 - [x] `docs.yml` path filter fixed (`Docs/**`; GitHub filters are

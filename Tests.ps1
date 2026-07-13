@@ -130,7 +130,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
-    [Parameter(Position = 0, Mandatory)]
+    [Parameter(Position = 0, Mandatory, ValueFromRemainingArguments)]
     [ValidateSet(
         'Offline', 'Online', 'Formatting',
         'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
@@ -329,6 +329,12 @@ $PostTestsHook = Join-Path -Path $TestsFolder -ChildPath 'PostTests.ps1'
 # Track Pester failures across sections so the script can exit nonzero for CI.
 $PesterFailedCount = 0
 
+# Track formatting/lint check failures (a nonzero exit from an individual check)
+# so a multi-check run gates on ALL requested checks, not just the last one that
+# happened to run. Without this, the process exit code would reflect only the
+# final check invoked.
+$FormattingFailedCount = 0
+
 try {
     if (Test-Path $PreTestsHook) {
         Write-Host "`n=== PreTests.ps1 ===" -ForegroundColor Cyan
@@ -369,6 +375,13 @@ try {
                     & $ScriptPath @PssaSplat -AutoFormat -Quiet
                 }
                 default { & $ScriptPath -Path $TargetPath -Recurse @QuietSplat }
+            }
+            # Tally detection-check failures for the final exit code. The fixers
+            # (AutoFormat, TrailingWhitespace) mutate files rather than report, so
+            # their exit code does not gate the run.
+            if ($IndividualTest -notin @('AutoFormat', 'TrailingWhitespace') -and
+                $LASTEXITCODE -ne 0) {
+                $FormattingFailedCount++
             }
         }
     }
@@ -439,5 +452,5 @@ finally {
     }
 }
 
-# Nonzero exit so CI and callers can gate on Pester results.
-if ($PesterFailedCount -gt 0) { exit 1 }
+# Nonzero exit so CI and callers can gate on Pester and formatting results.
+if ($PesterFailedCount -gt 0 -or $FormattingFailedCount -gt 0) { exit 1 }

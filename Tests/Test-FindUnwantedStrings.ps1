@@ -28,7 +28,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
-    [string] $Path = (Get-Location).Path,
+    [string[]] $Path = @((Get-Location).Path),
     [switch] $Recurse,
     [switch] $Quiet
 )
@@ -80,27 +80,35 @@ if ($UnwantedPatterns.Count -eq 0) {
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-if (Test-Path $Path -PathType Leaf) {
-    $Files = @(Get-Item $Path)
-    $BaseDir = Split-Path $Path
+# Base path for relative-path exclusions and display. Tests.ps1 invokes with a
+# single directory (prior behavior); pre-commit invokes with a list of files,
+# which has no single base -- fall back to the current directory then.
+$ScanBase = if (@($Path).Count -eq 1 -and
+    (Test-Path -LiteralPath $Path[0] -PathType Container)) {
+    $Path[0]
 }
 else {
-    $GetChildParams = @{
-        Path = $Path
-        File = $true
-    }
-    if ($Recurse) {
-        $GetChildParams.Recurse = $true
-    }
-    $Files = Get-ChildItem @GetChildParams |
-        Where-Object { $_.Extension -notin $ExcludedExtensions } |
-        Where-Object {
-            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
-            (-not ($ExcludedFiles -contains $Rel)) -and
-            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
-        }
-    $BaseDir = $Path
+    (Get-Location).Path
 }
+$BaseDir = $ScanBase
+
+$Files = foreach ($Item in $Path) {
+    if (Test-Path -LiteralPath $Item -PathType Leaf) {
+        Get-Item -LiteralPath $Item
+    }
+    else {
+        $GetChildParams = @{ Path = $Item; File = $true }
+        if ($Recurse) { $GetChildParams.Recurse = $true }
+        Get-ChildItem @GetChildParams
+    }
+}
+$Files = @($Files |
+    Where-Object { $_.Extension -notin $ExcludedExtensions } |
+    Where-Object {
+        $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
+        (-not ($ExcludedFiles -contains $Rel)) -and
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
+    })
 
 $Hits = [System.Collections.Generic.List[PSCustomObject]]::new()
 $ExceptionCount = 0
@@ -161,3 +169,6 @@ $SummaryColor = if ($Hits.Count -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$($Hits.Count) match(es), $ExceptionCount exception(s) suppressed -- " +
 "$FileCount file(s), $TotalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Nonzero exit so pre-commit and CI can gate on findings.
+exit ([int]($Hits.Count -gt 0))

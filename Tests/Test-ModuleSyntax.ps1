@@ -12,7 +12,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
-    [string] $Path = (Get-Location).Path,
+    [string[]] $Path = @((Get-Location).Path),
     [switch] $Recurse,
     [switch] $Quiet
 )
@@ -37,18 +37,31 @@ if ($Global:Dev_FormattingExclusions) {
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-$GetChildParams = @{
-    Path = $Path
-    File = $true
+# Base path for relative-path exclusions and display. Tests.ps1 invokes with a
+# single directory (prior behavior); pre-commit invokes with a list of files,
+# which has no single base -- fall back to the current directory then.
+$ScanBase = if (@($Path).Count -eq 1 -and
+    (Test-Path -LiteralPath $Path[0] -PathType Container)) {
+    $Path[0]
 }
-if ($Recurse) {
-    $GetChildParams.Recurse = $true
+else {
+    (Get-Location).Path
 }
 
-$files = Get-ChildItem @GetChildParams |
+$files = foreach ($Item in $Path) {
+    if (Test-Path -LiteralPath $Item -PathType Leaf) {
+        Get-Item -LiteralPath $Item
+    }
+    else {
+        $GetChildParams = @{ Path = $Item; File = $true }
+        if ($Recurse) { $GetChildParams.Recurse = $true }
+        Get-ChildItem @GetChildParams
+    }
+}
+$files = $files |
     Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
     Where-Object {
-        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+        $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
         (-not ($ExcludedFiles -contains $Rel)) -and
         (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
@@ -62,7 +75,7 @@ foreach ($file in $files) {
     $FileIndex++
     $WpParams = @{
         Activity        = $MyInvocation.MyCommand.Name
-        Status          = [System.IO.Path]::GetRelativePath($Path, $file.FullName)
+        Status          = [System.IO.Path]::GetRelativePath($ScanBase, $file.FullName)
         PercentComplete = ($FileIndex / $FileTotal) * 100
     }
     Write-Progress @WpParams
@@ -96,3 +109,6 @@ $Elapsed = "$([math]::Round($Stopwatch.Elapsed.TotalSeconds, 2))s"
 $SummaryColor = if ($errorCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$errorCount syntax error(s) -- $Count file(s), $totalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
+
+# Nonzero exit so pre-commit and CI can gate on findings.
+exit ([int]($errorCount -gt 0))

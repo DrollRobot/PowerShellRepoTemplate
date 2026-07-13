@@ -23,10 +23,15 @@
 #                        large file guard, merge conflict markers
 #   detect-secrets    -- prevents secrets from being committed; requires the
 #                        .secrets.baseline file created above
+#   local (pwsh)      -- the fast Tests\Test-*.ps1 formatting/lint checks, run
+#                        against staged .ps1/.psm1/.psd1 files. Requires
+#                        PowerShell 7+ (pwsh) on PATH.
 #
-# The repo's PowerShell formatting checks (Tests.ps1 AutoFormat / PSSA) are
-# intentionally NOT run here -- PSScriptAnalyzer is too slow for a commit
-# hook. Run them via Tests.ps1, or rely on CI.
+# PSScriptAnalyzer (Tests.ps1 PSSA) is intentionally NOT run here -- it is too
+# slow for a commit hook. CI covers it. The auto-fixers (AutoFormat /
+# Format-TrailingWhitespace) are also excluded: trailing whitespace is already
+# handled by the trailing-whitespace hook above, and a commit hook should
+# report, not rewrite, your staged files.
 # =============================================================================
 
 repos:
@@ -46,3 +51,44 @@ repos:
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
+
+  # PowerShell formatting / lint checks (fast, pure-text). Each runs against the
+  # staged .ps1/.psm1/.psd1 files pre-commit passes in and exits nonzero on a
+  # finding, blocking the commit. PSSA is excluded here (too slow; CI covers it).
+  - repo: local
+    hooks:
+      - id: ps-module-syntax
+        name: PowerShell syntax
+        entry: pwsh -NoProfile -File Tests/Test-ModuleSyntax.ps1
+        language: system
+        files: \.(ps1|psm1|psd1)$
+      - id: ps-line-length
+        name: PowerShell line length
+        entry: pwsh -NoProfile -File Tests/Test-LineLength.ps1
+        language: system
+        files: \.(ps1|psm1|psd1)$
+      - id: ps-backtick-continuation
+        name: PowerShell backtick continuation
+        entry: pwsh -NoProfile -File Tests/Test-BacktickContinuation.ps1
+        language: system
+        files: \.(ps1|psm1|psd1)$
+      - id: ps-format-operator
+        name: PowerShell -f format operator
+        entry: pwsh -NoProfile -File Tests/Test-FormatOperator.ps1
+        language: system
+        files: \.(ps1|psm1|psd1)$
+      - id: ps-join-path
+        name: PowerShell path-building
+        entry: pwsh -NoProfile -File Tests/Test-JoinPath.ps1
+        language: system
+        files: \.(ps1|psm1|psd1)$
+      - id: ps-non-ascii
+        name: PowerShell non-ASCII characters
+        entry: pwsh -NoProfile -File Tests/Test-NonASCIICharacters.ps1
+        language: system
+        files: \.(ps1|psm1|psd1)$
+      - id: ps-write-verbose-debug
+        name: PowerShell Write-Verbose/Write-Debug
+        entry: pwsh -NoProfile -File Tests/Test-WriteVerboseDebug.ps1
+        language: system
+        files: \.(ps1|psm1|psd1)$

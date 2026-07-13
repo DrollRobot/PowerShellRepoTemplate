@@ -8,8 +8,10 @@
 # are excluded because they require credentials; run them separately in a
 # secrets-aware workflow if needed.
 #
-# Note: only the Pester step gates today. The formatting checks (ModuleSyntax,
-# PSSA) print findings but do not yet exit nonzero -- see TODO.md.
+# All steps gate: the formatting/lint checks and PSSA exit nonzero on findings,
+# and the Pester step exits nonzero on test failures (via Tests.ps1). This is
+# the same check set that runs locally in the pre-commit hooks, minus PSSA
+# (too slow for a commit hook, so it runs in CI only).
 #
 # GitHub setup (one-time, to make CI actually block merges):
 #   1. Push this file to your repo so the workflow runs at least once.
@@ -51,9 +53,12 @@ jobs:
         shell: pwsh
         run: Install-Module Pester, PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
 
-      - name: Syntax check
+      - name: Formatting and lint checks
         shell: pwsh
-        run: .\Tests.ps1 ModuleSyntax -Quiet
+        run: >
+          .\Tests.ps1
+          ModuleSyntax LineLength BacktickContinuation FormatOperator JoinPath
+          NonASCIICharacters WriteVerboseDebug FindUnwantedStrings -Quiet
 
       - name: PSScriptAnalyzer
         shell: pwsh
