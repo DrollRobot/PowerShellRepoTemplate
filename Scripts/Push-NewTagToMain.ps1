@@ -101,8 +101,9 @@ param(
 
     [string]$ManifestPath,
 
+    [Parameter(Mandatory)]
     [ValidateSet('none', 'root', 'output')]
-    [string]$Build = 'none',
+    [string]$Build,
 
     [Alias('y')]
     [switch]$Yes
