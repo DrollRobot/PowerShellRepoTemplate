@@ -164,11 +164,18 @@ Describe 'New-Entry' {
 }
 
 Describe 'Manifest' {
-    It 'tracks the build/test hooks as lenient optional entries' {
-        $hook = $script:Manifest | Where-Object Path -EQ 'Tests/PreTests.ps1'
-        $hook | Should -Not -BeNullOrEmpty
-        $hook.Required | Should -BeFalse
-        $hook.Strict | Should -BeFalse
+    It 'does not track the build/test hook stubs (the child owns them)' {
+        $paths = $script:Manifest.Path
+        $paths | Should -Not -Contain 'Build/PreBuild.ps1'
+        $paths | Should -Not -Contain 'Build/PostBuild.ps1'
+        $paths | Should -Not -Contain 'Tests/PreTests.ps1'
+        $paths | Should -Not -Contain 'Tests/PostTests.ps1'
+    }
+    It 'tracks the CI workflow as a strict required entry' {
+        $entry = $script:Manifest | Where-Object Path -EQ '.github/workflows/ci.yml'
+        $entry | Should -Not -BeNullOrEmpty
+        $entry.Required | Should -BeTrue
+        $entry.Strict | Should -BeTrue
     }
 }
 

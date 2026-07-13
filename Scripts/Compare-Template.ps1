@@ -348,34 +348,23 @@ $script:Manifest = @(
     (New-Entry '.editorconfig')
     (New-Entry '.gitattributes')
     (New-Entry '.pre-commit-config.yaml')
-    (New-Entry '.gitignore' -Strict $false)          # child appends its own ignores
-    (New-Entry '.secrets.baseline' -Required $false -Strict $false)
+    (New-Entry '.gitignore' -ExistenceOnly $true)
+    (New-Entry '.secrets.baseline' -ExistenceOnly $true)
     # Agent and contributor docs.
-    (New-Entry 'AGENTS.md' -Strict $false)            # holds the child's own rules
+    (New-Entry 'AGENTS.md' -Strict $false)
     (New-Entry 'AGENTS.RELEASING.md')
     (New-Entry 'AGENTS.TESTING.md')
     (New-Entry 'AGENTS.WORKTREE.md')
     (New-Entry 'CLAUDE.md')
     (New-Entry 'CONTRIBUTING.md')
     (New-Entry 'SECURITY.md')
-    (New-Entry 'README.md' -ExistenceOnly $true)      # rewritten per project
+    (New-Entry 'README.md' -ExistenceOnly $true)
     # Module scaffolding that tracks the template (normalized for the name).
-    (New-Entry 'Source/{NAME}.psm1')
-    (New-Entry 'Source/Prefix.ps1')
-    (New-Entry 'Source/Suffix.ps1')
     (New-Entry 'Source/Build.psd1')
     (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1')
     (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1')
     # Editor / docs-site config (per-project; reviewed, not enforced).
-    (New-Entry '.vscode/launch.json' -Required $false -Strict $false)
     (New-Entry 'mkdocs.yml' -Required $false -Strict $false)
-    (New-Entry '.claude/settings.json' -Required $false -Strict $false)
-    # Build/test hook stubs: a child fills these in, so they carry no version and
-    # are compared leniently (never version-copied).
-    (New-Entry 'Build/PreBuild.ps1' -Required $false -Strict $false)
-    (New-Entry 'Build/PostBuild.ps1' -Required $false -Strict $false)
-    (New-Entry 'Tests/PreTests.ps1' -Required $false -Strict $false)
-    (New-Entry 'Tests/PostTests.ps1' -Required $false -Strict $false)
 )
 
 # Directories scanned (non-recursively) for versioned scripts. Tests\Pester is

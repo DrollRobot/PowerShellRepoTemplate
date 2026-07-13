@@ -58,7 +58,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 # All analyzer configuration lives here.
 # PSScriptAnalyzer reads: ExcludeRules, Rules (and any other native keys).
