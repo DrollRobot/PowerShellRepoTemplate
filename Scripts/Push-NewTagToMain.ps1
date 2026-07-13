@@ -61,8 +61,6 @@
     .\Push-NewTagToMain.ps1 patch -Yes
 
 .NOTES
-    Script version 1.1.0.
-
     Requirements:
       - PowerShell 7.4 or later.
       - Run from inside the source branch with a clean working tree.
@@ -93,9 +91,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-# Version of this helper script itself (independent of the module version it
-# releases). Bump on every change so copies in other repos can be compared:
-# patch = bugfix, minor = new flag/behavior, major = breaking CLI change.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
 $ScriptVersion = '1.1.0'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
@@ -226,7 +223,6 @@ function Find-Manifest {
 
 # --- gather state ----------------------------------------------------------
 
-Write-Info "Script version" $ScriptVersion
 Write-Host ''
 
 Write-Section "Release setup"

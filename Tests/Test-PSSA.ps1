@@ -15,7 +15,12 @@
 
     When -AutoFormat is omitted, only detects and reports issues.
 .PARAMETER Path
-    Root directory to search. Defaults to the current directory.
+    File or directory to scan. Defaults to the current directory.
+.PARAMETER RepoRoot
+    Root that the built-in exclusion and per-file/per-path suppression keys are
+    relative to (they are written repo-root-relative, e.g. 'Tests\'). Defaults
+    to -Path. When scanning a subfolder or single file, set this to the repo
+    root so those keys still match; Tests.ps1 passes it automatically.
 .PARAMETER Recurse
     Search subdirectories recursively.
 .PARAMETER AutoFormat
@@ -42,10 +47,18 @@
 [CmdletBinding()]
 param(
     [string] $Path = (Get-Location).Path,
+    # Root that exclusion/suppression keys are relative to. Defaults to $Path so
+    # standalone runs are unchanged; Tests.ps1 passes the repo root so that
+    # targeting a subfolder/file still resolves repo-anchored suppressions.
+    [string] $RepoRoot = $Path,
     [switch] $Recurse,
     [switch] $AutoFormat,
     [switch] $Quiet
 )
+
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
 
 # All analyzer configuration lives here.
 # PSScriptAnalyzer reads: ExcludeRules, Rules (and any other native keys).
@@ -57,29 +70,62 @@ $AnalyzerSettings = @{
     Rules        = @{
         PSAvoidUsingPositionalParameters = @{
             Enable           = $true
-            # FIXME: add your module's user-output wrapper (e.g. Write-XYZ).
+            # Generic non-domain trace helper. The module's own user-output
+            # wrapper (e.g. Write-XYZ) is added per-project via PreTests.ps1
+            # ($Global:Dev_PSSAConfig.CommandAllowList); see the merge below.
             CommandAllowList = @('Write-Trace')
         }
     }
 }
 
-# Per-file rule suppressions. Add entries here for findings that cannot be suppressed
-# in source (e.g. psd1 files) and where a global ExcludeRules entry would be too broad.
-# Key: path relative to the scan root. Value: array of rule names to suppress.
-$PerFileSuppressions = @{
-    # FunctionsToExport = '*' is intentional in the Source manifest;
-    # ModuleBuilder replaces it with the real export list on build.
-    'Source\PowershellRepoTemplate.psd1' = @('PSUseToExportFieldsInManifest')
-    # Build scripts use Write-Host for user-facing output.
-    'Build\PreBuild.ps1'                 = @('PSAvoidUsingWriteHost')
+# Per-file rule suppressions. Key: path relative to the repo root. Value: array
+# of rule names to suppress. Generic entries are computed below; project-specific
+# entries are supplied via PreTests.ps1 ($Global:Dev_PSSAConfig.PerFileSuppressions).
+$PerFileSuppressions = @{}
+
+# The source manifest's FunctionsToExport = '*' is intentional -- ModuleBuilder
+# replaces it with the real export list on build. Discover the manifest by name
+# (excluding Build.psd1) so this works in any repo without hardcoding the module.
+$GciManifest = @{
+    Path        = Join-Path -Path $RepoRoot -ChildPath 'Source'
+    Filter      = '*.psd1'
+    ErrorAction = 'SilentlyContinue'
+}
+$SrcManifest = Get-ChildItem @GciManifest |
+    Where-Object Name -ne 'Build.psd1' | Select-Object -First 1
+if ($SrcManifest) {
+    $ManifestRel = [System.IO.Path]::GetRelativePath($RepoRoot, $SrcManifest.FullName)
+    $PerFileSuppressions[$ManifestRel] = @('PSUseToExportFieldsInManifest')
 }
 
-# Per-path rule suppressions. Each key is a relative path prefix.
-# Any finding under that prefix is suppressed when its RuleName is listed.
+# Per-path rule suppressions. Each key is a relative path prefix; any finding
+# under that prefix is suppressed when its RuleName is listed. Non-domain folders
+# (Build, Tests, Scripts, Lib helpers) are allowed to use Write-Host.
 $PerPathSuppressions = @{
-    'Tests\'               = @('PSAvoidUsingWriteHost')
-    'Scripts\'               = @('PSAvoidUsingWriteHost')
+    'Build\'              = @('PSAvoidUsingWriteHost')
+    'Tests\'              = @('PSAvoidUsingWriteHost')
+    'Scripts\'            = @('PSAvoidUsingWriteHost')
     'Source\Private\Lib\' = @('PSAvoidUsingWriteHost')
+}
+
+# Merge project-specific analyzer config supplied by the test orchestrator
+# (set in the project's PreTests.ps1 hook). This keeps Test-PSSA.ps1 identical
+# across repos -- only the per-project values live in PreTests.ps1.
+if ($Global:Dev_PSSAConfig) {
+    if ($Global:Dev_PSSAConfig.CommandAllowList) {
+        $AnalyzerSettings.Rules.PSAvoidUsingPositionalParameters.CommandAllowList +=
+        $Global:Dev_PSSAConfig.CommandAllowList
+    }
+    if ($Global:Dev_PSSAConfig.PerFileSuppressions) {
+        foreach ($Key in $Global:Dev_PSSAConfig.PerFileSuppressions.Keys) {
+            $PerFileSuppressions[$Key] = $Global:Dev_PSSAConfig.PerFileSuppressions[$Key]
+        }
+    }
+    if ($Global:Dev_PSSAConfig.PerPathSuppressions) {
+        foreach ($Key in $Global:Dev_PSSAConfig.PerPathSuppressions.Keys) {
+            $PerPathSuppressions[$Key] = $Global:Dev_PSSAConfig.PerPathSuppressions[$Key]
+        }
+    }
 }
 
 # Formatting rules applied by Invoke-Formatter when -AutoFormat is used.
@@ -149,9 +195,9 @@ if ($AutoFormat) {
     $FormatFiles = Get-ChildItem @GetChildParams |
         Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
         Where-Object {
-            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+            $Rel = [System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName)
             (-not ($ExcludedFiles -contains $Rel)) -and
-            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
         }
 
     Write-Host 'Applying auto-fixes and formatting...' -ForegroundColor Cyan
@@ -226,13 +272,13 @@ try {
     $Results = $Results | Where-Object {
         $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
         (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
     # Apply per-file and per-path rule suppressions.
     if ($PerFileSuppressions.Count -gt 0 -or $PerPathSuppressions.Count -gt 0) {
         $BeforeCount = ($Results | Measure-Object).Count
         $Results = $Results | Where-Object {
-            $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
+            $Rel = [System.IO.Path]::GetRelativePath($RepoRoot, $_.ScriptPath)
             $IsFileSuppressed = $PerFileSuppressions.ContainsKey($Rel) -and
             ($PerFileSuppressions[$Rel] -contains $_.RuleName)
 
@@ -252,7 +298,9 @@ try {
         $SuppressedCount = $BeforeCount - $AfterCount
         Write-Host "Suppressed $SuppressedCount issue(s) via per-file rules" -ForegroundColor Cyan
     }
-    $FileCount = ($AllOutput | Where-Object {
+    # @() guards against a single (or zero) match, where .Count on a scalar/null
+    # throws under StrictMode -- e.g. when -Path targets one file.
+    $FileCount = @($AllOutput | Where-Object {
             ($_ -is [System.Management.Automation.VerboseRecord]) -and
             ($_.Message -like 'Analyzing file: *')
         }).Count

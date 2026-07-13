@@ -49,9 +49,9 @@
     .\New-Worktree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.3.1, which records the integration base as
-    branch.<branch>.prBase so Complete-WorkTree.ps1 can recover the PR base even
-    after `git push -u` repoints the branch's upstream.
+    Records the integration base as branch.<branch>.prBase so
+    Complete-WorkTree.ps1 can recover the PR base even after
+    `git push -u` repoints the branch's upstream.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
@@ -83,9 +83,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Version of this helper script itself. Bump on every change so copies in other
-# repos can be compared: patch = bugfix, minor = new flag/behavior, major =
-# breaking CLI change.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
 $ScriptVersion = '1.3.1'
 
 # --- output helpers ---------------------------------------------------------
@@ -257,7 +256,6 @@ function Invoke-PushBase {
 
 # --- main -------------------------------------------------------------------
 
-Write-Info 'Script version' $ScriptVersion
 Write-Host ''
 
 # --- resolve paths ----------------------------------------------------------

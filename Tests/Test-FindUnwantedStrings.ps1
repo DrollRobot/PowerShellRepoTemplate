@@ -33,6 +33,10 @@ param(
     [switch] $Quiet
 )
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 # Internal list of patterns to search for.
 # Each entry has a Tag (label shown in output) and a Pattern (case-insensitive regex).
 $UnwantedPatterns = @(
@@ -93,7 +97,7 @@ else {
         Where-Object {
             $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
             (-not ($ExcludedFiles -contains $Rel)) -and
-            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
         }
     $BaseDir = $Path
 }

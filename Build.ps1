@@ -80,6 +80,10 @@ param(
     [switch] $BuildToRoot
 )
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
 $Staging = Join-Path -Path $RepoRoot -ChildPath '.staging'

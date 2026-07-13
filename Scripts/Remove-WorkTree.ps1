@@ -68,8 +68,6 @@
     .\Remove-WorkTree.ps1 issue-42 -Yes
 
 .NOTES
-    Script version 1.2.1.
-
     Requirements:
       - PowerShell 7.4 or later.
       - The PR for 'wt/<slug>' has already been merged into the integration branch.
@@ -110,9 +108,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-# Version of this helper script itself. Bump on every change so copies in other
-# repos can be compared: patch = bugfix, minor = new flag/behavior, major =
-# breaking CLI change.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
 $ScriptVersion = '1.2.1'
 
 # Answer every confirmation prompt with 'y' (set from -Yes). Script-scoped so
@@ -273,7 +270,6 @@ function Read-WorktreeChoice {
 
 # --- intro (shown up front, before anything is touched) ---------------------
 
-Write-Info "Script version" $ScriptVersion
 Write-Host ''
 
 Write-Host 'Remove-WorkTree - tear down a finished worktree' -ForegroundColor Cyan

@@ -59,27 +59,12 @@ selects a license, and lists the remaining FIXMEs to finish by hand. Add
 `-StripTemplateHeaders` to remove the TEMPLATE SETUP NOTES banners and
 `-ReinitGit` to start a fresh git history.
 
-Optionally install the pre-commit hooks (requires Python/pipx or uv):
+Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
 
 ```powershell
+uv tool install pre-commit
 pre-commit install
-detect-secrets scan > .secrets.baseline
-```
-
-## Quick start
-
-```powershell
-# build the module (versioned, to Output\; add -BuildToRoot for a flat root build)
-.\Build.ps1
-
-# run the offline test suite
-.\Tests.ps1 Offline
-
-# run all formatting checks
-.\Tests.ps1 Formatting
-
-# regenerate command docs
-.\Docs.ps1
+uvx detect-secrets scan > .secrets.baseline
 ```
 
 ## Layout

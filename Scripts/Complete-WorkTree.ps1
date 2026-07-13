@@ -20,8 +20,8 @@
          `gh pr create`.
       3. Resolve the PR base: the base recorded at worktree creation
          (branch.<branch>.prBase) if present, else the branch's upstream -- but
-         only while it still names an integration branch, since `git push -u`
-         repoints tracking to the branch itself. Refuses to target main.
+         only while it still names an integration branch, since `git push -u` repoints
+         tracking to the branch itself. Refuses to target main.
       4. Show the PR.md body and confirm the title.
       5. Push the branch with -u.
       6. Open the PR with `gh pr create --base <base> --body-file PR.md`.
@@ -98,11 +98,6 @@
     .\Complete-WorkTree.ps1 -WebFromNotes -Slug issue-42
 
 .NOTES
-    Script version 1.2.1, which resolves the PR base from the worktree's
-    recorded base (branch.<branch>.prBase) and ignores an upstream that a
-    `git push -u` has repointed to the branch itself, so PRs no longer
-    occasionally target the worktree branch instead of develop.
-
     Requirements:
       - PowerShell 7.4 or later.
       - Run from inside the worktree, on a wt/ branch with all work committed
@@ -134,10 +129,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-# Version of this helper script itself. Bump on every change so copies in other
-# repos can be compared: patch = bugfix, minor = new flag/behavior, major =
-# breaking CLI change.
-$ScriptVersion = '1.2.1'
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.2.2'
 
 # The cross-device PR-body handoff stores one note per slug
 # (refs/notes/pr-body-<slug>) so concurrent PRs never share - or force-push
@@ -287,10 +281,11 @@ function ConvertFrom-PrNote {
 }
 
 # Parse 'owner/repo' from origin's URL (SSH or HTTPS), for building a github.com
-# compare URL.
+# compare URL. Matches the trailing 'owner/repo' regardless of host, so custom
+# SSH host aliases (e.g. 'git@github_drollrobot:owner/repo.git') still parse.
 function Get-OriginSlug {
     $url = (git remote get-url origin).Trim()
-    if ($url -match 'github\.com[:/]+([^/]+)/(.+?)(?:\.git)?/?$') {
+    if ($url -match '[:/]([^/:]+)/([^/]+?)(?:\.git)?/?$') {
         return "$($Matches[1])/$($Matches[2])"
     }
     throw "Could not parse owner/repo from origin URL: $url"
@@ -342,7 +337,6 @@ function Remove-PrNote {
 
 # --- mode validation -------------------------------------------------------
 
-Write-Info "Script version" $ScriptVersion
 Write-Host ''
 
 $noteModes = @($PushPRToNotes, $GHFromNotes, $WebFromNotes).Where({ $_ })
