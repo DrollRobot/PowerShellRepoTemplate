@@ -279,6 +279,32 @@ function Find-Manifest {
     throw $NoManifestMsg
 }
 
+# Surgically rewrite only the ModuleVersion assignment in the manifest, leaving
+# every comment, blank line, and other key untouched. Update-ModuleManifest is
+# deliberately NOT used: it re-serializes the whole file with PowerShellGet's own
+# writer, which clobbers a curated ModuleBuilder source manifest (adds a PSGet_
+# header, drops all comments, and collapses FunctionsToExport = '*' -- the
+# sentinel Build-Module replaces at build time -- to @(), which would export no
+# functions).
+function Set-ManifestVersion {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][version]$NewVersion
+    )
+    $content = Get-Content -LiteralPath $Path -Raw
+    # Match an uncommented 'ModuleVersion = "x"' assignment; capture indent and
+    # spacing in 'pre' so alignment is preserved. Anchored to line start (after
+    # optional whitespace) so a commented '# ModuleVersion' line cannot match.
+    $pattern = "(?m)^(?<pre>\s*ModuleVersion\s*=\s*)(?<q>['`"])[^'`"]*\k<q>"
+    $count = ([regex]::Matches($content, $pattern)).Count
+    if ($count -ne 1) {
+        throw "Expected exactly one ModuleVersion assignment in '$Path'; found $count."
+    }
+    $replacement = "`${pre}'$($NewVersion.ToString())'"
+    $updated = [regex]::Replace($content, $pattern, $replacement)
+    Set-Content -LiteralPath $Path -Value $updated -NoNewline -Encoding utf8
+}
+
 # --- gather state ----------------------------------------------------------
 
 Write-Host ''
@@ -462,8 +488,8 @@ Invoke-Step "Merge '$source' into 'main'?" {
 if ($versionChanged) {
     Write-Section "Step: update version"
     Invoke-Step "Set ModuleVersion to $newVersion in the manifest?" {
-        Write-Run "Update-ModuleManifest -Path `"$manifest`" -ModuleVersion $newVersion"
-        Update-ModuleManifest -Path $manifest -ModuleVersion $newVersion
+        Write-Run "Set-ManifestVersion -Path `"$manifest`" -NewVersion $newVersion"
+        Set-ManifestVersion -Path $manifest -NewVersion $newVersion
     }
 
     # Read the manifest back rather than trusting the in-memory value, so the
