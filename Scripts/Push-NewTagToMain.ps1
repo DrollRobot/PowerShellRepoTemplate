@@ -40,9 +40,23 @@
     release commit). For when the version was already updated by hand.
 
 .PARAMETER ManifestPath
-    Path to the .psd1 manifest holding ModuleVersion. If omitted, walks up the
-    directory tree from the current location until a directory containing
-    exactly one .psd1 file is found.
+    Path to the .psd1 manifest holding ModuleVersion. If omitted, the manifest
+    is resolved from the source tree: the repo root is located with
+    'git rev-parse --show-toplevel' and its Source\ folder is searched for a
+    single .psd1 (excluding ModuleBuilder's Build.psd1). If no Source manifest
+    is found, falls back to walking up the directory tree from the current
+    location until a directory containing exactly one .psd1 file is found.
+
+.PARAMETER Build
+    Whether to build the module after updating the version, using Build.ps1 in
+    the repo root. One of:
+      none   - do not build (default); leave building to CI or a separate step
+      root   - flat build to the repo root (Build.ps1 -BuildToRoot), for repos
+               distributed by git clone; regenerated artifacts are committed
+      output - versioned build to Output\ (Build.ps1), for Gallery publishing;
+               Output\ is gitignored so nothing extra is committed
+    The build runs even when the version is unchanged, since merged code
+    changes still need rebuilding.
 
 .PARAMETER Yes
     Assume 'yes' to every confirmation prompt (non-interactive). The prompt is
@@ -59,6 +73,9 @@
 
 .EXAMPLE
     .\Push-NewTagToMain.ps1 patch -Yes
+
+.EXAMPLE
+    .\Push-NewTagToMain.ps1 patch -Build root
 
 .NOTES
     Requirements:
@@ -84,6 +101,9 @@ param(
 
     [string]$ManifestPath,
 
+    [ValidateSet('none', 'root', 'output')]
+    [string]$Build = 'none',
+
     [Alias('y')]
     [switch]$Yes
 )
@@ -93,7 +113,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.2.0'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
@@ -192,8 +212,23 @@ function Get-SyncStatus {
     return [pscustomobject]@{ Ahead = $ahead; Behind = $behind }
 }
 
-# Resolve the manifest: use the explicit path if given, otherwise walk up the
-# directory tree until a directory containing exactly one .psd1 is found.
+# Locate the repo root via git, or $null if not in a working tree.
+function Get-RepoRoot {
+    $top = Invoke-NativeOk git rev-parse --show-toplevel
+    if (-not $top) { return $null }
+    # git prints forward slashes; normalize to a real filesystem path.
+    return (Resolve-Path -LiteralPath $top).Path
+}
+
+# Resolve the manifest holding ModuleVersion. Priority:
+#   1. Explicit -ManifestPath.
+#   2. The single source manifest under the repo's Source\ folder (excluding
+#      ModuleBuilder's Build.psd1) -- the metadata source of truth for a
+#      ModuleBuilder layout, where the built copy in the root (if any) is
+#      generated and must not be edited.
+#   3. Fallback: walk up the directory tree from the current location until a
+#      directory containing exactly one .psd1 is found (for non-ModuleBuilder
+#      repos built directly at the root).
 function Find-Manifest {
     param([string]$Path)
 
@@ -204,6 +239,26 @@ function Find-Manifest {
         return (Resolve-Path -LiteralPath $Path).Path
     }
 
+    # Prefer the source manifest under Source\ when this is a ModuleBuilder repo.
+    $repoRoot = Get-RepoRoot
+    if ($repoRoot) {
+        $sourceDir = Join-Path -Path $repoRoot -ChildPath 'Source'
+        if (Test-Path -LiteralPath $sourceDir -PathType Container) {
+            $srcCandidates = @(
+                Get-ChildItem -Path $sourceDir -Filter '*.psd1' -File |
+                    Where-Object Name -ne 'Build.psd1'
+            )
+            if ($srcCandidates.Count -eq 1) {
+                return $srcCandidates[0].FullName
+            }
+            elseif ($srcCandidates.Count -gt 1) {
+                $names = ($srcCandidates | Select-Object -ExpandProperty Name) -join ', '
+                throw "Multiple .psd1 files found in '$sourceDir': $names. Specify -ManifestPath."
+            }
+        }
+    }
+
+    # Fallback: walk up from the current location.
     $searchDir = (Get-Location).Path
     while ($searchDir) {
         $candidates = @(Get-ChildItem -Path $searchDir -Filter '*.psd1' -File)
@@ -218,7 +273,9 @@ function Find-Manifest {
         if ($parent -eq $searchDir) { break }
         $searchDir = $parent
     }
-    throw "No .psd1 file found walking up from '$(Get-Location)'."
+    $NoManifestMsg = "No .psd1 file found under a Source\ folder or walking up from " +
+    "'$(Get-Location)'. Specify -ManifestPath."
+    throw $NoManifestMsg
 }
 
 # --- gather state ----------------------------------------------------------
@@ -251,6 +308,23 @@ elseif ($useBump) {
 }
 else {
     Write-Info "Version change" "set to '$Version'"
+}
+Write-Info "Build" $Build
+
+# Resolve and validate the build script up front so a missing Build.ps1 fails
+# during setup rather than after the merge has already happened.
+$buildScript = $null
+if ($Build -ne 'none') {
+    $repoRoot = Get-RepoRoot
+    if (-not $repoRoot) {
+        throw "-Build '$Build' requires a git repository, but the repo root could not be found."
+    }
+    $buildScript = Join-Path -Path $repoRoot -ChildPath 'Build.ps1'
+    if (-not (Test-Path -LiteralPath $buildScript -PathType Leaf)) {
+        $NoBuildMsg = "-Build '$Build' requires Build.ps1 in the repo root, but none " +
+        "was found at '$buildScript'."
+        throw $NoBuildMsg
+    }
 }
 
 # --- working tree status ---------------------------------------------------
@@ -367,7 +441,7 @@ if ($versionChanged) {
     Write-Info "Target version" "$currentVersion -> $newVersion"
 }
 else {
-    Write-Info "Result" "version already set; manifest update and release commit are skipped"
+    Write-Info "Result" "version already set; manifest update skipped (a build may still commit)"
 }
 
 # --- release steps ---------------------------------------------------------
@@ -398,17 +472,54 @@ if ($versionChanged) {
         throw "Manifest reports version '$versionStr' after update; expected '$newVersion'."
     }
     Write-Info "New version" $versionStr
+}
+else {
+    $versionStr = $currentVersion.ToString()
+}
 
+# Build after the version bump so root builds stamp the new version into the
+# regenerated artifacts. Runs even when the version is unchanged, since merged
+# code still needs rebuilding.
+if ($Build -ne 'none') {
+    Write-Section "Step: build ($Build)"
+    if ($Build -eq 'root') {
+        Invoke-Step "Build the module to the repo root (Build.ps1 -BuildToRoot)?" {
+            Write-Run "& `"$buildScript`" -BuildToRoot"
+            & $buildScript -BuildToRoot
+        }
+    }
+    else {
+        Invoke-Step "Build the module to Output\ (Build.ps1)?" {
+            Write-Run "& `"$buildScript`""
+            & $buildScript
+        }
+    }
+}
+
+# Commit when the version changed or when the build left tracked files dirty
+# (a root build regenerates committed artifacts; an output build touches only
+# the gitignored Output\ folder, leaving nothing to commit). The working tree
+# was verified clean at startup, so any dirtiness here is script-generated.
+$treeDirty = $false
+try {
+    git diff-index --quiet HEAD --
+}
+catch {
+    $treeDirty = $true
+}
+
+if ($versionChanged -or $treeDirty) {
     Write-Section "Step: commit release"
-    Invoke-Step "Stage the manifest and commit as 'Release v$versionStr'?" {
-        Write-Run "git add `"$manifest`""
-        git add "$manifest"
+    Invoke-Step "Stage all changes and commit as 'Release v$versionStr'?" {
+        Write-Run "git add -A"
+        git add -A
         Write-Run "git commit -m `"Release v$versionStr`""
         git commit -m "Release v$versionStr"
     }
 }
 else {
-    $versionStr = $currentVersion.ToString()
+    Write-Section "Step: commit release"
+    Write-Host "  Nothing to commit; skipping." -ForegroundColor Green
 }
 
 Write-Section "Step: tag release"
