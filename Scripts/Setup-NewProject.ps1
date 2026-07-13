@@ -30,8 +30,12 @@
     placeholders in URLs (mkdocs.yml, README badges, CHANGELOG links).
 
 .PARAMETER License
-    Optional license choice: mit, apache, or gnu. Renames the matching
-    LICENSE.<choice>.FIXME file to LICENSE and deletes the other variants.
+    Optional license choice: mit, apache, gnu, proprietary, or none.
+    For a named license, renames the matching LICENSE.<choice>.FIXME file to
+    LICENSE (filling in the year and, with -CopyrightHolder, the holder) and
+    deletes the other variants. The proprietary license also has a 'company'
+    placeholder left for you to complete by hand. 'none' deletes every
+    LICENSE.<choice>.FIXME variant and writes no LICENSE file.
 
 .PARAMETER CopyrightHolder
     Optional name for the license copyright line. Used with -License; the
@@ -60,6 +64,18 @@
 
     Full conversion: rename, GUID, URLs, MIT license.
 
+.EXAMPLE
+    .\Scripts\Setup-NewProject.ps1 -Name MyModule -License proprietary -CopyrightHolder 'Jane Doe'
+
+    Writes a proprietary LICENSE with the year and holder filled in. The
+    'company' field is left as a FIXME to complete by hand; the script warns
+    when the written LICENSE still contains a placeholder.
+
+.EXAMPLE
+    .\Scripts\Setup-NewProject.ps1 -Name MyModule -License none
+
+    Deletes every LICENSE.<choice>.FIXME variant and writes no LICENSE file.
+
 .OUTPUTS
     Progress text to the host. No pipeline output.
 
@@ -77,7 +93,7 @@ param(
     [string] $GitHubUser,
 
     [Parameter()]
-    [ValidateSet('mit', 'apache', 'gnu')]
+    [ValidateSet('mit', 'apache', 'gnu', 'proprietary', 'none')]
     [string] $License,
 
     [Parameter()]
@@ -150,7 +166,11 @@ $FileRenames | ForEach-Object {
 }
 Write-Host @Green 'Step 3: stamp a fresh GUID into the source manifest'
 if ($GitHubUser) { Write-Host @Green "Step 4: set GitHub owner/repo to $GitHubUser/$Name" }
-if ($License) { Write-Host @Green "Step 5: select $($License.ToUpper()) license" }
+if ($License -eq 'none') {
+    Write-Host @Green 'Step 5: remove LICENSE variants (no license written)'
+} elseif ($License) {
+    Write-Host @Green "Step 5: select $($License.ToUpper()) license"
+}
 if ($StripTemplateHeaders) { Write-Host @Green 'Step 6: strip TEMPLATE SETUP NOTES blocks' }
 Write-Host @Green 'Step 7: report remaining FIXMEs'
 if ($ReinitGit) { Write-Host @Yellow 'Step 8: DELETE .git and reinitialize (destructive)' }
@@ -209,7 +229,10 @@ if ($GitHubUser) {
 # ---------------------------------------------------------------------------
 # Step 5: license selection.
 # ---------------------------------------------------------------------------
-if ($License) {
+if ($License -eq 'none') {
+    Get-ChildItem -Path $RepoRoot -Filter 'LICENSE.*.FIXME' | Remove-Item
+    Write-Host @Cyan 'License: none selected; removed LICENSE.*.FIXME variants, no LICENSE written.'
+} elseif ($License) {
     $Chosen = Join-Path -Path $RepoRoot -ChildPath "LICENSE.$License.FIXME"
     if (Test-Path $Chosen) {
         $LicenseText = Get-Content -Path $Chosen -Raw
@@ -221,6 +244,12 @@ if ($License) {
         Set-Content -Path $LicenseOut -Value $LicenseText -NoNewline
         Get-ChildItem -Path $RepoRoot -Filter 'LICENSE.*.FIXME' | Remove-Item
         Write-Host @Cyan "License: $($License.ToUpper()) written to LICENSE"
+        # The FIXME report (Step 7) only scans .ps1/.psm1/.psd1, so a leftover
+        # placeholder in LICENSE would ship silently. Warn on it here instead.
+        if ($LicenseText -match 'FIXME') {
+            Write-Warning ('LICENSE still contains FIXME placeholder(s); ' +
+                'complete them by hand.')
+        }
     } else {
         Write-Warning "License variant not found: $Chosen"
     }
