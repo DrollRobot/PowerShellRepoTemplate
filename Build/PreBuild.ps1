@@ -11,11 +11,6 @@
     Delete or rename it to skip the pre-build phase entirely.
 #>
 
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
-
 $ErrorActionPreference = 'Stop'
 
 # FIXME: add project-specific pre-build steps here, or delete this file.
-Write-Host 'PreBuild: nothing to do.' -ForegroundColor Cyan

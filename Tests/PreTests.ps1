@@ -23,10 +23,6 @@
     A throw here aborts the run; Tests.ps1 still runs PostTests.ps1 for cleanup.
 #>
 
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

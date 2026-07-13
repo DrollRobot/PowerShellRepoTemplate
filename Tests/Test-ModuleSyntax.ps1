@@ -12,6 +12,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
+    [Parameter(Position = 0, ValueFromRemainingArguments)]
     [string[]] $Path = @((Get-Location).Path),
     [switch] $Recurse,
     [switch] $Quiet
@@ -19,7 +20,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(

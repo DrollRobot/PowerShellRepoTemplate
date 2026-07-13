@@ -15,8 +15,8 @@ block.
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
 Non-domain: Dev/Test/Build/Debug/Lib code.
 
-Ignore built code, such as *.psm1 and *.psd1, ScriptsToProcess/, Data/, Build/, in
-the module root.
+Ignore built code in the module root, such as *.psm1 and *.psd1, ScriptsToProcess/,
+   Data/, Output, and Build/. Also, the built documents in Docs/Commands/.
 
 ## Commit
 - Commit any untracked files.
@@ -45,7 +45,7 @@ then falls back to the newest versioned build under Output\):
 .\Docs.ps1 -DeleteOrphaned
 ```
 
-Review the documents in the root of the Docs folder for accuracy or any new features 
+Review the documents in the root of the Docs folder for accuracy or any new features
 that should be added. Don't review or modify files in Docs/Commands. (built by PlatyPS)
 
 ## Update CHANGELOG.md

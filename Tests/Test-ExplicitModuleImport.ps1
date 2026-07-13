@@ -86,41 +86,8 @@ if (-not (Get-Module -Name $CurrentModuleName)) {
 }
 
 # Static map for commands that Get-Command cannot discover on this machine
-# (e.g. modules not installed here, like ActiveDirectory RSAT tools).
 # Add entries as new undiscoverable dependencies are introduced.
 $CommandModuleMap = @{
-    'Disable-ADAccount'        = 'ActiveDirectory'
-    'Enable-ADAccount'         = 'ActiveDirectory'
-    'Get-ADComputer'           = 'ActiveDirectory'
-    'Get-ADDomain'             = 'ActiveDirectory'
-    'Get-ADDomainController'   = 'ActiveDirectory'
-    'Get-ADGroup'              = 'ActiveDirectory'
-    'Get-ADGroupMember'        = 'ActiveDirectory'
-    'Get-ADOrganizationalUnit' = 'ActiveDirectory'
-    'Get-ADUser'               = 'ActiveDirectory'
-    'Set-ADAccountPassword'    = 'ActiveDirectory'
-    'Set-ADUser'               = 'ActiveDirectory'
-    'Start-ADSyncSyncCycle'    = 'ADSync'
-    # ExchangeOnlineManagement REST cmdlets only exist in the session after
-    # Connect-ExchangeOnline / Connect-IPPSSession, so offline they never
-    # resolve via Get-Command.
-    'Add-MailboxPermission'    = 'ExchangeOnlineManagement'
-    'Add-RecipientPermission'  = 'ExchangeOnlineManagement'
-    'Get-AcceptedDomain'       = 'ExchangeOnlineManagement'
-    'Get-ComplianceSearch'     = 'ExchangeOnlineManagement'
-    'Get-ComplianceSearchAction' = 'ExchangeOnlineManagement'
-    'Get-InboxRule'            = 'ExchangeOnlineManagement'
-    'Get-Mailbox'              = 'ExchangeOnlineManagement'
-    'Get-MailboxPermission'    = 'ExchangeOnlineManagement'
-    'Get-MessageTrace'         = 'ExchangeOnlineManagement'
-    'Get-MessageTraceV2'       = 'ExchangeOnlineManagement'
-    'Get-OrganizationConfig'   = 'ExchangeOnlineManagement'
-    'New-ComplianceSearch'     = 'ExchangeOnlineManagement'
-    'New-ComplianceSearchAction' = 'ExchangeOnlineManagement'
-    'Remove-ComplianceSearch'  = 'ExchangeOnlineManagement'
-    'Remove-MailboxPermission' = 'ExchangeOnlineManagement'
-    'Search-UnifiedAuditLog'   = 'ExchangeOnlineManagement'
-    'Start-ComplianceSearch'   = 'ExchangeOnlineManagement'
 }
 
 $GetChildParams = @{

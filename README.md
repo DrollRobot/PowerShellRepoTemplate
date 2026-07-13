@@ -65,7 +65,7 @@ Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv
 uv tool install pre-commit
 pre-commit install
 pre-commit autoupdate
-uvx detect-secrets scan > .secrets.baseline
+uvx detect-secrets scan @(git ls-files) > .secrets.baseline
 ```
 
 ## Layout

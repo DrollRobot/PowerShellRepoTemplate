@@ -11,11 +11,6 @@
     the repo root. Delete or rename it to skip the post-build phase entirely.
 #>
 
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
-
 $ErrorActionPreference = 'Stop'
 
 # FIXME: add project-specific post-build steps here, or delete this file.
-Write-Host 'PostBuild: nothing to do.' -ForegroundColor Cyan

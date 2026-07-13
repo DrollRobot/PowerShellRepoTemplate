@@ -28,6 +28,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
+    [Parameter(Position = 0, ValueFromRemainingArguments)]
     [string[]] $Path = @((Get-Location).Path),
     [switch] $Recurse,
     [switch] $Quiet
@@ -35,7 +36,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 # Internal list of patterns to search for.
 # Each entry has a Tag (label shown in output) and a Pattern (case-insensitive regex).
