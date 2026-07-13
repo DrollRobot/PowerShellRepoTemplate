@@ -103,7 +103,7 @@
     Runs only the line-length and path-building checks.
 
 .EXAMPLE
-    .\Tests.ps1 LineLength -Path .\Source\Public\Get-Greeting.ps1
+    .\Tests.ps1 LineLength -Path .\Source\Public\Get-Script.ps1
     Runs the line-length check against a single file.
 
 .EXAMPLE
@@ -111,7 +111,7 @@
     Runs PSScriptAnalyzer against just the Source\Public folder.
 
 .EXAMPLE
-    .\Tests.ps1 Offline -Path .\tests\pester\Get-Greeting.Tests.ps1
+    .\Tests.ps1 Offline -Path .\tests\pester\Get-Script.Tests.ps1
     Runs one offline Pester test file.
 
 .EXAMPLE
