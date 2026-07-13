@@ -52,7 +52,7 @@ $ExcludedFolders = @(
 )
 $ExcludedFiles = @('Build.ps1', 'Tests.ps1', 'Docs.ps1')
 
-if ($Global:Dev_FormattingExclusions) {
+if (Get-Variable -Name Dev_FormattingExclusions -Scope Global -ErrorAction SilentlyContinue) {
     $ExcludedFiles += $Global:Dev_FormattingExclusions.ExcludeFiles
     $ExcludedFolders += $Global:Dev_FormattingExclusions.ExcludeFolders
 }
@@ -65,7 +65,8 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 # The orchestrator resolves the module name from the manifest (worktree-safe)
 # and shares it via $Global:Dev_ModuleName; prefer that. Fall back to folder-name
 # detection for standalone runs (which assume the repo folder matches the module).
-$CurrentModuleName = if ($Global:Dev_ModuleName) {
+$ModuleNameSet = Get-Variable -Name Dev_ModuleName -Scope Global -ErrorAction SilentlyContinue
+$CurrentModuleName = if ($ModuleNameSet) {
     $Global:Dev_ModuleName
 }
 else {
