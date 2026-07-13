@@ -39,7 +39,10 @@
     .\Install-Dependencies.ps1 -Check -Quiet
 
 .NOTES
-Version 1.2.0
+Version 1.2.1
+1.2.1 - InstalledMax now coalesces to $null when nothing is installed, so
+        $Plan.InstalledMax member access no longer throws PropertyNotFound
+        under Set-StrictMode -Version Latest.
 1.2.0 - Non-graph modules are now uninstalled + reinstalled when they don't meet
         the manifest. Microsoft.Graph modules are never uninstalled by the script;
         a version mismatch among them is reported with a recommendation to
@@ -63,7 +66,6 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 $DarkCyan = @{ForegroundColor = 'DarkCyan' }
 $Yellow = @{ForegroundColor = 'Yellow' }
 
@@ -85,7 +87,9 @@ if (($ManifestFiles | Measure-Object).Count -eq 0) {
 }
 elseif (($ManifestFiles | Measure-Object).Count -gt 1) {
     $names = $ManifestFiles.Name -join ', '
-    Write-Warning "Multiple .psd1 manifests found in $PSScriptRoot ($names). Cannot determine which to use."
+    $WarnMsg = "Multiple .psd1 manifests found in $PSScriptRoot ($names). " +
+    'Cannot determine which to use.'
+    Write-Warning $WarnMsg
 }
 else {
     $ManifestPath = $ManifestFiles[0].FullName
@@ -120,8 +124,8 @@ function Test-VersionSatisfied {
     if ($Installed.Count -eq 0) { return $false }
     if ($Required) { return $Installed -contains $Required }
     return $null -ne ($Installed | Where-Object {
-        ($null -eq $Min -or $_ -ge $Min) -and ($null -eq $Max -or $_ -le $Max)
-    } | Select-Object -First 1)
+            ($null -eq $Min -or $_ -ge $Min) -and ($null -eq $Max -or $_ -le $Max)
+        } | Select-Object -First 1)
 }
 
 # ---------------------------------------------------------------------------
@@ -163,8 +167,16 @@ $Plan = foreach ($Entry in $RequiredModules) {
         }
     }
 
-    $Installed = @(Get-Module -Name $ModuleName -ListAvailable | Select-Object -ExpandProperty Version)
-    $Satisfied = Test-VersionSatisfied $Installed $Min $Max $Required
+    $Installed = @(
+        Get-Module -Name $ModuleName -ListAvailable | Select-Object -ExpandProperty Version
+    )
+    $SatisfiedParams = @{
+        Installed = $Installed
+        Min       = $Min
+        Max       = $Max
+        Required  = $Required
+    }
+    $Satisfied = Test-VersionSatisfied @SatisfiedParams
 
     [pscustomobject]@{
         Name          = $ModuleName
@@ -174,7 +186,12 @@ $Plan = foreach ($Entry in $RequiredModules) {
         Max           = $Max
         Required      = $Required
         IsGraph       = $ModuleName -like 'Microsoft.Graph.*'
-        InstalledMax  = ($Installed | Sort-Object -Descending | Select-Object -First 1)
+        # Coalesce to a real $null when nothing is installed. An empty pipeline
+        # yields AutomationNull, which under Set-StrictMode -Version Latest makes
+        # member-access enumeration ($Plan.InstalledMax) throw PropertyNotFound.
+        InstalledMax  = if ($Installed.Count) {
+            $Installed | Sort-Object -Descending | Select-Object -First 1
+        } else { $null }
         Satisfied     = $Satisfied
         Problem       = -not $Satisfied
     }
@@ -186,8 +203,8 @@ $Plan = foreach ($Entry in $RequiredModules) {
 #         Install-Module cannot fix this -- it's advisory only (see report).
 # ---------------------------------------------------------------------------
 $GraphMismatch = $false
-$GraphMax      = $null
-$GraphPlan     = @($Plan | Where-Object IsGraph)
+$GraphMax = $null
+$GraphPlan = @($Plan | Where-Object IsGraph)
 if ($GraphPlan.Count -gt 1) {
     $GraphVersions = @($GraphPlan.InstalledMax | Where-Object { $_ } | Sort-Object -Unique)
     if ($GraphVersions.Count -gt 1) {
@@ -203,11 +220,6 @@ if ($GraphPlan.Count -gt 1) {
 #   - Missing graph (no mismatch) -> install normally (never uninstall graph).
 #   - Graph mismatch     -> do not touch; warn + recommend below.
 # ---------------------------------------------------------------------------
-if ($Check) {
-    $Stopwatch.Stop()
-    Write-Verbose "Install-Dependencies: Check completed in $($Stopwatch.Elapsed.TotalSeconds.ToString('N2'))s."
-}
-
 $AnyMissing = $false
 $Locked = @()
 foreach ($R in $Plan) {
@@ -239,7 +251,10 @@ foreach ($R in $Plan) {
                         # A loaded DLL (module open in this or another session)
                         # surfaces as an access/in-use error. Don't stack a second
                         # copy on top -- flag it for a clean retry after a restart.
-                        if ($_.Exception.Message -match 'Access to the path|is denied|being used by another process|could not be deleted|cannot access the file') {
+                        $LockPattern = 'Access to the path|is denied|' +
+                        'being used by another process|could not be deleted|' +
+                        'cannot access the file'
+                        if ($_.Exception.Message -match $LockPattern) {
                             $uninstallBlocked = $true
                             $Locked += $R.Name
                         }
@@ -255,9 +270,19 @@ foreach ($R in $Plan) {
         }
 
         # Re-read post-action so the status line reflects reality.
-        $Installed = @(Get-Module -Name $R.Name -ListAvailable | Select-Object -ExpandProperty Version)
-        $R.InstalledMax = $Installed | Sort-Object -Descending | Select-Object -First 1
-        $R.Satisfied    = Test-VersionSatisfied $Installed $R.Min $R.Max $R.Required
+        $Installed = @(
+            Get-Module -Name $R.Name -ListAvailable | Select-Object -ExpandProperty Version
+        )
+        $R.InstalledMax = if ($Installed.Count) {
+            $Installed | Sort-Object -Descending | Select-Object -First 1
+        } else { $null }
+        $SatisfiedParams = @{
+            Installed = $Installed
+            Min       = $R.Min
+            Max       = $R.Max
+            Required  = $R.Required
+        }
+        $R.Satisfied = Test-VersionSatisfied @SatisfiedParams
     }
 
     # --- Report ----------------------------------------------------------
@@ -274,7 +299,9 @@ foreach ($R in $Plan) {
     }
     elseif (-not $R.Satisfied) {
         # Installed but below the manifest requirement is distinct from absent.
-        $Status = if ($null -ne $R.InstalledMax) { "OUTDATED ($($R.InstalledMax))" } else { 'MISSING' }
+        $Status = if ($null -ne $R.InstalledMax) {
+            "OUTDATED ($($R.InstalledMax))"
+        } else { 'MISSING' }
         $AnyMissing = $true
     }
     else {

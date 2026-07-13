@@ -14,10 +14,16 @@
     then this script throws to abort the import cleanly. This prevents PowerShell's built-in
     "required module not found" error from appearing alongside the guidance already printed.
 
-    No hardcoded paths are used — this script can be placed anywhere within the module tree.
+    No hardcoded paths are used -- this script can be placed anywhere within the module tree.
 
 .NOTES
-Version 1.1.0
+Version 1.2.0
+1.2.0 - The first successful check records the module root in the generic
+        $Global:ModuleDependenciesChecked hashtable (keyed by module root path),
+        and later imports of the same module skip the Get-Module scan. The table
+        can be injected into child runspaces so workers skip the scan too. Keyed
+        by path, so multiple modules sharing this script in one session never
+        collide.
 1.1.0 - Added dynamic module root discovery allowing putting scripts in any folder.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
@@ -40,6 +46,19 @@ while ($SearchDir) {
 
 if (-not $ModuleRoot) { return }
 
+# Already verified for this module root in this session (or in a parent session
+# that injected the table into this runspace) - skip the Get-Module scan.
+# Get-Variable probe (not a direct $Global: read) so the script is safe under
+# Set-StrictMode in the importing scope.
+$GvParams = @{
+    Name        = 'ModuleDependenciesChecked'
+    Scope       = 'Global'
+    ValueOnly   = $true
+    ErrorAction = 'Ignore'
+}
+$DepsChecked = Get-Variable @GvParams
+if ($DepsChecked -is [hashtable] -and $DepsChecked[$ModuleRoot]) { return }
+
 # Recursively search the module root for Install-Dependencies.ps1.
 $InstallScript = Get-ChildItem -Path $ModuleRoot -Filter 'Install-Dependencies.ps1' -Recurse -File |
     Select-Object -First 1 -ExpandProperty FullName
@@ -48,6 +67,12 @@ if (-not $InstallScript) { return }
 
 try {
     & $InstallScript -Check -Quiet
+    if ($DepsChecked -isnot [hashtable]) {
+        # Synchronized: child runspaces sharing the table may record concurrently.
+        $DepsChecked = [hashtable]::Synchronized(@{})
+        Set-Variable -Name 'ModuleDependenciesChecked' -Scope Global -Value $DepsChecked
+    }
+    $DepsChecked[$ModuleRoot] = $true
 } catch {
     & $InstallScript -Check
     throw 'Import aborted. Required module(s) missing. See above for remediation guidance.'

@@ -35,24 +35,16 @@ Do not move on to formatting until all Pester tests are passing.
 .\Tests.ps1 LineLength
 .\Tests.ps1 BacktickContinuation
 .\Tests.ps1 PSSA
-# once you're done, run them all again to be sure fixes didn't create any new problems. 
 ```
 
-**Checking a single file**
-`.\Tests.ps1 <Category>` scans all in-scope files. To check just one file , call the standalone
-check directly with `-Path`. Prefer this over hand-rolling grep/regex checks:
+**Always use `Tests.ps1`**
+- Run all tests through the `.\Tests.ps1 <Category>` orchestrator. Do not 
 
-    .\Tests\Test-LineLength.ps1 -Path .\Source\Public\Get-Greeting.ps1
-
-These standalone checks accept `-Path` (a file or folder): Test-LineLength,
-Test-BacktickContinuation, Test-FormatOperator, Test-JoinPath, Test-ModuleSyntax,
-Test-NonASCIICharacters, Test-WriteVerboseDebug, Test-FindUnwantedStrings,
-Test-FixmeComments, Test-ExplicitModuleImport, Test-PSSA.
+**Checking a single file or folder**
+- `.\Tests.ps1 <Category>` scans all in-scope files. To check just one file or folder,
+    add `-Path`.
+    .\Tests.ps1 LineLength -Path .\Scripts\Invoke-RandomEmailTraffic.ps1
+    .\Tests.ps1 PSSA -Path .\Source\Public
 
 **Quick pass/fail for agents**
-Add `-Quiet` to any formatting check -- standalone (`Test-LineLength.ps1 -Path . -Recurse
--Quiet`) or via the orchestrator (`.\Tests.ps1 LineLength -Quiet`) -- to suppress the
-detail table and finding notes and print only the one-line summary (files scanned +
-finding count). Read that single line to decide pass/fail, then re-run without `-Quiet`
-to see the full findings when a check fails. Operational notes (e.g. Test-PSSA's "this can
-take minutes; do not poll") are still shown in quiet mode.
+Add `-Quiet` to any formatting check for single line output.

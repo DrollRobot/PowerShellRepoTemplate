@@ -56,14 +56,15 @@
 
     # Modules that must be imported into the global environment prior to importing this module
     RequiredModules   = @(
-        # FIXME optionally use lazy loading with Confirm-Dependencies.ps1, and Install-Dependencies.ps1
-        # If lazy loading. Put modules in Install-Dependencies and here, but comment out here. 
+        # FIXME optionally use lazy loading with Confirm-Dependencies.ps1 and
+        # Install-Dependencies.ps1. If lazy loading, put modules in
+        # Install-Dependencies and here, but comment them out here.
 
 
         # Dev/test dependencies -- not required for most users
-        @{ModuleName = 'Pester';  ModuleVersion = '5.0.0'}
-        @{ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0'}
-        @{ModuleName = 'ModuleBuilder'; ModuleVersion = '3.2.16'}
+        @{ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
+        @{ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0' }
+        @{ModuleName = 'ModuleBuilder'; ModuleVersion = '3.2.16' }
     )
 
     # Assemblies that must be loaded prior to importing this module

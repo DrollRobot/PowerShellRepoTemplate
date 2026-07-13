@@ -17,6 +17,10 @@ param(
     [switch] $Quiet
 )
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(
     # '.local'    # local overrides and personal test files
@@ -46,7 +50,7 @@ $files = Get-ChildItem @GetChildParams |
     Where-Object {
         $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
         (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
 $errorCount = 0
 $totalLines = 0

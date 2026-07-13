@@ -34,6 +34,10 @@ param(
     [switch] $Quiet
 )
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 # import helper functions from the Scripts folder.
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ModuleRoot.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
@@ -41,8 +45,11 @@ param(
 
 # This check enforces the explicit-import convention from AGENTS.md, which
 # applies only to in-domain code under Source\. Dev tooling, build scripts,
-# and tests are non-domain and exempt.
-$ExcludedFolders = @('Scripts', 'Tests', 'Build', 'Docs', '.local')
+# tests, and module-init/data folders (ScriptsToProcess, Data) are non-domain
+# and exempt.
+$ExcludedFolders = @(
+    'Scripts', 'Tests', 'Build', 'Docs', 'Source\ScriptsToProcess', 'Source\Data', '.local'
+)
 $ExcludedFiles = @('Build.ps1', 'Tests.ps1', 'Docs.ps1')
 
 if ($Global:Dev_FormattingExclusions) {
@@ -55,7 +62,21 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 # Find current module name. Error out if not currently imported.
 #   Prefer erroring over importing because script doesn't know if dev wants
 #   to test source or build module.
-$CurrentModuleName = (Find-ModuleRoot -Path $PSScriptRoot).Name
+# The orchestrator resolves the module name from the manifest (worktree-safe)
+# and shares it via $Global:Dev_ModuleName; prefer that. Fall back to folder-name
+# detection for standalone runs (which assume the repo folder matches the module).
+$CurrentModuleName = if ($Global:Dev_ModuleName) {
+    $Global:Dev_ModuleName
+}
+else {
+    (Find-ModuleRoot -Path $PSScriptRoot).Name
+}
+if (-not $CurrentModuleName) {
+    $ErrMsg = 'Could not determine the module name. Run via Tests.ps1, ' +
+    'or ensure the repo folder matches the module manifest.'
+    Write-Error $ErrMsg
+    exit 1
+}
 if (-not (Get-Module -Name $CurrentModuleName)) {
     $ErrMsg = "Module '$CurrentModuleName' is not imported. " +
     "Import it before running this test."
@@ -86,6 +107,7 @@ $CommandModuleMap = @{
     'Add-RecipientPermission'  = 'ExchangeOnlineManagement'
     'Get-AcceptedDomain'       = 'ExchangeOnlineManagement'
     'Get-ComplianceSearch'     = 'ExchangeOnlineManagement'
+    'Get-ComplianceSearchAction' = 'ExchangeOnlineManagement'
     'Get-InboxRule'            = 'ExchangeOnlineManagement'
     'Get-Mailbox'              = 'ExchangeOnlineManagement'
     'Get-MailboxPermission'    = 'ExchangeOnlineManagement'
@@ -93,6 +115,7 @@ $CommandModuleMap = @{
     'Get-MessageTraceV2'       = 'ExchangeOnlineManagement'
     'Get-OrganizationConfig'   = 'ExchangeOnlineManagement'
     'New-ComplianceSearch'     = 'ExchangeOnlineManagement'
+    'New-ComplianceSearchAction' = 'ExchangeOnlineManagement'
     'Remove-ComplianceSearch'  = 'ExchangeOnlineManagement'
     'Remove-MailboxPermission' = 'ExchangeOnlineManagement'
     'Search-UnifiedAuditLog'   = 'ExchangeOnlineManagement'
@@ -112,7 +135,7 @@ $files = Get-ChildItem @GetChildParams |
     Where-Object {
         $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
         (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" -or $Rel -like "*\$_\*" }))
+        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
 
 $hitCount = 0

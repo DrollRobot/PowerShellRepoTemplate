@@ -26,7 +26,8 @@ git clone https://github.com/FIXME/PowershellRepoTemplate.git
 cd PowershellRepoTemplate
 Install-Module Pester, PSScriptAnalyzer, ModuleBuilder, PlatyPS -Scope CurrentUser
 
-# optional: hygiene + secret-scanning commit hooks (requires Python/pipx)
+# optional: hygiene + secret-scanning commit hooks (requires uv -- https://docs.astral.sh/uv/)
+uv tool install pre-commit
 pre-commit install
 ```
 

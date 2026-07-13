@@ -1,3 +1,15 @@
+<!--
+=============================================================================
+TEMPLATE SETUP NOTES -- remove this block - FIXME
+=============================================================================
+Releasing the template itself: run every release step below EXCEPT the Build
+section. The template is published as a template, not built or packaged as a
+module; everything else (docs, changelog, hand-off) still applies. A real module
+made from this template runs the full process, Build included, and removes this
+block.
+=============================================================================
+-->
+
 # Releasing
 
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
@@ -5,6 +17,12 @@ Non-domain: Dev/Test/Build/Debug/Lib code.
 
 Ignore built code, such as *.psm1 and *.psd1, ScriptsToProcess/, Data/, Build/, in
 the module root.
+
+## Commit
+- Commit any untracked files.
+- Commit messages should follow Chris Beam's guidance:
+  https://chris.beams.io/posts/git-commit/
+  Fetch the page at least once every session. Do not rely on memory for this.
 
 ## Build
 ```powershell
@@ -22,6 +40,7 @@ then falls back to the newest versioned build under Output\):
 ```
 
 ## Update docs
+
 ```powershell
 .\Docs.ps1 -DeleteOrphaned
 ```
@@ -30,7 +49,6 @@ Review the documents in the root of the Docs folder for accuracy or any new feat
 that should be added. Don't review or modify files in Docs/Commands. (built by PlatyPS)
 
 ## Update CHANGELOG.md
-
 `CHANGELOG.md` in the repo root is the authoritative changelog.
 Before proceeding, fetch and review <https://keepachangelog.com> to get the
 current format rules. Do not rely on training data -- request a fresh copy every time.
@@ -38,7 +56,6 @@ current format rules. Do not rely on training data -- request a fresh copy every
 **How to update the changelog before tagging a new release**
 
 1. **Find the previous tag** and collect every commit since then:
-
    ```powershell
    $prevTag = git describe --tags --abbrev=0   # most recent tag
    git log "$prevTag..HEAD" --oneline
@@ -62,3 +79,5 @@ current format rules. Do not rely on training data -- request a fresh copy every
    `# Changelog` heading. Use today's date and the version about to be tagged.
    Do not rewrite or delete any existing sections.
 
+## Hand off to user
+- The user will update manifest version, merge, tag, and push.
