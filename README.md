@@ -64,6 +64,7 @@ Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv
 ```powershell
 uv tool install pre-commit
 pre-commit install
+pre-commit autoupdate
 uvx detect-secrets scan > .secrets.baseline
 ```
 
