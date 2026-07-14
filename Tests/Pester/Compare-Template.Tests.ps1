@@ -148,6 +148,33 @@ Describe 'Test-OptionalVersioned' {
     }
 }
 
+Describe 'Test-VersionedExcluded' {
+    BeforeAll { $script:SavedExclude = $script:VersionedExclude }
+    AfterEach { $script:VersionedExclude = $script:SavedExclude }
+    It 'excludes nothing when the list is empty' {
+        $script:VersionedExclude = @()
+        Test-VersionedExcluded 'Scripts/Compare-Template.ps1' | Should -BeFalse
+    }
+    It 'matches an exact path' {
+        $script:VersionedExclude = @('Tests/Test-LineLength.ps1')
+        Test-VersionedExcluded 'Tests/Test-LineLength.ps1' | Should -BeTrue
+    }
+    It 'matches a glob pattern' {
+        $script:VersionedExclude = @('Scripts/Debug/*')
+        Test-VersionedExcluded 'Scripts/Debug/Find-ModuleRoot.ps1' | Should -BeTrue
+    }
+    It 'leaves non-matching paths included' {
+        $script:VersionedExclude = @('Tests/Test-LineLength.ps1')
+        Test-VersionedExcluded 'Scripts/New-Worktree.ps1' | Should -BeFalse
+    }
+}
+
+Describe 'VersionedExclude default' {
+    It 'keeps the Tests.ps1 orchestrator out of the copy workflow' {
+        $script:VersionedExclude | Should -Contain 'Tests.ps1'
+    }
+}
+
 Describe 'New-Entry' {
     It 'defaults to required, strict, content-compared' {
         $entry = New-Entry 'x'
@@ -181,7 +208,14 @@ Describe 'Manifest' {
 
 Describe 'Get-VersionedRelPath' {
     BeforeAll {
+        # Discover against an empty exclude list so these cases stay independent of
+        # whatever the shipped $script:VersionedExclude default happens to be.
+        $script:SavedDiscoverExclude = $script:VersionedExclude
+        $script:VersionedExclude = @()
         $script:Discovered = @(Get-VersionedRelPath -TemplateRoot $script:RepoRoot)
+    }
+    AfterAll {
+        $script:VersionedExclude = $script:SavedDiscoverExclude
     }
     It 'includes the top-level dev scripts' {
         $script:Discovered | Should -Contain 'Build.ps1'
@@ -196,5 +230,17 @@ Describe 'Get-VersionedRelPath' {
         $script:Discovered | Should -Not -Contain 'Build/PostBuild.ps1'
         $script:Discovered | Should -Not -Contain 'Tests/PreTests.ps1'
         $script:Discovered | Should -Not -Contain 'Tests/PostTests.ps1'
+    }
+    It 'drops files matching the versioned-exclude list' {
+        $saved = $script:VersionedExclude
+        try {
+            $script:VersionedExclude = @('Tests/Test-*.ps1')
+            $filtered = @(Get-VersionedRelPath -TemplateRoot $script:RepoRoot)
+            $filtered | Should -Not -Contain 'Tests/Test-PSSA.ps1'
+            $filtered | Should -Contain 'Scripts/Compare-Template.ps1'
+        }
+        finally {
+            $script:VersionedExclude = $saved
+        }
     }
 }

@@ -113,7 +113,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -209,6 +209,73 @@ $script:HashBanner =
 # SuppressMessageAttribute line above the declaration cannot match. Escaped
 # quotes are doubled for the single-quoted PowerShell string.
 $script:VersionPattern = '(?m)^\s*\$ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
+
+# Directories scanned (non-recursively) for versioned scripts. Tests\Pester is
+# deliberately excluded: those are the child's tests, not template tooling.
+$script:VersionedDirs = @('.', 'Build', 'Tests', 'Scripts', 'Scripts/Debug')
+
+# Versioned template scripts to keep OUT of the copy workflow. The template (the
+# parent) owns this list: a discovered versioned file whose '/'-relative path
+# matches one of these -like glob patterns is dropped during discovery, so it is
+# never version-checked, never offered for copy, and never shown -- exactly as if
+# it declared no $ScriptVersion. Populate it with template-internal tooling that
+# should not propagate to children (for example 'Scripts/Debug/*').
+$script:VersionedExclude = @(
+    'Tests.ps1'
+)
+
+# One non-versioned tracked file. {NAME} in a path is the module name, replaced
+# per side (the dev-loader .psm1 is renamed in a child). Required: a missing one
+# is drift. Strict: content drift is an error (vs 'review' only). ExistenceOnly:
+# a present file matches whatever its contents (the child rewrites it).
+function New-Entry {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [bool]$Required = $true,
+        [bool]$Strict = $true,
+        [bool]$ExistenceOnly = $false
+    )
+    return [pscustomobject]@{
+        Path          = $Path
+        Required       = $Required
+        Strict         = $Strict
+        ExistenceOnly = $ExistenceOnly
+    }
+}
+
+# Non-versioned tracked files. Versioned files (scripts carrying $ScriptVersion)
+# are discovered separately by Get-VersionedRelPath.
+$script:Manifest = @(
+    # GitHub automation and templates.
+    (New-Entry '.github/workflows/ci.yml')
+    (New-Entry '.github/workflows/docs.yml' -Required $false)
+    (New-Entry '.github/dependabot.yml')
+    (New-Entry '.github/pull_request_template.md')
+    (New-Entry '.github/ISSUE_TEMPLATE/bug_report.yml')
+    (New-Entry '.github/ISSUE_TEMPLATE/feature_request.yml')
+    (New-Entry '.github/ISSUE_TEMPLATE/config.yml')
+    # Editor / lint / format / hygiene config.
+    (New-Entry '.editorconfig')
+    (New-Entry '.gitattributes')
+    (New-Entry '.pre-commit-config.yaml')
+    (New-Entry '.gitignore' -ExistenceOnly $true)
+    (New-Entry '.secrets.baseline' -ExistenceOnly $true)
+    # Agent and contributor docs.
+    (New-Entry 'AGENTS.md' -Strict $false)
+    (New-Entry 'AGENTS.RELEASING.md')
+    (New-Entry 'AGENTS.TESTING.md')
+    (New-Entry 'AGENTS.WORKTREE.md')
+    (New-Entry 'CLAUDE.md')
+    (New-Entry 'CONTRIBUTING.md')
+    (New-Entry 'SECURITY.md')
+    (New-Entry 'README.md' -ExistenceOnly $true)
+    # Module scaffolding that tracks the template (normalized for the name).
+    (New-Entry 'Source/Build.psd1')
+    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1')
+    (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1')
+    # Editor / docs-site config (per-project; reviewed, not enforced).
+    (New-Entry 'mkdocs.yml' -Required $false -Strict $false)
+)
 
 # --- pure helpers -----------------------------------------------------------
 
@@ -312,70 +379,25 @@ function ConvertTo-NormalizedChild {
     return (Remove-TemplateBanner (Convert-Eol $Text))
 }
 
-# --- manifest ---------------------------------------------------------------
+# --- versioned discovery ----------------------------------------------------
 
-# One non-versioned tracked file. {NAME} in a path is the module name, replaced
-# per side (the dev-loader .psm1 is renamed in a child). Required: a missing one
-# is drift. Strict: content drift is an error (vs 'review' only). ExistenceOnly:
-# a present file matches whatever its contents (the child rewrites it).
-function New-Entry {
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [bool]$Required = $true,
-        [bool]$Strict = $true,
-        [bool]$ExistenceOnly = $false
-    )
-    return [pscustomobject]@{
-        Path          = $Path
-        Required       = $Required
-        Strict         = $Strict
-        ExistenceOnly = $ExistenceOnly
+# True when the template excludes a versioned file from the copy workflow via
+# $script:VersionedExclude. Matched with -like against the '/'-relative path.
+function Test-VersionedExcluded {
+    param([Parameter(Mandatory)][string]$Rel)
+    foreach ($pattern in $script:VersionedExclude) {
+        if ($Rel -like $pattern) { return $true }
     }
+    return $false
 }
-
-# Non-versioned tracked files. Versioned files (scripts carrying $ScriptVersion)
-# are discovered separately by Get-VersionedRelPath.
-$script:Manifest = @(
-    # GitHub automation and templates.
-    (New-Entry '.github/workflows/ci.yml')
-    (New-Entry '.github/workflows/docs.yml' -Required $false)
-    (New-Entry '.github/dependabot.yml')
-    (New-Entry '.github/pull_request_template.md')
-    (New-Entry '.github/ISSUE_TEMPLATE/bug_report.yml')
-    (New-Entry '.github/ISSUE_TEMPLATE/feature_request.yml')
-    (New-Entry '.github/ISSUE_TEMPLATE/config.yml')
-    # Editor / lint / format / hygiene config.
-    (New-Entry '.editorconfig')
-    (New-Entry '.gitattributes')
-    (New-Entry '.pre-commit-config.yaml')
-    (New-Entry '.gitignore' -ExistenceOnly $true)
-    (New-Entry '.secrets.baseline' -ExistenceOnly $true)
-    # Agent and contributor docs.
-    (New-Entry 'AGENTS.md' -Strict $false)
-    (New-Entry 'AGENTS.RELEASING.md')
-    (New-Entry 'AGENTS.TESTING.md')
-    (New-Entry 'AGENTS.WORKTREE.md')
-    (New-Entry 'CLAUDE.md')
-    (New-Entry 'CONTRIBUTING.md')
-    (New-Entry 'SECURITY.md')
-    (New-Entry 'README.md' -ExistenceOnly $true)
-    # Module scaffolding that tracks the template (normalized for the name).
-    (New-Entry 'Source/Build.psd1')
-    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1')
-    (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1')
-    # Editor / docs-site config (per-project; reviewed, not enforced).
-    (New-Entry 'mkdocs.yml' -Required $false -Strict $false)
-)
-
-# Directories scanned (non-recursively) for versioned scripts. Tests\Pester is
-# deliberately excluded: those are the child's tests, not template tooling.
-$script:VersionedDirs = @('.', 'Build', 'Tests', 'Scripts', 'Scripts/Debug')
 
 # Return the '/'-relative paths of versioned template files (those declaring a
 # single $ScriptVersion), discovered under VersionedDirs. The build/test hook
 # stubs (Pre/PostBuild, Pre/PostTests) deliberately carry no $ScriptVersion --
 # they are child customization points -- so they are not discovered here; they
-# are compared as lenient non-versioned files (see the manifest).
+# are compared as lenient non-versioned files (see the manifest). Files the
+# template lists in $script:VersionedExclude are dropped here too, so an excluded
+# script never reaches the pre-flight or the report.
 function Get-VersionedRelPath {
     param([Parameter(Mandatory)][string]$TemplateRoot)
     $FunctionName = $MyInvocation.MyCommand.Name
@@ -388,6 +410,10 @@ function Get-VersionedRelPath {
             if (-not (Get-ScriptVersion (Get-RawText $file.FullName))) { continue }
             $abs = [System.IO.Path]::GetRelativePath($TemplateRoot, $file.FullName)
             $rel = $abs.Replace('\', '/')
+            if (Test-VersionedExcluded $rel) {
+                Write-Trace "${FunctionName}: excluded '$rel'"
+                continue
+            }
             $found.Add($rel)
             Write-Trace "${FunctionName}: versioned file '$rel'"
         }
