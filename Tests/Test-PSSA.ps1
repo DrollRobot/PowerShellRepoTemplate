@@ -58,7 +58,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.0.2'
 
 # All analyzer configuration lives here.
 # PSScriptAnalyzer reads: ExcludeRules, Rules (and any other native keys).
@@ -158,14 +158,14 @@ if ($host.Name -eq 'Visual Studio Code Host') {
     Write-Warning 'PSScriptAnalyzer cannot run in the VS Code PowerShell Extension terminal.'
     $WarnMsg = 'Run .\tests.ps1 -PSScriptAnalyzer in the integrated terminal (pwsh) instead.'
     Write-Warning $WarnMsg
-    return
+    exit 0
 }
 
 if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
     $WarnMsg = 'PSScriptAnalyzer is not installed. Run: Install-Module PSScriptAnalyzer ' +
     '-Repository PSGallery -Scope CurrentUser'
     Write-Warning $WarnMsg
-    return
+    exit 0
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -310,7 +310,7 @@ catch {
     $WarnMsg = 'If running in the VS Code PowerShell Extension terminal, ' +
     'switch to the integrated pwsh terminal.'
     Write-Warning $WarnMsg
-    return
+    exit 0
 }
 
 $Stopwatch.Stop()
@@ -338,7 +338,8 @@ $SummaryColor = if ($IssueCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$IssueCount issue(s) -- $FileCount file(s) checked. (${ElapsedSec}s)"
 Write-Host $Msg -ForegroundColor $SummaryColor
 
-# Nonzero exit so pre-commit and CI can gate on findings. Note: the early
-# returns above (VS Code host, PSSA not installed, analyzer error) intentionally
-# leave a zero exit -- they are environment skips, not clean passes.
+# Nonzero exit so pre-commit and CI can gate on findings. The early exits above
+# (VS Code host, PSSA not installed, analyzer error) return 0 explicitly -- they
+# are environment skips, not clean passes, and a definite 0 keeps callers that
+# read $LASTEXITCODE from inheriting a stale code from an earlier command.
 exit ([int]($IssueCount -gt 0))

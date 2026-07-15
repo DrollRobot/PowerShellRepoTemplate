@@ -154,7 +154,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -362,6 +362,14 @@ try {
             # Test-PSSA also takes -RepoRoot so repo-anchored suppressions resolve
             # when -Path targets a subfolder/file.
             $PssaSplat = @{ Path = $TargetPath; RepoRoot = $PSScriptRoot; Recurse = $true }
+            # Reset the global exit code before each check so the tally below
+            # reads a value that is always defined (safe under StrictMode) and
+            # never stale from an earlier command. This MUST be $global: -- a
+            # plain $LASTEXITCODE = 0 creates a script-scoped variable that
+            # shadows the global a child's `exit` writes to, silently defeating
+            # failure detection. A check that returns without calling `exit`
+            # (e.g. an environment skip) then reads as 0, a clean pass.
+            $global:LASTEXITCODE = 0
             switch ($IndividualTest) {
                 'PSSA' { & $ScriptPath @PssaSplat @QuietSplat }
                 'AutoFormat' {
@@ -376,11 +384,14 @@ try {
                 }
                 default { & $ScriptPath -Path $TargetPath -Recurse @QuietSplat }
             }
+            # Capture immediately so nothing added between here and the tally
+            # can perturb the reading.
+            $CheckExitCode = $LASTEXITCODE
             # Tally detection-check failures for the final exit code. The fixers
             # (AutoFormat, TrailingWhitespace) mutate files rather than report, so
             # their exit code does not gate the run.
             if ($IndividualTest -notin @('AutoFormat', 'TrailingWhitespace') -and
-                $LASTEXITCODE -ne 0) {
+                $CheckExitCode -ne 0) {
                 $FormattingFailedCount++
             }
         }
