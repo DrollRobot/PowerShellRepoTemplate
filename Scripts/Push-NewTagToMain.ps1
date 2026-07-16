@@ -63,7 +63,7 @@
     still printed with the auto-answer so the transcript records each step.
 
 .EXAMPLE
-    .\Push-NewTagToMain.ps1 patch
+    .\Push-NewTagToMain.ps1 -Bump patch
 
 .EXAMPLE
     .\Push-NewTagToMain.ps1 -Version 2.0.0
@@ -72,10 +72,10 @@
     .\Push-NewTagToMain.ps1 -NoVersion
 
 .EXAMPLE
-    .\Push-NewTagToMain.ps1 patch -Yes
+    .\Push-NewTagToMain.ps1 -Bump patch -Yes
 
 .EXAMPLE
-    .\Push-NewTagToMain.ps1 patch -Build root
+    .\Push-NewTagToMain.ps1 -Bump patch -Build root
 
 .NOTES
     Requirements:
@@ -88,7 +88,7 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
 [CmdletBinding(DefaultParameterSetName = 'Bump')]
 param(
-    [Parameter(ParameterSetName = 'Bump', Mandatory, Position = 0)]
+    [Parameter(ParameterSetName = 'Bump', Mandatory)]
     [ValidateSet('patch', 'minor', 'major')]
     [string]$Bump,
 
@@ -114,7 +114,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.2.1'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
