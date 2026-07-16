@@ -29,6 +29,10 @@ Version 1.2.0
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 param()
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.2.0'
+
 # Walk up from this script's directory to find the .psd1 manifest, which is the
 # canonical marker of the module root. This works regardless of where this script
 # sits within the module tree (root, scripts/, etc.).

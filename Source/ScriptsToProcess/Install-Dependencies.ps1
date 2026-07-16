@@ -64,6 +64,10 @@ param(
     [switch]$Quiet
 )
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.2.1'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $DarkCyan = @{ForegroundColor = 'DarkCyan' }
