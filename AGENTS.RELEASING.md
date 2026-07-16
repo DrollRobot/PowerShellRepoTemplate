@@ -20,9 +20,11 @@ Ignore built code in the module root, such as *.psm1 and *.psd1, ScriptsToProces
 
 ## Commit
 - Commit any untracked files.
-- Commit messages should follow Chris Beam's guidance:
-  https://chris.beams.io/posts/git-commit/
-  Fetch the page at least once every session. Do not rely on memory for this.
+- Commit messages should follow Conventional Commits format:
+   https://www.conventionalcommits.org/en/v1.0.0/
+   And qoomon's commit message style guide:
+   https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13
+   Fetch both pages at least once every session. Do not rely on memory alone.
 
 ## Build
 ```powershell
@@ -40,7 +42,6 @@ then falls back to the newest versioned build under Output\):
 ```
 
 ## Update docs
-
 ```powershell
 .\Docs.ps1 -DeleteOrphaned
 ```
