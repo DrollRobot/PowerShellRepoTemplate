@@ -52,43 +52,47 @@ repos:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
 
-  # PowerShell formatting / lint checks (fast, pure-text). Each runs against the
-  # staged .ps1/.psm1/.psd1 files pre-commit passes in and exits nonzero on a
-  # finding, blocking the commit. PSSA is excluded here (too slow; CI covers it).
+  # PowerShell formatting / lint checks
   - repo: local
     hooks:
       - id: ps-module-syntax
         name: PowerShell syntax
-        entry: pwsh -NoProfile -File Tests/Test-ModuleSyntax.ps1
+        entry: pwsh -NoProfile -File Tests/Test-ModuleSyntax.ps1 -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
+
       - id: ps-line-length
         name: PowerShell line length
-        entry: pwsh -NoProfile -File Tests/Test-LineLength.ps1
+        entry: pwsh -NoProfile -File Tests/Test-LineLength.ps1 -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
+
       - id: ps-backtick-continuation
         name: PowerShell backtick continuation
-        entry: pwsh -NoProfile -File Tests/Test-BacktickContinuation.ps1
+        entry: pwsh -NoProfile -File Tests/Test-BacktickContinuation.ps1 -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
+
       - id: ps-format-operator
         name: PowerShell -f format operator
-        entry: pwsh -NoProfile -File Tests/Test-FormatOperator.ps1
+        entry: pwsh -NoProfile -File Tests/Test-FormatOperator.ps1 -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
+
       - id: ps-join-path
         name: PowerShell path-building
-        entry: pwsh -NoProfile -File Tests/Test-JoinPath.ps1
+        entry: pwsh -NoProfile -File Tests/Test-JoinPath.ps1 -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
+
       - id: ps-non-ascii
         name: PowerShell non-ASCII characters
-        entry: pwsh -NoProfile -File Tests/Test-NonASCIICharacters.ps1
+        entry: pwsh -NoProfile -File Tests/Test-NonASCIICharacters.ps1 -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
+
       - id: ps-write-verbose-debug
         name: PowerShell Write-Verbose/Write-Debug
-        entry: pwsh -NoProfile -File Tests/Test-WriteVerboseDebug.ps1
+        entry: pwsh -NoProfile -File Tests/Test-WriteVerboseDebug.ps1 -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
