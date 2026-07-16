@@ -113,7 +113,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.1.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -212,7 +212,14 @@ $script:VersionPattern = '(?m)^\s*\$ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
 
 # Directories scanned (non-recursively) for versioned scripts. Tests\Pester is
 # deliberately excluded: those are the child's tests, not template tooling.
-$script:VersionedDirs = @('.', 'Build', 'Tests', 'Scripts', 'Scripts/Debug')
+$script:VersionedDirs = @(
+    '.'
+    'Build'
+    'Tests'
+    'Scripts'
+    'Scripts/Debug'
+    'Source/ScriptsToProcess'
+)
 
 # Versioned template scripts to keep OUT of the copy workflow. The template (the
 # parent) owns this list: a discovered versioned file whose '/'-relative path
@@ -222,6 +229,7 @@ $script:VersionedDirs = @('.', 'Build', 'Tests', 'Scripts', 'Scripts/Debug')
 # should not propagate to children (for example 'Scripts/Debug/*').
 $script:VersionedExclude = @(
     'Tests.ps1'
+    'Source/ScriptsToProcess/Install-Dependencies.ps1'
 )
 
 # One non-versioned tracked file. {NAME} in a path is the module name, replaced
