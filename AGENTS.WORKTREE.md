@@ -4,14 +4,12 @@ Instructions for working inside an isolated git worktree. Complements any
 repo-level `AGENTS.md`; this file wins on worktree/PR matters.
 
 ## Assume
-
 - You're in a worktree the user already opened, on branch `wt/<slug>`, forked
   from and tracking the remote base (normally `origin/dev` or
   `origin/develop`) that is the PR target — i.e. created with
   `git worktree add -b wt/<slug> origin/<base>` after a fetch.
 
 ## Testing
-
 - Run tests as described in [AGENTS.TESTING.md](AGENTS.TESTING.md).
 
 ## Commit
@@ -23,7 +21,6 @@ repo-level `AGENTS.md`; this file wins on worktree/PR matters.
    Fetch both pages at least once every session. Do not rely on memory alone.
 
 ## Completing the worktree
-
 Pushing and opening the PR are **not** your job. Do **not** run `git push` or
 `gh pr create`. The user will handle that.
 
