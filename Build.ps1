@@ -67,8 +67,8 @@
 
 .NOTES
     Build artifacts are staged in .\.staging (gitignored) and removed after a successful
-    build. If the module takes PSFramework (or any module) as a RequiredModules dependency,
-    consumers still need to Install-Module it before importing.
+    build. If the module takes any module as a RequiredModules dependency, consumers still
+    need to Install-Module it before importing.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
@@ -82,7 +82,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
@@ -115,16 +115,80 @@ if (-not $OutputDirectory) {
 }
 
 function Resolve-Dependency {
-    param([string] $Name, [version] $MinimumVersion)
+    <#
+    .SYNOPSIS
+        Imports a build-time module dependency, or reports it as missing.
+
+    .DESCRIPTION
+        Finds the highest installed version of a module within an optional
+        [MinimumVersion, MaximumVersion] range and imports that exact version by
+        path. This script never installs modules: a missing critical dependency
+        throws and halts the build, while a missing non-critical one only warns
+        and returns so the build can continue.
+
+    .PARAMETER Name
+        Name of the module to resolve.
+
+    .PARAMETER MinimumVersion
+        Lowest acceptable module version. Omit for no lower bound.
+
+    .PARAMETER MaximumVersion
+        Highest acceptable module version. Omit for no upper bound.
+
+    .PARAMETER Critical
+        Treat absence as a fatal error and throw. Without it, a missing module
+        only produces a warning.
+
+    .EXAMPLE
+        Resolve-Dependency -Name ModuleBuilder -Critical
+
+        Imports ModuleBuilder, or throws if it is not installed.
+
+    .OUTPUTS
+        None.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string] $Name,
+
+        [version] $MinimumVersion,
+
+        [version] $MaximumVersion,
+
+        [switch] $Critical
+    )
+
     $have = Get-Module -ListAvailable -Name $Name |
+        Where-Object {
+            (-not $MinimumVersion -or $_.Version -ge $MinimumVersion) -and
+            (-not $MaximumVersion -or $_.Version -le $MaximumVersion)
+        } |
         Sort-Object Version -Descending | Select-Object -First 1
-    if (-not $have -or ($MinimumVersion -and $have.Version -lt $MinimumVersion)) {
-        $params = @{ Name = $Name; Scope = 'CurrentUser'; Force = $true; AllowClobber = $true }
-        if ($MinimumVersion) { $params.MinimumVersion = $MinimumVersion }
-        Write-Host "Installing $Name..." -ForegroundColor Cyan
-        Install-Module @params
+
+    if ($have) {
+        Import-Module -Name $have.Path -Force
+        return
     }
-    Import-Module $Name -Force
+
+    # Install-PSResource takes a single NuGet range for -Version, not
+    # -Minimum/-MaximumVersion. Both bounds are treated as inclusive: [min,max].
+    $hint = "Install-PSResource -Name $Name"
+    if ($MinimumVersion -and $MaximumVersion) {
+        $hint += " -Version '[$MinimumVersion,$MaximumVersion]'"
+    }
+    elseif ($MinimumVersion) {
+        $hint += " -Version '[$MinimumVersion,)'"
+    }
+    elseif ($MaximumVersion) {
+        $hint += " -Version '(,$MaximumVersion]'"
+    }
+    $hint += ' -Scope CurrentUser'
+    $message = "Required module '$Name' is not installed. Install it with: $hint"
+
+    if ($Critical) {
+        throw $message
+    }
+    Write-Warning $message
 }
 
 # --- Clean (always runs first) -------------------------------------------------
@@ -139,7 +203,8 @@ if ($BuildToRoot) {
     )
 
     # Add CopyPaths folders declared in Build.psd1
-    foreach ($cp in $buildConfig.CopyPaths) {
+    $copyPaths = if ($buildConfig.ContainsKey('CopyPaths')) { $buildConfig.CopyPaths } else { @() }
+    foreach ($cp in $copyPaths) {
         $rootArtifacts += Join-Path -Path $RepoRoot -ChildPath (Split-Path -Path $cp -Leaf)
     }
 
@@ -165,7 +230,24 @@ if (Test-Path $preBuildScript) {
 
 # --- Build ---------------------------------------------------------------------
 Write-Host '==> Build' -ForegroundColor Green
-Resolve-Dependency -Name ModuleBuilder
+Resolve-Dependency -Name ModuleBuilder -Critical
+
+# ConvertTo-Script (the standalone-script Generator) calls Update-ScriptFileInfo,
+# which re-parses the generated .ps1 with Test-ScriptFileInfo. PowerShellGet 1.x
+# splits the <#PSScriptInfo#> block on CRLF only, but ModuleBuilder writes that block
+# with LF line endings -- so 1.x finds no metadata and the build dies with "missing
+# required metadata properties". PowerShellGet 2.x splits on CR-or-LF and parses it.
+# Resolve a 2.x so the generator's unqualified Update-ScriptFileInfo binds to it.
+# (3.x dropped Update-ScriptFileInfo entirely.) Non-critical: a missing 2.x warns,
+# then the generator surfaces its own failure.
+if ($buildConfig.ContainsKey('Generators') -and $buildConfig.Generators) {
+    $psGetParams = @{
+        Name           = 'PowerShellGet'
+        MinimumVersion = '2.0.0'
+        MaximumVersion = '2.99.99'
+    }
+    Resolve-Dependency @psGetParams
+}
 
 if ($BuildToRoot) {
     # Flat build into staging, then mirror up to the repo root.
