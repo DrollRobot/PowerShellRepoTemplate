@@ -28,7 +28,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.0.2'
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(
@@ -113,8 +113,7 @@ $Count = @($files).Count
 if ($hitCount -gt 0 -and -not $Quiet) {
     $Msg = 'NOTE FOR AI AGENTS: Always fix all line length findings, ' +
     "even if they aren't related to changes you made. Lines should be " +
-    "no longer than ${MaxLength} characters. DO NOT USE BACKTICK CONTINUATIONS. " +
-    'Address line length issues only after all Pester tests are passing.'
+    "no longer than ${MaxLength} characters. DO NOT USE BACKTICK CONTINUATIONS."
     Write-Host $Msg -ForegroundColor DarkGray
     $hits | Format-Table -AutoSize
 }
