@@ -72,6 +72,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $DarkCyan = @{ForegroundColor = 'DarkCyan' }
 $Yellow = @{ForegroundColor = 'Yellow' }
+$Red = @{ForegroundColor = 'Red' }
 
 # Hard-coded fallback module list
 # Used only when the manifest's RequiredModules cannot be read (missing,
@@ -321,17 +322,24 @@ foreach ($R in $Plan) {
 # --- Recommendation / summary --------------------------------------------
 if (-not $Quiet) {
     if ($GraphMismatch) {
-        Write-Host @Yellow @"
+        Write-Host @Red @"
+
 Microsoft.Graph modules have mismatched versions.
-To resolve:
-# uninstall all graph modules
+To resolve, uninstall all graph modules:
+"@
+        Write-Host @Yellow @"
 Get-InstalledModule Microsoft.Graph* |
     Where-Object Name -ne 'Microsoft.Graph.Authentication' |
     ForEach-Object { Uninstall-Module `$_.Name -AllVersions -Force -ErrorAction SilentlyContinue }
 Uninstall-Module Microsoft.Graph.Authentication -AllVersions -Force
+"@
+        Write-Host @Red @"
 
-# re-run this script
+Then, reinstall latest versions with:
+"@
+        Write-Host @Yellow @"
 & '$PSCommandPath'
+
 "@
     }
     elseif ($Locked.Count -gt 0) {
