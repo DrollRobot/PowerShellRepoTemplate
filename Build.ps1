@@ -12,11 +12,10 @@
     By default it produces a versioned build under .\output (output\<ModuleName>\<version>\),
     which is the layout Publish-Module expects for the PowerShell Gallery.
 
-    With -BuildToRoot, it instead emits a flat, unversioned manifest and .psm1 to the repo
-    root and commits them, so a fresh clone placed on $env:PSModulePath is immediately
-    importable by name with no build step. In that mode the root artifacts are generated
-    files that must never be hand-edited - only .\source is edited, and only this script
-    writes the root.
+    Alternatively, with -BuildToRoot, it instead emits a manifest and .psm1 to the repo
+    root, so a fresh clone placed is immediately importable by name with no build step.
+    Built artifacts are generated files that must never be hand-edited - only .\source is
+    edited, and only this script writes the root.
 
     The source manifest under .\source is always the metadata source of truth. The module
     name is derived from it, so the script is portable across modules without modification.
