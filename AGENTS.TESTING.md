@@ -7,7 +7,7 @@ built artifacts in module root.
 
 ## Writing tests
 
-- All new code should have unit and integration tests, and e2e or live tests
+- All new code should have unit and integration tests, and e2e and/or live tests
     wherever possible/appropriate.
 - All tests should use the tag system described below. Tests MUST have at least
     one Scope tag (`unit`, `integration`, or `e2e`).
@@ -33,10 +33,9 @@ built artifacts in module root.
 **First: Pester tests**
 ```powershell
 # run offline pester tests for rapid feedback
-.\Tests.ps1 NotLive
+.\Tests.ps1 NonLive # runs all non-live, non-destructive tests
 # then run tests with dependencies (where applicable)
-.\Tests.ps1 Live
-.\Tests.ps1 Destructive # only with user approval
+.\Tests.ps1 Live # run all live, non-destructive tests
 ```
 Do not move on to formatting until all Pester tests are passing.
 
@@ -75,3 +74,40 @@ pre-commit run --all-files
 
 **Quick pass/fail for agents**
 Add `-Quiet` to any formatting check for single line output.
+
+## Destructive tests
+
+If the package contains destructive tests, check the `DISPOSABLE_ENVIRONMENT`
+environment variable.
+- `0` = User says this system is not disposable; never run destructive tests.
+- `1` = User has decided this system is disposable; ask user once per session if
+    destructive tests should be run.
+- Not set = the system has not been assessed. Do NOT run destructive tests.
+    Provide the user the commands below and ask them to set the variable. Any
+    value other than `1` (including typos or an unset variable) is treated as
+    non-disposable.
+```
+The DISPOSABLE_ENVIRONMENT environment variable is not set. Please set it to
+indicate whether it's save to run destructive tests.
+Use `0` on a normal machine.
+Use `1` ONLY on a disposable VM/container/envi you are willing to have mutated. The commands below
+show `0`; change it to `1` only on a throwaway host. Each takes effect in new
+sessions, not the shell that runs it.
+
+Windows:
+[Environment]::SetEnvironmentVariable('DISPOSABLE_ENVIRONMENT','0','Machine')
+
+Linux:
+echo 'DISPOSABLE_ENVIRONMENT=0' | sudo tee -a /etc/environment
+
+MacOS:
+echo 'export DISPOSABLE_ENVIRONMENT=0' | sudo tee -a /etc/zprofile
+```
+
+**Agents must NEVER set `DISPOSABLE_ENVIRONMENT` themselves.**
+
+If the package contains destructive tests, the variable is set, and the
+user has approved running destructive tests in this session, run:
+```
+.\Tests.ps1 Destructive
+```
