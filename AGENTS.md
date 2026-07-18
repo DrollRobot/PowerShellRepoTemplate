@@ -15,6 +15,10 @@ module you create from this template, not for the template repo.
 
 # PowershellRepoTemplate -- Agent Guidelines
 
+In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
+Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, Docs/Commands/, and any
+built artifacts in module root.
+
 ## Architecture
 
 Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit module
@@ -36,11 +40,14 @@ Ignore built code in the module root, such as *.psm1 and *.psd1, ScriptsToProces
 - Only one function per file. File name must match function name.
 - Function aliases are declared on the function definition with `[Alias(...)]`
 
-### Output
-- Include debug output in all code. (do not use Write-Verbose or Write-Debug)
+### Logging/Console output
+<!--
+Provide instructions for console/file logging. Commands/Functions to use, verbosity
+levels, etc...
+Possible instructions:
+- Include debug output in all code using <command>. (do not use Write-Verbose or Write-Debug)
 - In-domain debug output should use `Write-PSFMessage -Level 8 -Message <message>`. (or
-   level 9 for very verbose output) Requires the PSFramework module; if you do not
-   want that dependency, substitute your own wrapper and update Tests accordingly.
+   level 9 for trace-level output)
 - Non-domain debug output should use Write-Trace:
 ```
 if ($Trace) { $InformationPreference = 'Continue' }
@@ -49,6 +56,7 @@ function Write-Trace {
    Write-Information $Message -Tags 'Trace'
 }
 ```
+-->
 
 ### Comment-Based Help
 - Every function/script requires full comment-based help: `.SYNOPSIS`, `.DESCRIPTION`,
@@ -65,15 +73,9 @@ function Write-Trace {
 - Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named parameters.
    (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`)
 
-### Pester tests
-- All code should have Pester tests written and placed in Tests/Pester.
-- Tests that do **not** require connectivity need no tag.
-- Tests that **require** a live connection to an external service must be tagged `'Online'`.
-
-## Testing after code changes
-
-After writing new code, run tests as described in [AGENTS.TESTING.md](AGENTS.TESTING.md).
+## Testing
+For instructions on writing and running tests: [AGENTS.TESTING.md](AGENTS.TESTING.md).
+ALWAYS READ BEFORE WRITING NEW CODE.
 
 ## Build and Release
-
 For build and release procedures, see [AGENTS.RELEASING.md](AGENTS.RELEASING.md).
