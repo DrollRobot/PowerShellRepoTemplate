@@ -5,7 +5,7 @@
 .DESCRIPTION
     Dot-sources the script to load its helper functions -- the dot-source guard
     in the script skips the comparison itself -- and exercises the pure helpers
-    plus the versioned-file discovery against the real repo. Offline; no tag.
+    plus the versioned-file discovery against the real repo. NonLive; no tag.
 
 .NOTES
     The template identity tokens are assembled from string pieces so that a

@@ -8,7 +8,7 @@
     Tests.ps1 dot-sources this hook (when present) after the module is imported
     and before the test sections run, passing the $TestContext hashtable
     (ModuleName, RepoRoot, PesterTestsFolder, the bound parameters, and
-    OnlineHandled). Because it is dot-sourced, anything it sets -- variables or
+    LiveHandled). Because it is dot-sourced, anything it sets -- variables or
     globals -- is visible to the test sections and to PostTests.ps1.
 
     Keep per-project test configuration here so the orchestrator (Tests.ps1) and
@@ -16,9 +16,9 @@
 
       * PSScriptAnalyzer config consumed by Tests\Test-PSSA.ps1
         ($Global:Dev_PSSAConfig), below.
-      * Online setup (auth, a live session) that your Online-tagged Pester tests
-        need. A hook that fully owns the Online run sets
-        $TestContext.OnlineHandled = $true to suppress the generic Online run.
+      * Live setup (auth, a live session) that your 'live'-tagged Pester tests
+        need. A hook that fully owns the Live run sets
+        $TestContext.LiveHandled = $true to suppress the generic Live run.
 
     A throw here aborts the run; Tests.ps1 still runs PostTests.ps1 for cleanup.
 #>
@@ -48,10 +48,10 @@ $Global:Dev_PSSAConfig = @{
     PerPathSuppressions = @{}
 }
 
-# --- Online setup (optional) -------------------------------------------------
-# If your Online-tagged tests need a live session, establish it here. If this
-# hook runs the Online tests itself, set $TestContext.OnlineHandled = $true so
-# the orchestrator skips its generic Online run.
-# if ('Online' -in $TestContext.Test) {
-#     # ... connect, then optionally drive Invoke-Pester and set OnlineHandled.
+# --- Live setup (optional) ---------------------------------------------------
+# If your 'live'-tagged tests need a live session, establish it here. If this
+# hook runs the Live tests itself, set $TestContext.LiveHandled = $true so
+# the orchestrator skips its generic Live run.
+# if ('Live' -in $TestContext.Test) {
+#     # ... connect, then optionally drive Invoke-Pester and set LiveHandled.
 # }

@@ -39,6 +39,6 @@ To customize:
 
 - [ ] My code follows the conventions in AGENTS.md
 - [ ] I have performed a self-review of my changes
-- [ ] `.\Tests.ps1 Offline` passes
+- [ ] `.\Tests.ps1 NonLive` passes
 - [ ] `.\Tests.ps1 Formatting` reports no findings
 - [ ] I have updated CHANGELOG.md and documentation as needed

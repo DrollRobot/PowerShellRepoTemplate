@@ -19,17 +19,29 @@
     tests folder -- PreTests.ps1 (run after module load, before the test
     sections) and PostTests.ps1 (always run afterward, even on failure). Both
     are dot-sourced and receive a $TestContext hashtable (ModuleName, RepoRoot,
-    TestsFolder, PesterTestsFolder, the bound parameters, and OnlineHandled). A
-    hook owning the Online run sets $TestContext.OnlineHandled to suppress the
-    generic Online Pester run.
+    TestsFolder, PesterTestsFolder, the bound parameters, and LiveHandled). A
+    hook owning the Live run sets $TestContext.LiveHandled to suppress the
+    generic Live Pester run.
 
 .PARAMETER Test
     One or more test categories to run. Accepted values:
 
-      Offline              -- Pester tests that do not require connectivity.
-      Online               -- Pester tests tagged Online. Connectivity/auth
-                             setup is provided by the project's PreTests.ps1
-                             hook; without one, the Online-tagged tests run as-is.
+      NonLive              -- Pester tests that are not tagged 'live' or
+                             'destructive'. No connectivity or external
+                             resources required.
+      Live                 -- Pester tests tagged 'live', excluding any also
+                             tagged 'destructive'. Connectivity/auth setup is
+                             provided by the project's PreTests.ps1 hook;
+                             without one, the live-tagged tests run as-is.
+      Destructive          -- Pester tests tagged 'destructive'. Each such test
+                             must also carry exactly one scope tag, 'local' or
+                             'remote'; a test tagged 'destructive' with neither
+                             (or a scope tag Pester cannot resolve) causes the
+                             whole category to refuse, fail-closed. The 'local'
+                             subset runs only when DISPOSABLE_ENVIRONMENT=1;
+                             the 'remote' subset runs only when
+                             Tests\Confirm-RemoteDisposable.ps1 exits 0. See
+                             AGENTS.TESTING.md.
       AutoFormat           -- Trailing-whitespace fix followed by PSScriptAnalyzer
                              auto-fix and format; suppresses lint findings output.
       LineLength           -- Check lines exceeding 100 characters.
@@ -57,24 +69,25 @@
 .PARAMETER Path
     Scope the run to a single file or folder instead of the whole repo. The
     formatting/lint checks run against this path (a file checks just that file;
-    a folder checks everything matching under it, recursively). For Offline and
-    Online, this path is what Invoke-Pester scans -- e.g. point it at a single
-    *.Tests.ps1 file. Defaults to the repo root, so omitting it is unchanged.
+    a folder checks everything matching under it, recursively). For NonLive,
+    Live, and Destructive, this path is what Invoke-Pester scans -- e.g. point
+    it at a single *.Tests.ps1 file. Defaults to the repo root, so omitting it
+    is unchanged.
 
 .PARAMETER InteractiveAuth
     Passed through to the project's PreTests.ps1 hook via $TestContext for use
-    with Online runs. Projects whose Online tests need an interactive sign-in
-    (or other interactive setup) read this from $TestContext; when omitted
-    (default) setup stays non-interactive. Projects without an Online hook
-    ignore it.
+    with Live runs. Projects whose live-tagged tests need an interactive
+    sign-in (or other interactive setup) read this from $TestContext; when
+    omitted (default) setup stays non-interactive. Projects without a Live
+    hook ignore it.
 
-    Requires Online; rejected without it.
+    Requires Live; rejected without it.
 
 .PARAMETER Built
     Load the module from the built artifact instead of the source manifest.
     Looks for a root build first (Build.ps1 -BuildToRoot), then falls back to
-    the newest versioned build under Output\. Only valid with Offline and
-    Online.
+    the newest versioned build under Output\. Only valid with NonLive, Live,
+    and Destructive.
 
 .PARAMETER Quiet
     Forward -Quiet to the individual formatting checks so each prints only its
@@ -83,16 +96,16 @@
     to individual checks, not the Formatting aggregate or Pester runs.
 
 .EXAMPLE
-    .\Tests.ps1 Offline
-    Runs Pester offline tests only.
+    .\Tests.ps1 NonLive
+    Runs Pester tests that need no connectivity or external resources.
 
 .EXAMPLE
     .\Tests.ps1 LineLength -Quiet
     Runs the line-length check and prints only its one-line summary.
 
 .EXAMPLE
-    .\Tests.ps1 Offline Online
-    Runs all Pester tests (offline and online).
+    .\Tests.ps1 NonLive Live
+    Runs all non-destructive Pester tests (NonLive and Live).
 
 .EXAMPLE
     .\Tests.ps1 Formatting
@@ -111,19 +124,24 @@
     Runs PSScriptAnalyzer against just the Source\Public folder.
 
 .EXAMPLE
-    .\Tests.ps1 Offline -Path .\tests\pester\Get-Script.Tests.ps1
-    Runs one offline Pester test file.
+    .\Tests.ps1 NonLive -Path .\tests\pester\Get-Script.Tests.ps1
+    Runs one NonLive Pester test file.
 
 .EXAMPLE
     .\Tests.ps1 AutoFormat
     Fixes trailing whitespace then runs PSSA auto-fix and formatting; suppresses lint findings.
 
 .EXAMPLE
-    .\Tests.ps1 Online -InteractiveAuth
-    Runs online tests with interactive sign-in.
+    .\Tests.ps1 Live -InteractiveAuth
+    Runs live tests with interactive sign-in.
 
 .EXAMPLE
-    .\Tests.ps1 Offline Online -Built
+    .\Tests.ps1 Destructive
+    Runs destructive tests. The 'local' subset requires DISPOSABLE_ENVIRONMENT=1;
+    the 'remote' subset requires Tests\Confirm-RemoteDisposable.ps1 to exit 0.
+
+.EXAMPLE
+    .\Tests.ps1 NonLive Live -Built
     Runs Pester tests against the compiled module artifact.
 #>
 
@@ -132,7 +150,7 @@
 param(
     [Parameter(Position = 0, Mandatory, ValueFromRemainingArguments)]
     [ValidateSet(
-        'Offline', 'Online', 'Formatting',
+        'NonLive', 'Live', 'Destructive', 'Formatting',
         'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
         'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
         'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
@@ -154,13 +172,13 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.1.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ($InteractiveAuth -and 'Online' -notin $Test) {
-    Write-Host '-InteractiveAuth requires -Test Online.' -ForegroundColor Yellow
+if ($InteractiveAuth -and 'Live' -notin $Test) {
+    Write-Host '-InteractiveAuth requires -Test Live.' -ForegroundColor Yellow
     exit 1
 }
 
@@ -319,9 +337,9 @@ $TestContext = @{
     InteractiveAuth   = [bool] $InteractiveAuth
     Built             = [bool] $Built
     Quiet             = [bool] $Quiet
-    # A hook may set this true to signal it owns the Online run (auth, gating,
-    # multi-pass); the generic Online run below is then skipped.
-    OnlineHandled     = $false
+    # A hook may set this true to signal it owns the Live run (auth, gating,
+    # multi-pass); the generic Live run below is then skipped.
+    LiveHandled       = $false
 }
 $PreTestsHook = Join-Path -Path $TestsFolder -ChildPath 'PreTests.ps1'
 $PostTestsHook = Join-Path -Path $TestsFolder -ChildPath 'PostTests.ps1'
@@ -335,17 +353,27 @@ $PesterFailedCount = 0
 # final check invoked.
 $FormattingFailedCount = 0
 
+# Track Destructive refusals (an unsatisfied opt-in gate, or a destructive test
+# missing its required 'local'/'remote' scope tag) so the run still exits nonzero
+# even though no Pester test itself ran or failed.
+$DestructiveGateFailedCount = 0
+
 try {
     if (Test-Path $PreTestsHook) {
         Write-Host "`n=== PreTests.ps1 ===" -ForegroundColor Cyan
         . $PreTestsHook
     }
 
-    # --- Offline ---
-    if ('Offline' -in $Test) {
-        Write-Host "`n=== Invoke-Pester (Offline) ===" -ForegroundColor Cyan
-        $OfflineResult = Invoke-Pester -Path $PesterTarget -ExcludeTagFilter 'Online' -PassThru
-        $PesterFailedCount += $OfflineResult.FailedCount
+    # --- NonLive ---
+    if ('NonLive' -in $Test) {
+        Write-Host "`n=== Invoke-Pester (NonLive) ===" -ForegroundColor Cyan
+        $NonLiveSplat = @{
+            Path             = $PesterTarget
+            ExcludeTagFilter = 'live', 'destructive'
+            PassThru         = $true
+        }
+        $NonLiveResult = Invoke-Pester @NonLiveSplat
+        $PesterFailedCount += $NonLiveResult.FailedCount
     }
 
     # --- Individual formatting tests ---
@@ -446,14 +474,117 @@ try {
         & $AnalyzerScript -Path $TargetPath -RepoRoot $PSScriptRoot -Recurse -AutoFormat
     }
 
-    # --- Online ---
-    # Generic run: any Pester tests tagged Online. Projects needing auth, a token
-    # cache, or connect-gating provide that in PreTests.ps1, which sets
-    # $TestContext.OnlineHandled to take over the Online run entirely.
-    if ('Online' -in $Test -and -not $TestContext.OnlineHandled) {
-        Write-Host "`n=== Invoke-Pester (Online) ===" -ForegroundColor Cyan
-        $OnlineResult = Invoke-Pester -Path $PesterTarget -TagFilter 'Online' -PassThru
-        $PesterFailedCount += $OnlineResult.FailedCount
+    # --- Live ---
+    # Generic run: any Pester tests tagged 'live', excluding 'destructive'. Projects
+    # needing auth, a token cache, or connect-gating provide that in PreTests.ps1,
+    # which sets $TestContext.LiveHandled to take over the Live run entirely.
+    if ('Live' -in $Test -and -not $TestContext.LiveHandled) {
+        Write-Host "`n=== Invoke-Pester (Live) ===" -ForegroundColor Cyan
+        $LiveSplat = @{
+            Path             = $PesterTarget
+            TagFilter        = 'live'
+            ExcludeTagFilter = 'destructive'
+            PassThru         = $true
+        }
+        $LiveResult = Invoke-Pester @LiveSplat
+        $PesterFailedCount += $LiveResult.FailedCount
+    }
+
+    # --- Destructive ---
+    # Destructive tests mutate real state and must be opted into deliberately, at
+    # two independent layers (see AGENTS.TESTING.md):
+    #   local  -- mutates this host. Gated on DISPOSABLE_ENVIRONMENT=1.
+    #   remote -- mutates an external target. Gated on
+    #             Tests\Confirm-RemoteDisposable.ps1 exiting 0.
+    # Each destructive test must carry exactly one of those two scope tags. A test
+    # tagged 'destructive' with neither, or with both, is ambiguous and refuses the
+    # whole category fail-closed -- ExcludeTagFilter alone cannot keep an ambiguous
+    # test out of both subset runs (neither case) or confine it to one (both case).
+    if ('Destructive' -in $Test) {
+        Write-Host "`n=== Destructive: discovery ===" -ForegroundColor Cyan
+        $DiscoveryConfig = New-PesterConfiguration
+        $DiscoveryConfig.Run.Path = $PesterTarget
+        $DiscoveryConfig.Run.SkipRun = $true
+        $DiscoveryConfig.Run.PassThru = $true
+        $DiscoveryConfig.Output.Verbosity = 'None'
+        $DiscoveryResult = Invoke-Pester -Configuration $DiscoveryConfig
+        $DestructiveTests = @(
+            $DiscoveryResult.Tests | Where-Object { $_.Tag -contains 'destructive' }
+        )
+        $AmbiguousTests = @(
+            $DestructiveTests | Where-Object {
+                $IsLocalTest = $_.Tag -contains 'local'
+                $IsRemoteTest = $_.Tag -contains 'remote'
+                -not ($IsLocalTest -xor $IsRemoteTest)
+            }
+        )
+
+        if ($AmbiguousTests.Count -gt 0) {
+            Write-Host 'Refusing Destructive: ambiguous scope tags.' -ForegroundColor Red
+            Write-Host "Tag each 'local' or 'remote' (not neither, not both):" -ForegroundColor Red
+            foreach ($AmbiguousTest in $AmbiguousTests) {
+                Write-Host "  - $($AmbiguousTest.ExpandedPath)" -ForegroundColor Red
+            }
+            $DestructiveGateFailedCount++
+        }
+        elseif ($DestructiveTests.Count -eq 0) {
+            Write-Host 'No destructive-tagged tests found.' -ForegroundColor Cyan
+        }
+        else {
+            $HasLocalDestructive = [bool] (
+                $DestructiveTests | Where-Object { $_.Tag -contains 'local' }
+            )
+            $HasRemoteDestructive = [bool] (
+                $DestructiveTests | Where-Object { $_.Tag -contains 'remote' }
+            )
+
+            if ($HasLocalDestructive) {
+                if ($env:DISPOSABLE_ENVIRONMENT -eq '1') {
+                    Write-Host "`n=== Invoke-Pester (Destructive Local) ===" -ForegroundColor Cyan
+                    $DestructiveLocalSplat = @{
+                        Path             = $PesterTarget
+                        TagFilter        = 'destructive'
+                        ExcludeTagFilter = 'remote'
+                        PassThru         = $true
+                    }
+                    $DestructiveLocalResult = Invoke-Pester @DestructiveLocalSplat
+                    $PesterFailedCount += $DestructiveLocalResult.FailedCount
+                }
+                else {
+                    Write-Host "`n=== Destructive Local ===" -ForegroundColor Cyan
+                    Write-Host 'Refusing: DISPOSABLE_ENVIRONMENT is not 1.' -ForegroundColor Red
+                    Write-Host 'See AGENTS.TESTING.md to set it.' -ForegroundColor Red
+                    $DestructiveGateFailedCount++
+                }
+            }
+
+            if ($HasRemoteDestructive) {
+                $RemoteGateSplat = @{
+                    Path      = $TestsFolder
+                    ChildPath = 'Confirm-RemoteDisposable.ps1'
+                }
+                $RemoteGateScript = Join-Path @RemoteGateSplat
+                $global:LASTEXITCODE = 0
+                & $RemoteGateScript
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "`n=== Invoke-Pester (Destructive Remote) ===" -ForegroundColor Cyan
+                    $DestructiveRemoteSplat = @{
+                        Path             = $PesterTarget
+                        TagFilter        = 'destructive'
+                        ExcludeTagFilter = 'local'
+                        PassThru         = $true
+                    }
+                    $DestructiveRemoteResult = Invoke-Pester @DestructiveRemoteSplat
+                    $PesterFailedCount += $DestructiveRemoteResult.FailedCount
+                }
+                else {
+                    Write-Host "`n=== Destructive Remote ===" -ForegroundColor Cyan
+                    Write-Host 'Refusing: remote target unconfirmed.' -ForegroundColor Red
+                    Write-Host 'Confirm-RemoteDisposable.ps1 did not exit 0.' -ForegroundColor Red
+                    $DestructiveGateFailedCount++
+                }
+            }
+        }
     }
 }
 finally {
@@ -463,5 +594,10 @@ finally {
     }
 }
 
-# Nonzero exit so CI and callers can gate on Pester and formatting results.
-if ($PesterFailedCount -gt 0 -or $FormattingFailedCount -gt 0) { exit 1 }
+# Nonzero exit so CI and callers can gate on Pester, formatting, and Destructive
+# gate results.
+if ($PesterFailedCount -gt 0 -or
+    $FormattingFailedCount -gt 0 -or
+    $DestructiveGateFailedCount -gt 0) {
+    exit 1
+}

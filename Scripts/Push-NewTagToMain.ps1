@@ -86,6 +86,8 @@
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPositionalParameters', '')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseShouldProcessForStateChangingFunctions', '')]
 [CmdletBinding(DefaultParameterSetName = 'Bump')]
 param(
     [Parameter(ParameterSetName = 'Bump', Mandatory)]

@@ -28,7 +28,7 @@ tools in the PowerShell ecosystem.
 
 - **ModuleBuilder** to compile per-function source files into a single
   distributable .psm1 + manifest.
-- **Pester** for testing, with an Offline/Online tag convention.
+- **Pester** for testing, with a NonLive/Live/Destructive tag convention.
 - **PSScriptAnalyzer** for linting and auto-formatting, orchestrated by
   `Tests.ps1` alongside a suite of focused house-style checks.
 - **PlatyPS** for generating per-command markdown help from comment-based

@@ -4,9 +4,11 @@
 # This ci.yml is part of PowershellRepoTemplate, a starter repo scaffold.
 #
 # Purpose: Runs on every push and pull request to main. Blocks merges if
-# syntax checks or offline Pester tests fail. Online tests (tagged 'Online')
-# are excluded because they require credentials; run them separately in a
-# secrets-aware workflow if needed.
+# syntax checks or NonLive Pester tests fail. Live tests (tagged 'live') and
+# Destructive tests (tagged 'destructive') are intentionally excluded: Live
+# needs credentials this runner does not have, and Destructive requires a
+# host explicitly marked DISPOSABLE_ENVIRONMENT=1 (never a shared CI runner)
+# or a remote target confirmed disposable. Run them separately if needed.
 #
 # All steps gate: the formatting/lint checks and PSSA exit nonzero on findings,
 # and the Pester step exits nonzero on test failures (via Tests.ps1). This is
@@ -70,6 +72,6 @@ jobs:
         shell: pwsh
         run: .\Tests.ps1 PSSA -Quiet
 
-      - name: Offline Pester tests
+      - name: NonLive Pester tests
         shell: pwsh
-        run: .\Tests.ps1 Offline
+        run: .\Tests.ps1 NonLive

@@ -34,11 +34,11 @@ pre-commit install
 ## Running checks
 
 ```powershell
-# Offline Pester tests (no credentials needed)
-.\Tests.ps1 Offline
+# NonLive Pester tests (no credentials needed)
+.\Tests.ps1 NonLive
 
-# Online Pester tests (requires a live session -- see AGENTS.TESTING.md)
-.\Tests.ps1 Online
+# Live Pester tests (requires a live session -- see AGENTS.TESTING.md)
+.\Tests.ps1 Live
 
 # Auto-fix formatting, then run every house-style check
 .\Tests.ps1 AutoFormat
@@ -69,7 +69,7 @@ short version:
 ## Pull requests
 
 1. Branch from `main` and open a PR against `main`.
-2. Ensure `.\Tests.ps1 Offline` passes.
+2. Ensure `.\Tests.ps1 NonLive` passes.
 3. Ensure `.\Tests.ps1 Formatting` reports no findings.
 4. Update `CHANGELOG.md` under `## [Unreleased]`.
 5. Update comment-based help and `Docs\` if the public API changed.

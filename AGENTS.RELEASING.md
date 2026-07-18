@@ -37,7 +37,7 @@ Test built module
 Run pester tests again on the built module (-Built prefers a root build,
 then falls back to the newest versioned build under Output\):
 ```powershell
-.\Tests.ps1 Offline,Online -Built
+.\Tests.ps1 NonLive,Live -Built
 ```
 
 ## Update docs
