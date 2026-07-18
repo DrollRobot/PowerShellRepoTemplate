@@ -13,10 +13,9 @@ block.
 # Releasing
 
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
-Non-domain: Dev/Test/Build/Debug/Lib code.
+Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, Docs/Commands/, and any
+built artifacts in module root.
 
-Ignore built code in the module root, such as *.psm1 and *.psd1, ScriptsToProcess/,
-   Data/, Output, and Build/. Also, the built documents in Docs/Commands/.
 
 ## Commit
 - Commit any untracked files.
