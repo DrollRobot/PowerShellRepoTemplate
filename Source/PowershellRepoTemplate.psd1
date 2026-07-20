@@ -62,7 +62,7 @@
 
 
         # Dev/test dependencies -- not required for most users
-        @{ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
+        @{ModuleName = 'Pester'; ModuleVersion = '6.0.0' }
         @{ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0' }
         @{ModuleName = 'ModuleBuilder'; ModuleVersion = '3.2.16' }
     )

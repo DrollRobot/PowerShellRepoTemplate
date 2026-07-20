@@ -5,7 +5,7 @@
 		}
 	],
 	"settings": {
-		// copilot approved commands 
+		// copilot approved commands
 		"chat.tools.terminal.autoApprove": {
 			".\\Build.ps1": true,
 			".\\Docs.ps1": true,

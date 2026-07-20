@@ -1,6 +1,6 @@
 # ScriptsToProcess/
 
-Scripts that PowerShell runs in the caller's session scope before the module 
+Scripts that PowerShell runs in the caller's session scope before the module
 itself is loaded. Listed in the `ScriptsToProcess` key of the module manifest.
 
 ModuleBuilder copies this folder verbatim to the output directory (configured
