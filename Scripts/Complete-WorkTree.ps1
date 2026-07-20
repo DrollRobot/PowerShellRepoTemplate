@@ -131,7 +131,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.2'
+$ScriptVersion = '1.2.4'
 
 # The cross-device PR-body handoff stores one note per slug
 # (refs/notes/pr-body-<slug>) so concurrent PRs never share - or force-push
@@ -220,15 +220,17 @@ function Read-WithDefault {
     return $entered.Trim()
 }
 
-# Report an abort and exit, naming the branch the repository was left on. Shared
-# by Invoke-Step and the inline confirmations in the -*FromNotes flows.
+# Report an abort and stop, naming the branch the repository was left on.
+# Shared by Invoke-Step and the inline confirmations in the -*FromNotes flows.
+# Throws (not `exit`s): `exit` can close the whole calling host session, not
+# just this script, if it is ever run directly at an interactive prompt.
 function Stop-Aborted {
     Write-Host ''
     Write-Host "Aborted by user." -ForegroundColor Yellow
     $current = git branch --show-current
     Write-Host "Repository is currently on branch '$current'." -ForegroundColor Yellow
     Write-Host "Any steps already completed above have NOT been undone." -ForegroundColor Yellow
-    exit 1
+    throw 'Aborted by user.'
 }
 
 # Prompt before running an action. Answering 'n' aborts the whole script, since
@@ -336,6 +338,8 @@ function Remove-PrNote {
 }
 
 # --- mode validation -------------------------------------------------------
+
+if ($MyInvocation.InvocationName -eq '.') { return }
 
 Write-Host ''
 
@@ -479,7 +483,7 @@ if ($branch -in 'main', 'master', 'develop', 'dev') {
 if ($branch -notlike 'wt/*') {
     $WarnMsg = "  Warning: branch '$branch' does not look like a wt/ branch."
     Write-Host $WarnMsg -ForegroundColor Yellow
-    if (-not (Confirm-Step "  Continue anyway?")) { exit 1 }
+    if (-not (Confirm-Step "  Continue anyway?")) { throw 'Aborted by user.' }
 }
 
 $repoRoot = (Invoke-Native git rev-parse --show-toplevel).Trim()
@@ -559,7 +563,7 @@ if (-not (Confirm-Step "Use this title?")) {
     Write-Host ''
     $HintMsg = 'Re-run with -Title "your title here" to set a different PR title.'
     Write-Host $HintMsg -ForegroundColor Yellow
-    exit 1
+    throw 'Aborted by user.'
 }
 
 # --- working tree status ---------------------------------------------------

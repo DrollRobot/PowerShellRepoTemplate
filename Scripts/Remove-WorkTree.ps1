@@ -110,7 +110,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.1'
+$ScriptVersion = '1.2.3'
 
 # Answer every confirmation prompt with 'y' (set from -Yes). Script-scoped so
 # the helper functions below can read it.
@@ -188,7 +188,7 @@ function Invoke-Step {
         $branch = git branch --show-current
         Write-Host "Repository is currently on branch '$branch'." -ForegroundColor Yellow
         Write-Host "Any steps already completed above have NOT been undone." -ForegroundColor Yellow
-        exit 1
+        throw 'Aborted by user.'
     }
     & $Action
 }
@@ -270,6 +270,8 @@ function Read-WorktreeChoice {
 
 # --- intro (shown up front, before anything is touched) ---------------------
 
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 Write-Host ''
 
 Write-Host 'Remove-WorkTree - tear down a finished worktree' -ForegroundColor Cyan
@@ -343,7 +345,7 @@ if (-not $branchExists) {
 if (-not $wtRegistered -and -not $branchExists) {
     Write-Host ''
     Write-Host "Nothing to clean up for slug '$Slug'." -ForegroundColor Green
-    exit 0
+    return
 }
 
 # Operate from the main worktree for every step. This guarantees the worktree

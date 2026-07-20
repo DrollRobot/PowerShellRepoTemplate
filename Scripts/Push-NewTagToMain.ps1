@@ -116,7 +116,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.1'
+$ScriptVersion = '1.2.3'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
@@ -191,7 +191,7 @@ function Invoke-Step {
         $branch = git branch --show-current
         Write-Host "Repository is currently on branch '$branch'." -ForegroundColor Yellow
         Write-Host "Any steps already completed above have NOT been undone." -ForegroundColor Yellow
-        exit 1
+        throw 'Aborted by user.'
     }
     & $Action
 }
@@ -308,6 +308,8 @@ function Set-ManifestVersion {
 }
 
 # --- gather state ----------------------------------------------------------
+
+if ($MyInvocation.InvocationName -eq '.') { return }
 
 Write-Host ''
 

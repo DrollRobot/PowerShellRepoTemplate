@@ -84,7 +84,7 @@
 .EXAMPLE
     .\Scripts\Compare-Template.ps1 -NoUpdate
 
-    Read-only report suitable for CI (exit 1 on drift).
+    Read-only report suitable for CI (throws, a nonzero process exit, on drift).
 
 .OUTPUTS
     Progress and a drift report to the host. No pipeline output. Exit code 0 when
@@ -127,7 +127,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.0'
+$ScriptVersion = '2.0.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -173,10 +173,12 @@ function Write-Success {
     Write-Host $Message -ForegroundColor Green
 }
 
+# Throws (not `exit`s): `exit` can close the whole calling host session, not
+# just this script, if it is ever run directly at an interactive prompt.
 function Stop-Script {
     param([Parameter(Mandatory)][string]$Message)
     Write-Host "ERROR: $Message" -ForegroundColor Red
-    exit 1
+    throw $Message
 }
 
 # Non-domain trace output (Scripts\ is non-domain per AGENTS.md).
@@ -584,6 +586,14 @@ function Update-VersionedFile {
 # and offer to update the child's copies. When the running script replaces itself, exit
 # afterwards so the user re-runs the new version (with its current manifest).
 function Invoke-VersionedPreflight {
+    <#
+    .OUTPUTS
+        System.Boolean. $true if this script itself was replaced by a newer
+        template version -- the caller must stop immediately in that case
+        (comparing further would run against a script file that no longer
+        matches what is loaded in memory).
+    #>
+    [OutputType([bool])]
     param(
         [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Entries,
         [Parameter(Mandatory)][string]$TemplateRoot,
@@ -614,8 +624,8 @@ function Invoke-VersionedPreflight {
     }
     if ($replacedSelf) {
         Write-Host '  This script was updated; re-run it to use the new version.'
-        exit 0
     }
+    return $replacedSelf
 }
 
 # --- non-versioned comparison -----------------------------------------------
@@ -958,7 +968,10 @@ $preflightParams = @{
     ChildRoot    = $childRoot
     AllowUpdate  = (-not $NoUpdate)
 }
-Invoke-VersionedPreflight @preflightParams
+# Stop entirely if the preflight replaced this script itself: comparing
+# further would run against a script file that no longer matches what is
+# loaded in memory.
+if (Invoke-VersionedPreflight @preflightParams) { return }
 
 $results = @(
     foreach ($entry in $applicableEntries) {
@@ -1005,7 +1018,6 @@ $drift = $counts['modified'] + $counts['missing']
 Write-Host ''
 if ($drift) {
     Write-Warn "Drift detected in $drift file(s)."
-    exit 1
+    throw "Drift detected in $drift file(s)."
 }
 Write-Success 'No drift in strict files.'
-exit 0

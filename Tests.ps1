@@ -138,7 +138,7 @@
 .EXAMPLE
     .\Tests.ps1 Destructive
     Runs destructive tests. The 'local' subset requires DISPOSABLE_ENVIRONMENT=1;
-    the 'remote' subset requires Tests\Confirm-RemoteDisposable.ps1 to exit 0.
+    the 'remote' subset requires Tests\Confirm-RemoteDisposable.ps1 to confirm it.
 
 .EXAMPLE
     .\Tests.ps1 NonLive Live -Built
@@ -172,14 +172,13 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.1.3'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 if ($InteractiveAuth -and 'Live' -notin $Test) {
-    Write-Host '-InteractiveAuth requires -Test Live.' -ForegroundColor Yellow
-    exit 1
+    throw '-InteractiveAuth requires -Test Live.'
 }
 
 # error when requesting formatting tests on built module
@@ -190,8 +189,7 @@ $FormattingOnlyValues = @(
 )
 if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
     $BadList = ($Test | Where-Object { $_ -in $FormattingOnlyValues }) -join ', '
-    Write-Host "-Built cannot be used with: $BadList" -ForegroundColor Yellow
-    exit 1
+    throw "-Built cannot be used with: $BadList"
 }
 
 # Optional: scope the run to a single file or folder instead of the whole repo.
@@ -200,8 +198,7 @@ if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
 if ($PSBoundParameters.ContainsKey('Path')) {
     $ResolvedTarget = Resolve-Path -Path $Path -ErrorAction SilentlyContinue
     if (-not $ResolvedTarget) {
-        Write-Host "Path not found: $Path" -ForegroundColor Yellow
-        exit 1
+        throw "Path not found: $Path"
     }
     $TargetPath = $ResolvedTarget.Path
 }
@@ -256,8 +253,7 @@ if ($ManifestPath -and (Test-Path $ManifestPath)) {
 else {
     $ErrMsg = "Module manifest not found at $ManifestPath. " +
     "Make sure you're running this from the repo root and the manifest file is present."
-    Write-Error $ErrMsg
-    exit 1
+    throw $ErrMsg
 }
 
 $TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests'
@@ -390,36 +386,36 @@ try {
             # Test-PSSA also takes -RepoRoot so repo-anchored suppressions resolve
             # when -Path targets a subfolder/file.
             $PssaSplat = @{ Path = $TargetPath; RepoRoot = $PSScriptRoot; Recurse = $true }
-            # Reset the global exit code before each check so the tally below
-            # reads a value that is always defined (safe under StrictMode) and
-            # never stale from an earlier command. This MUST be $global: -- a
-            # plain $LASTEXITCODE = 0 creates a script-scoped variable that
-            # shadows the global a child's `exit` writes to, silently defeating
-            # failure detection. A check that returns without calling `exit`
-            # (e.g. an environment skip) then reads as 0, a clean pass.
-            $global:LASTEXITCODE = 0
-            switch ($IndividualTest) {
-                'PSSA' { & $ScriptPath @PssaSplat @QuietSplat }
-                'AutoFormat' {
-                    $TwsFile = 'Format-TrailingWhitespace.ps1'
-                    $TwsPath = Join-Path -Path $ScriptsDir -ChildPath $TwsFile
-                    if (Test-Path $TwsPath) {
-                        $TwsRel = [System.IO.Path]::GetRelativePath($PSScriptRoot, $TwsPath)
-                        Write-Host "`n=== $TwsRel ===" -ForegroundColor Cyan
-                        & $TwsPath -Path $TargetPath -Recurse
+            # Each check throws (not `exit`s) when it finds something to report,
+            # so a check that fails still lets the rest of a multi-check run
+            # continue and report -- catch it locally rather than letting it
+            # unwind the whole script (which `throw` deliberately would do if
+            # left uncaught, per AGENTS.TESTING.md's exit-safety note above).
+            $CheckFailed = $false
+            try {
+                switch ($IndividualTest) {
+                    'PSSA' { & $ScriptPath @PssaSplat @QuietSplat }
+                    'AutoFormat' {
+                        $TwsFile = 'Format-TrailingWhitespace.ps1'
+                        $TwsPath = Join-Path -Path $ScriptsDir -ChildPath $TwsFile
+                        if (Test-Path $TwsPath) {
+                            $TwsRel = [System.IO.Path]::GetRelativePath($PSScriptRoot, $TwsPath)
+                            Write-Host "`n=== $TwsRel ===" -ForegroundColor Cyan
+                            & $TwsPath -Path $TargetPath -Recurse
+                        }
+                        & $ScriptPath @PssaSplat -AutoFormat -Quiet
                     }
-                    & $ScriptPath @PssaSplat -AutoFormat -Quiet
+                    default { & $ScriptPath -Path $TargetPath -Recurse @QuietSplat }
                 }
-                default { & $ScriptPath -Path $TargetPath -Recurse @QuietSplat }
             }
-            # Capture immediately so nothing added between here and the tally
-            # can perturb the reading.
-            $CheckExitCode = $LASTEXITCODE
+            catch {
+                Write-Host $_.Exception.Message -ForegroundColor Red
+                $CheckFailed = $true
+            }
             # Tally detection-check failures for the final exit code. The fixers
             # (AutoFormat, TrailingWhitespace) mutate files rather than report, so
-            # their exit code does not gate the run.
-            if ($IndividualTest -notin @('AutoFormat', 'TrailingWhitespace') -and
-                $CheckExitCode -ne 0) {
+            # a failure from them does not gate the run.
+            if ($IndividualTest -notin @('AutoFormat', 'TrailingWhitespace') -and $CheckFailed) {
                 $FormattingFailedCount++
             }
         }
@@ -440,11 +436,20 @@ try {
         }
         $FormatScripts = $FormatScripts | Sort-Object Name
 
-        # run each Format-*.ps1 script first, before any of the Test-*.ps1 scripts
+        # run each Format-*.ps1 script first, before any of the Test-*.ps1 scripts.
+        # Each check throws (not `exit`s) when it finds something to report --
+        # catch locally so one finding doesn't cut this human-facing aggregate
+        # short; it was never gated on individual results (see -Test LineLength
+        # etc. for that), only run start-to-finish for a full report.
         foreach ($Script in $FormatScripts) {
             $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
             Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
-            & $Script.FullName -Path $TargetPath -Recurse
+            try {
+                & $Script.FullName -Path $TargetPath -Recurse
+            }
+            catch {
+                Write-Host $_.Exception.Message -ForegroundColor Red
+            }
         }
 
         # collect all Test-*.ps1 scripts from tests/ and .local/tests/, exempting Test-PSSA
@@ -466,12 +471,22 @@ try {
         foreach ($Script in $TestScripts) {
             $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
             Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
-            & $Script.FullName -Path $TargetPath -Recurse
+            try {
+                & $Script.FullName -Path $TargetPath -Recurse
+            }
+            catch {
+                Write-Host $_.Exception.Message -ForegroundColor Red
+            }
         }
 
         Write-Host "`n=== Test-PSSA ===" -ForegroundColor Cyan
         $AnalyzerScript = Join-Path -Path $TestsFolder -ChildPath 'Test-PSSA.ps1'
-        & $AnalyzerScript -Path $TargetPath -RepoRoot $PSScriptRoot -Recurse -AutoFormat
+        try {
+            & $AnalyzerScript -Path $TargetPath -RepoRoot $PSScriptRoot -Recurse -AutoFormat
+        }
+        catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red
+        }
     }
 
     # --- Live ---
@@ -495,13 +510,32 @@ try {
     # two independent layers (see AGENTS.TESTING.md):
     #   local  -- mutates this host. Gated on DISPOSABLE_ENVIRONMENT=1.
     #   remote -- mutates an external target. Gated on
-    #             Tests\Confirm-RemoteDisposable.ps1 exiting 0.
+    #             Tests\Confirm-RemoteDisposable.ps1 confirming it (not throwing).
     # Each destructive test must carry exactly one of those two scope tags. A test
     # tagged 'destructive' with neither, or with both, is ambiguous and refuses the
     # whole category fail-closed -- ExcludeTagFilter alone cannot keep an ambiguous
     # test out of both subset runs (neither case) or confine it to one (both case).
     if ('Destructive' -in $Test) {
         Write-Host "`n=== Destructive: discovery ===" -ForegroundColor Cyan
+
+        # A discovered Test's own .Tag only holds tags set directly on that
+        # It block. Every test in this repo (per AGENTS.TESTING.md convention)
+        # tags at the enclosing Describe/Context level instead, so the gate
+        # below must walk the Block/Parent chain to see those -- checking
+        # only $_.Tag would silently never find any of them, defeating the
+        # ambiguous-tag refusal fail-closed below.
+        function Get-EffectiveTag {
+            param([Parameter(Mandatory)]$PesterTest)
+            $Tags = [System.Collections.Generic.List[string]]::new()
+            if ($PesterTest.Tag) { $Tags.AddRange([string[]] $PesterTest.Tag) }
+            $Block = $PesterTest.Block
+            while ($Block) {
+                if ($Block.Tag) { $Tags.AddRange([string[]] $Block.Tag) }
+                $Block = $Block.Parent
+            }
+            return $Tags
+        }
+
         $DiscoveryConfig = New-PesterConfiguration
         $DiscoveryConfig.Run.Path = $PesterTarget
         $DiscoveryConfig.Run.SkipRun = $true
@@ -509,12 +543,15 @@ try {
         $DiscoveryConfig.Output.Verbosity = 'None'
         $DiscoveryResult = Invoke-Pester -Configuration $DiscoveryConfig
         $DestructiveTests = @(
-            $DiscoveryResult.Tests | Where-Object { $_.Tag -contains 'destructive' }
+            $DiscoveryResult.Tests | Where-Object {
+                (Get-EffectiveTag -PesterTest $_) -contains 'destructive'
+            }
         )
         $AmbiguousTests = @(
             $DestructiveTests | Where-Object {
-                $IsLocalTest = $_.Tag -contains 'local'
-                $IsRemoteTest = $_.Tag -contains 'remote'
+                $EffectiveTags = Get-EffectiveTag -PesterTest $_
+                $IsLocalTest = $EffectiveTags -contains 'local'
+                $IsRemoteTest = $EffectiveTags -contains 'remote'
                 -not ($IsLocalTest -xor $IsRemoteTest)
             }
         )
@@ -532,10 +569,12 @@ try {
         }
         else {
             $HasLocalDestructive = [bool] (
-                $DestructiveTests | Where-Object { $_.Tag -contains 'local' }
+                $DestructiveTests |
+                    Where-Object { (Get-EffectiveTag -PesterTest $_) -contains 'local' }
             )
             $HasRemoteDestructive = [bool] (
-                $DestructiveTests | Where-Object { $_.Tag -contains 'remote' }
+                $DestructiveTests |
+                    Where-Object { (Get-EffectiveTag -PesterTest $_) -contains 'remote' }
             )
 
             if ($HasLocalDestructive) {
@@ -564,9 +603,16 @@ try {
                     ChildPath = 'Confirm-RemoteDisposable.ps1'
                 }
                 $RemoteGateScript = Join-Path @RemoteGateSplat
-                $global:LASTEXITCODE = 0
-                & $RemoteGateScript
-                if ($LASTEXITCODE -eq 0) {
+                # Confirm-RemoteDisposable.ps1 throws (not `exit`s) to refuse;
+                # a clean return means the target is confirmed disposable.
+                $RemoteConfirmed = $true
+                try {
+                    & $RemoteGateScript
+                }
+                catch {
+                    $RemoteConfirmed = $false
+                }
+                if ($RemoteConfirmed) {
                     Write-Host "`n=== Invoke-Pester (Destructive Remote) ===" -ForegroundColor Cyan
                     $DestructiveRemoteSplat = @{
                         Path             = $PesterTarget
@@ -580,7 +626,8 @@ try {
                 else {
                     Write-Host "`n=== Destructive Remote ===" -ForegroundColor Cyan
                     Write-Host 'Refusing: remote target unconfirmed.' -ForegroundColor Red
-                    Write-Host 'Confirm-RemoteDisposable.ps1 did not exit 0.' -ForegroundColor Red
+                    $NotConfirmedMsg = 'Confirm-RemoteDisposable.ps1 did not confirm it.'
+                    Write-Host $NotConfirmedMsg -ForegroundColor Red
                     $DestructiveGateFailedCount++
                 }
             }
@@ -595,9 +642,16 @@ finally {
 }
 
 # Nonzero exit so CI and callers can gate on Pester, formatting, and Destructive
-# gate results.
+# gate results. Uses `throw`, not `exit`: after Invoke-Pester has run at least
+# once in this session, a plain `exit N` here is silently overridden and the
+# process exits 0 regardless of N (verified with pwsh 7.6.3, this repo's dev
+# environment). An uncaught `throw` still makes pwsh -File exit non-zero, and
+# unlike `exit` -- which, run inside an interactive host (dot-sourced, or as
+# the top-level script of that session) can close the whole terminal instead
+# of just this script -- it never touches host-exit state, so it is safe run
+# either way.
 if ($PesterFailedCount -gt 0 -or
     $FormattingFailedCount -gt 0 -or
     $DestructiveGateFailedCount -gt 0) {
-    exit 1
+    throw 'Tests.ps1 failed: see Pester, formatting, or Destructive gate output above.'
 }

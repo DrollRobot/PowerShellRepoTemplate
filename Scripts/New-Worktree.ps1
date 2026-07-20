@@ -85,7 +85,7 @@ $ErrorActionPreference = 'Stop'
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.3.1'
+$ScriptVersion = '1.3.3'
 
 # --- output helpers ---------------------------------------------------------
 
@@ -123,11 +123,13 @@ function Write-Success {
     Write-Host $Message -ForegroundColor Green
 }
 
-# Print an error and exit with status 1.
+# Print an error and stop the script. Throws (not `exit`s): `exit` can close
+# the whole calling host session, not just this script, if it is ever run
+# directly at an interactive prompt (rather than as its own process).
 function Stop-Script {
     param([Parameter(Mandatory)][string]$Message)
     Write-Host "ERROR: $Message" -ForegroundColor Red
-    exit 1
+    throw $Message
 }
 
 # Ask the user a yes/no question. Always 'yes' in assume-yes mode, with the
@@ -158,7 +160,7 @@ function Confirm-Step {
     if (-not $current) { $current = '(unknown)' }
     Write-Warn "Repository is currently on branch '$current'."
     Write-Warn 'Any steps already completed above have NOT been undone.'
-    exit 1
+    throw 'Aborted by user.'
 }
 
 # $ErrorActionPreference = 'Stop' does NOT halt on a failing native command; it
@@ -255,6 +257,8 @@ function Invoke-PushBase {
 }
 
 # --- main -------------------------------------------------------------------
+
+if ($MyInvocation.InvocationName -eq '.') { return }
 
 Write-Host ''
 

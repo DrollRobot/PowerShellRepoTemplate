@@ -20,7 +20,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.0.2'
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(
@@ -111,5 +111,7 @@ $SummaryColor = if ($errorCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$errorCount syntax error(s) -- $Count file(s), $totalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
 
-# Nonzero exit so pre-commit and CI can gate on findings.
-exit ([int]($errorCount -gt 0))
+# Throw (not exit) so pre-commit/CI still see a nonzero process exit via an
+# uncaught error, without risking closing an interactive host if this script
+# is ever dot-sourced or run directly at a prompt instead of through Tests.ps1.
+if ($errorCount -gt 0) { throw $Msg }

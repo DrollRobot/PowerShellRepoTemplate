@@ -10,8 +10,11 @@
     rare, human-confirmed action; verifying runs automatically, once per
     Destructive run, the first time Tests.ps1 discovers a Pester test tagged
     'destructive','remote' (see Tests.ps1 and the "Remote destructive tests"
-    section of AGENTS.TESTING.md). Only this script's exit code is read by
-    Tests.ps1 -- 0 means confirmed disposable, anything else means refuse.
+    section of AGENTS.TESTING.md). Tests.ps1 only cares whether this script
+    throws -- a clean return means confirmed disposable, a thrown error means
+    refuse. It never calls `exit`: that can terminate the whole calling host
+    session, not just this script, if it is ever dot-sourced or run directly
+    at an interactive prompt instead of through Tests.ps1.
 
     This lives in Tests\, not Scripts\, because its only caller is the test
     orchestrator's own gate: unlike Scripts\Set-RemoteDisposable.ps1 (a
@@ -39,12 +42,12 @@
          setup and never revisited should not still be trusted years later.
 
 .OUTPUTS
-    None. Prints a message and sets the process exit code: 0 if the remote
-    target is confirmed disposable, 1 otherwise.
+    None. Prints a message and returns normally if the remote target is
+    confirmed disposable, or throws otherwise.
 
 .EXAMPLE
     .\Tests\Confirm-RemoteDisposable.ps1
-    Runs the check directly; the process exit code reflects the result.
+    Runs the check directly; throws if the target is not confirmed disposable.
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
@@ -68,9 +71,6 @@ function Confirm-RemoteDisposable {
     return $false
 }
 
-if (Confirm-RemoteDisposable) {
-    exit 0
-}
-else {
-    exit 1
+if (-not (Confirm-RemoteDisposable)) {
+    throw "Remote target is not confirmed disposable; destructive 'remote' tests refuse."
 }

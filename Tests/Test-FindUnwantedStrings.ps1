@@ -36,7 +36,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.0.3'
 
 # Internal list of patterns to search for.
 # Each entry has a Tag (label shown in output) and a Pattern (case-insensitive regex).
@@ -76,7 +76,7 @@ if (Get-Variable -Name Dev_FormattingExclusions -Scope Global -ErrorAction Silen
 
 if ($UnwantedPatterns.Count -eq 0) {
     Write-Host 'No patterns defined -- skipping.' -ForegroundColor DarkGray
-    exit 0
+    return
 }
 
 $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -125,7 +125,7 @@ foreach ($File in $Files) {
         PercentComplete = ($FileIndex / $FileTotal) * 100
     }
     Write-Progress @WpParams
-    $Lines = Get-Content -Path $File.FullName
+    $Lines = @(Get-Content -Path $File.FullName)
     $TotalLines += @($Lines).Count
     for ($i = 0; $i -lt @($Lines).Count; $i++) {
         foreach ($Entry in $UnwantedPatterns) {
@@ -171,5 +171,7 @@ $Msg = "$($Hits.Count) match(es), $ExceptionCount exception(s) suppressed -- " +
 "$FileCount file(s), $TotalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
 
-# Nonzero exit so pre-commit and CI can gate on findings.
-exit ([int]($Hits.Count -gt 0))
+# Throw (not exit) so pre-commit/CI still see a nonzero process exit via an
+# uncaught error, without risking closing an interactive host if this script
+# is ever dot-sourced or run directly at a prompt instead of through Tests.ps1.
+if ($Hits.Count -gt 0) { throw $Msg }

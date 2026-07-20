@@ -73,7 +73,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.0'
+$ScriptVersion = '2.0.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -156,16 +156,13 @@ function Confirm-Step {
 function Import-SetupConfig {
     param([Parameter(Mandatory)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        Write-Host "ERROR: Config file not found: $Path" -ForegroundColor Red
-        exit 2
+        throw "Config file not found: $Path"
     }
     try {
         return Import-PowerShellDataFile -Path $Path
     }
     catch {
-        $Msg = "ERROR: '$Path' is not a valid PowerShell data file: $($_.Exception.Message)"
-        Write-Host $Msg -ForegroundColor Red
-        exit 2
+        throw "'$Path' is not a valid PowerShell data file: $($_.Exception.Message)"
     }
 }
 
@@ -740,9 +737,8 @@ if ($Config.Problems.Count -gt 0) {
         Write-Host "  - $Problem"
     }
     Write-Host ''
-    $ProblemMsg = "  $($Config.Problems.Count) problem(s) found in $ConfigPath; nothing changed."
-    Write-Host $ProblemMsg -ForegroundColor Red
-    exit 1
+    $ProblemMsg = "$($Config.Problems.Count) problem(s) found in $ConfigPath; nothing changed."
+    throw $ProblemMsg
 }
 
 Write-Section 'Preview'
@@ -770,13 +766,13 @@ if ($Config.GitReinit) {
 if ($DryRun) {
     Write-Host ''
     Write-Host '  (dry run -- nothing changed)' -ForegroundColor Yellow
-    exit 0
+    return
 }
 
 Write-Host ''
 if (-not (Confirm-Step 'Apply the setup above?')) {
     Write-Warn '  Aborted; nothing changed.'
-    exit 1
+    throw 'Aborted by user.'
 }
 
 Write-Section 'Applying'
@@ -820,10 +816,9 @@ Write-Section 'Setup complete'
 if ($Failed.Count -gt 0) {
     Write-Host "  Steps that reported a problem: $($Failed -join ', ')" -ForegroundColor Red
     Write-Host '  Review their output above; fix setup.psd1 or the repo state, then re-run.'
-    exit 1
+    throw "Setup finished with problems in: $($Failed -join ', ')"
 }
 Write-Success '  Review the changes, then write some code!'
 Write-Host '    1. Review changes (git diff if history was kept).'
 Write-Host '    2. Resolve remaining FIXMEs.'
 Write-Host '    3. .\Build.ps1 and .\Tests.ps1 NonLive to confirm a clean baseline.'
-exit 0

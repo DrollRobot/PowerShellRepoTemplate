@@ -31,7 +31,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.2'
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(
@@ -40,7 +40,7 @@ $ExcludedFolders = @(
 
 # Root-level files to exclude (relative paths from $Path).
 $ExcludedFiles = @(
-    '.\Tests\Test-FixmeComments.ps1'  # this file
+    'Tests\Test-FixmeComments.ps1'  # this file
 )
 
 # Merge exclusions from the test orchestrator when called via Tests.ps1.
@@ -86,7 +86,7 @@ foreach ($File in $Files) {
         PercentComplete = ($FileIndex / $FileTotal) * 100
     }
     Write-Progress @WpParams
-    $Lines = Get-Content -Path $File.FullName
+    $Lines = @(Get-Content -Path $File.FullName)
     $TotalLines += @($Lines).Count
     for ($i = 0; $i -lt @($Lines).Count; $i++) {
         if ($Lines[$i] -match '#.*FIXME') {
@@ -117,6 +117,8 @@ $Msg = "$($Hits.Count) FIXME comment(s) -- $FileCount file(s), " +
 "$TotalLines line(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
 
-# Nonzero exit so pre-commit and CI can gate on findings. This check is
-# informational (see notes above); it is not wired into pre-commit or CI.
-exit ([int]($Hits.Count -gt 0))
+# Throw (not exit) so a caller can still gate on findings via an uncaught
+# error, without risking closing an interactive host if this script is ever
+# dot-sourced or run directly. This check is informational (see notes above);
+# it is not wired into pre-commit or CI.
+if ($Hits.Count -gt 0) { throw $Msg }

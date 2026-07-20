@@ -36,7 +36,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 # import helper functions from the Scripts folder.
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
@@ -48,6 +48,7 @@ $ScriptVersion = '1.0.0'
 # worktree (where the folder name is the branch, not the module name).
 function Get-SourceModuleName {
     param([Parameter(Mandatory)][string]$Path)
+    $global:LASTEXITCODE = 0
     $RepoRoot = git -C $Path rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $RepoRoot) { return $null }
     $SourceDir = Join-Path -Path $RepoRoot -ChildPath 'Source'
@@ -91,14 +92,12 @@ else {
 if (-not $CurrentModuleName) {
     $ErrMsg = 'Could not determine the module name. Run via Tests.ps1, ' +
     'or ensure the repo folder matches the module manifest.'
-    Write-Error $ErrMsg
-    exit 1
+    throw $ErrMsg
 }
 if (-not (Get-Module -Name $CurrentModuleName)) {
     $ErrMsg = "Module '$CurrentModuleName' is not imported. " +
     "Import it before running this test."
-    Write-Error $ErrMsg
-    exit 1
+    throw $ErrMsg
 }
 
 # Static map for commands that Get-Command cannot discover on this machine
@@ -211,5 +210,7 @@ $SummaryColor = if ($hitCount -gt 0) { 'Red' } else { 'Green' }
 $Msg = "$hitCount missing module reference(s) -- $totalFiles file(s) checked. ($Elapsed)"
 Write-Host $Msg -ForegroundColor $SummaryColor
 
-# Nonzero exit so pre-commit and CI can gate on findings.
-exit ([int]($hitCount -gt 0))
+# Throw (not exit) so pre-commit/CI still see a nonzero process exit via an
+# uncaught error, without risking closing an interactive host if this script
+# is ever dot-sourced or run directly at a prompt instead of through Tests.ps1.
+if ($hitCount -gt 0) { throw $Msg }

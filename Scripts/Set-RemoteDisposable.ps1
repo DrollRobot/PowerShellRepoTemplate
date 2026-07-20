@@ -37,7 +37,7 @@
     above adds; this stub still refuses unconditionally either way.
 
 .OUTPUTS
-    None. Writes status to the host and exits 1 until implemented.
+    None. Writes status to the host and throws until implemented.
 
 .EXAMPLE
     .\Scripts\Set-RemoteDisposable.ps1
@@ -59,7 +59,7 @@ $ErrorActionPreference = 'Stop'
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 # Carried forward for the confirmation prompt the FIXME below adds.
 $script:AssumeYes = [bool] $Force
@@ -76,7 +76,6 @@ Write-Host $WarnMsg -ForegroundColor Yellow
 # then replace the failure below with a confirmation prompt (honoring
 # $script:AssumeYes) and the marker-writing logic described in the help above.
 Write-Host ''
-$ErrMsg = 'ERROR: Set-RemoteDisposable.ps1 has not been implemented for this ' +
+$ErrMsg = 'Set-RemoteDisposable.ps1 has not been implemented for this ' +
 'project yet (see the FIXME in its help and AGENTS.TESTING.md).'
-Write-Host $ErrMsg -ForegroundColor Red
-exit 1
+throw $ErrMsg

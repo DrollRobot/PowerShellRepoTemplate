@@ -26,7 +26,7 @@ built artifacts in module root.
 | `live` | Dependency | Requires a real external resource — network, live tenant, secrets, third-party API. |
 | `destructive` | Dependency | Mutates state outside the test itself. Skipped by default. |
 | `local` | Destructive scope | Paired with `destructive`: mutates the host running Pester. Gated on `DISPOSABLE_ENVIRONMENT=1`. |
-| `remote` | Destructive scope | Paired with `destructive`: mutates an external target. Gated on `Tests\Confirm-RemoteDisposable.ps1` exiting 0. |
+| `remote` | Destructive scope | Paired with `destructive`: mutates an external target. Gated on `Tests\Confirm-RemoteDisposable.ps1` confirming it (not throwing). |
 | `slow` | Performance | Long-running. |
 
 Every `destructive` test MUST also carry exactly one of `local` or `remote`. A
@@ -128,7 +128,7 @@ echo 'export DISPOSABLE_ENVIRONMENT=0' | sudo tee -a /etc/zprofile
 If the package contains `destructive`,`remote` tests, `.\Tests.ps1 Destructive`
 runs `Tests\Confirm-RemoteDisposable.ps1` before them. That script decides
 whether the remote target this project is currently pointed at has been marked
-disposable; the tests run only when it exits `0`. Its counterpart,
+disposable; the tests run only when it returns without throwing. Its counterpart,
 `Scripts\Set-RemoteDisposable.ps1`, is the rare, human-run action that writes
 that marker -- never run it automatically, and never on behalf of a user who
 has not explicitly confirmed the target. Both scripts ship as fail-closed
