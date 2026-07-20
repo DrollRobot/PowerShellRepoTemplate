@@ -11,7 +11,7 @@
     Delete this file together with Source\Public\Get-Greeting.ps1.
 #>
 
-Describe 'Get-Greeting' {
+Describe 'Get-Greeting' -Tag 'unit', 'functional' {
 
     It 'greets the world by default' {
         Get-Greeting | Should -Be 'Hello, World!'

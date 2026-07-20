@@ -22,7 +22,7 @@ BeforeAll {
     $script:FixmeToken = 'FIX' + 'ME'
 }
 
-Describe 'Convert-Eol' {
+Describe 'Convert-Eol' -Tag 'unit', 'functional' {
     It 'converts CRLF to LF' {
         Convert-Eol "a`r`nb" | Should -Be "a`nb"
     }
@@ -34,7 +34,7 @@ Describe 'Convert-Eol' {
     }
 }
 
-Describe 'Get-ScriptVersion' {
+Describe 'Get-ScriptVersion' -Tag 'unit', 'functional' {
     It 'extracts a declared version' {
         Get-ScriptVersion "`$ScriptVersion = '1.2.3'" | Should -Be '1.2.3'
     }
@@ -47,7 +47,7 @@ Describe 'Get-ScriptVersion' {
     }
 }
 
-Describe 'Get-VersionAction' {
+Describe 'Get-VersionAction' -Tag 'unit', 'functional' {
     It 'reports ok when the content is identical' {
         Get-VersionAction -TemplateVersion '1.0.0' -ChildVersion '1.0.0' -SameContent $true |
             Should -Be 'ok'
@@ -70,7 +70,7 @@ Describe 'Get-VersionAction' {
     }
 }
 
-Describe 'Get-OwnerFromUrl' {
+Describe 'Get-OwnerFromUrl' -Tag 'unit', 'functional' {
     It 'parses an HTTPS GitHub URL' {
         Get-OwnerFromUrl 'https://github.com/octocat/my-repo.git' | Should -Be 'octocat'
     }
@@ -82,7 +82,7 @@ Describe 'Get-OwnerFromUrl' {
     }
 }
 
-Describe 'Remove-TemplateBanner' {
+Describe 'Remove-TemplateBanner' -Tag 'unit', 'functional' {
     It 'strips a markdown banner block' {
         $text = "<!--`n======`nTEMPLATE SETUP NOTES`ndelete me`n-->`n# real content`n"
         Remove-TemplateBanner $text | Should -Be "# real content`n"
@@ -96,7 +96,7 @@ Describe 'Remove-TemplateBanner' {
     }
 }
 
-Describe 'Convert-TemplateToken' {
+Describe 'Convert-TemplateToken' -Tag 'unit', 'functional' {
     BeforeEach {
         $script:ChildName = 'MyModule'
         $script:ChildOwner = 'octocat'
@@ -119,7 +119,7 @@ Describe 'Convert-TemplateToken' {
     }
 }
 
-Describe 'ConvertTo-NormalizedTemplate' {
+Describe 'ConvertTo-NormalizedTemplate' -Tag 'unit', 'functional' {
     BeforeEach {
         $script:ChildName = 'MyModule'
         $script:ChildOwner = 'octocat'
@@ -130,14 +130,14 @@ Describe 'ConvertTo-NormalizedTemplate' {
     }
 }
 
-Describe 'ConvertTo-NormalizedChild' {
+Describe 'ConvertTo-NormalizedChild' -Tag 'unit', 'functional' {
     It 'strips the banner and normalizes EOL without touching the name' {
         $body = "# ===`r`n# TEMPLATE SETUP NOTES`r`n# x`r`n# ===`r`nkeep: MyModule`r`n"
         ConvertTo-NormalizedChild $body | Should -Be "keep: MyModule`n"
     }
 }
 
-Describe 'New-Entry' {
+Describe 'New-Entry' -Tag 'unit', 'functional' {
     It 'defaults to required, strict, content-compared, not blind-copy, ungated' {
         $entry = New-Entry 'x'
         $entry.Required | Should -BeTrue
@@ -173,7 +173,7 @@ Describe 'New-Entry' {
     }
 }
 
-Describe 'Manifest' {
+Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
     It 'does not track the child-owned build/test files' {
         $paths = $script:Manifest.Path
         $paths | Should -Not -Contain 'Build/PreBuild.ps1'
@@ -291,7 +291,7 @@ Describe 'Manifest' {
     }
 }
 
-Describe 'Get-ChildFeatureFlag' {
+Describe 'Get-ChildFeatureFlag' -Tag 'integration', 'functional' {
     BeforeAll {
         $ScratchParams = @{
             Path      = [System.IO.Path]::GetTempPath()
@@ -342,7 +342,7 @@ Describe 'Get-ChildFeatureFlag' {
     }
 }
 
-Describe 'Get-ApplicableManifest' {
+Describe 'Get-ApplicableManifest' -Tag 'unit', 'functional', 'acceptance' {
     BeforeAll {
         $script:OriginalManifest = $script:Manifest
         $LocalParams = @{
@@ -435,7 +435,7 @@ Describe 'Get-ApplicableManifest' {
     }
 }
 
-Describe 'Get-VersionNote' {
+Describe 'Get-VersionNote' -Tag 'unit', 'functional' {
     It 'returns empty when either side has no version' {
         Get-VersionNote -TemplateText "`$ScriptVersion = '1.0.0'" -ChildText 'nothing here' |
             Should -BeNullOrEmpty
