@@ -73,6 +73,9 @@ function Write-Trace {
 - Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named parameters.
    (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`)
 
+## Commit Messages
+Review before writing commit messages: [AGENTS.COMMITTING.md](AGENTS.COMMITTING.md).
+
 ## Testing
 For instructions on writing and running tests: [AGENTS.TESTING.md](AGENTS.TESTING.md).
 ALWAYS READ BEFORE WRITING NEW CODE.
