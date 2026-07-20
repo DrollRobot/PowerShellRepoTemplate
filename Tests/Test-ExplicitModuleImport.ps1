@@ -39,9 +39,25 @@ param(
 $ScriptVersion = '1.0.0'
 
 # import helper functions from the Scripts folder.
-. (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ModuleRoot.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Resolve-CommandModule.ps1')
+
+# Resolve the module name from the repo's Source\ manifest (excluding ModuleBuilder's
+# Build.psd1), for standalone runs where $Global:Dev_ModuleName has not been set by the
+# Tests.ps1 orchestrator. The repo root is located via git, so this stays correct in a
+# worktree (where the folder name is the branch, not the module name).
+function Get-SourceModuleName {
+    param([Parameter(Mandatory)][string]$Path)
+    $RepoRoot = git -C $Path rev-parse --show-toplevel 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $RepoRoot) { return $null }
+    $SourceDir = Join-Path -Path $RepoRoot -ChildPath 'Source'
+    if (-not (Test-Path -LiteralPath $SourceDir)) { return $null }
+    $Manifest = Get-ChildItem -LiteralPath $SourceDir -Filter '*.psd1' -File |
+        Where-Object Name -ne 'Build.psd1' |
+        Select-Object -First 1
+    if ($Manifest) { return $Manifest.BaseName }
+    return $null
+}
 
 # This check enforces the explicit-import convention from AGENTS.md, which
 # applies only to in-domain code under Source\. Dev tooling, build scripts,
@@ -63,14 +79,14 @@ $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 #   Prefer erroring over importing because script doesn't know if dev wants
 #   to test source or build module.
 # The orchestrator resolves the module name from the manifest (worktree-safe)
-# and shares it via $Global:Dev_ModuleName; prefer that. Fall back to folder-name
-# detection for standalone runs (which assume the repo folder matches the module).
+# and shares it via $Global:Dev_ModuleName; prefer that. Fall back to resolving
+# the repo root via git and reading its Source\ manifest for standalone runs.
 $ModuleNameSet = Get-Variable -Name Dev_ModuleName -Scope Global -ErrorAction SilentlyContinue
 $CurrentModuleName = if ($ModuleNameSet) {
     $Global:Dev_ModuleName
 }
 else {
-    (Find-ModuleRoot -Path $PSScriptRoot).Name
+    Get-SourceModuleName -Path $PSScriptRoot
 }
 if (-not $CurrentModuleName) {
     $ErrMsg = 'Could not determine the module name. Run via Tests.ps1, ' +

@@ -209,8 +209,6 @@ Describe 'Manifest' {
         $diffOnly = @(
             'Build.ps1'
             'Scripts/Setup-NewProject.ps1'
-            'Scripts/Find-ModuleRoot.ps1'
-            'Scripts/Debug/Find-ModuleRoot.ps1'
             'Scripts/Find-ScriptCommand.ps1'
             'Scripts/Resolve-CommandModule.ps1'
             'Source/ScriptsToProcess/Install-Dependencies.ps1'

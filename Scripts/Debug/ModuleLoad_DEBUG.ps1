@@ -1,9 +1,10 @@
 # Example debug launcher: imports the module from source with debug output on.
 # Copy this pattern to make per-function debug scripts (see .vscode\launch.json).
 
-# resolve the module root so paths keep working if this folder moves
-. "$PSScriptRoot\Find-ModuleRoot.ps1"
-$ModuleRoot = (Find-ModuleRoot -Path $PSScriptRoot).Path
+# resolve the repo root via git so paths keep working if this folder moves
+$ModuleRoot = git -C $PSScriptRoot rev-parse --show-toplevel
+if ($LASTEXITCODE -ne 0) { throw 'Not inside a git repository.' }
+$ModuleRoot = (Resolve-Path -LiteralPath $ModuleRoot).Path
 $ModuleName = Split-Path -Path $ModuleRoot -Leaf
 
 # debug output on (PSFramework levels; see AGENTS.md)

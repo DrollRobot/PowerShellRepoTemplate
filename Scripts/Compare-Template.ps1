@@ -321,15 +321,12 @@ $script:Manifest = @(
     # Other versioned dev scripts: tracked, but diff-only -- reviewed, never
     # blindly overwritten.
     (New-Entry 'Build.ps1')
-    (New-Entry 'Scripts/Find-ModuleRoot.ps1')
     # Used by nothing except the explicit-module-import check below; all three
     # share the 'ExplicitModuleImport' gate.
     (New-Entry 'Scripts/Find-ScriptCommand.ps1' -Gate 'ExplicitModuleImport')
     (New-Entry 'Scripts/Resolve-CommandModule.ps1' -Gate 'ExplicitModuleImport')
     # One-time setup script; usually deleted after use.
     (New-Entry 'Scripts/Setup-NewProject.ps1' -Required $false)
-    # Debug helper; optional.
-    (New-Entry 'Scripts/Debug/Find-ModuleRoot.ps1' -Required $false)
     (New-Entry 'Tests/Test-BacktickContinuation.ps1' -Gate 'BacktickContinuation')
     (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -Gate 'ExplicitModuleImport')
     # Its $UnwantedPatterns has no external override hook -- a genuine
