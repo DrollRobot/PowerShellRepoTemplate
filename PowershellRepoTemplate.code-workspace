@@ -3,17 +3,5 @@
 		{
 			"path": "."
 		}
-	],
-	"settings": {
-		// copilot approved commands
-		"chat.tools.terminal.autoApprove": {
-			".\\Build.ps1": true,
-			".\\Docs.ps1": true,
-			".\\Tests.ps1": true,
-			"Get-Content": true,
-			"Get-Module": true,
-			"Import-Module": true,
-			"Write-Host": true
-		}
-	}
+	]
 }
