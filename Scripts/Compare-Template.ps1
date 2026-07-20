@@ -5,29 +5,43 @@
     bring versioned tooling files up to date.
 
 .DESCRIPTION
-    A module created from this template (via Scripts\Setup-NewProject.ps1) keeps a
-    set of tooling, CI, and config files that should track the template as it
-    evolves. Run this script from inside the child repo, pointing -TemplatePath
-    at a template checkout, to see where the two have drifted.
+    A module created from this template (via Scripts\Setup-NewProject.ps1, which
+    is config-driven -- see Scripts\setup.psd1) keeps a set of tooling, CI, and
+    config files that should track the template as it evolves. Run this script
+    from inside the child repo, pointing -TemplatePath at a template checkout, to
+    see where the two have drifted.
 
-    Two kinds of files are handled:
+    Every tracked file is a single manifest entry ($script:Manifest) and always
+    goes through the diff-based comparison below. A curated few of those entries
+    are ALSO marked -BlindCopy: generic dev tooling (this script itself, the
+    worktree helpers, the release script, the docs generator, the dependency
+    hook) that a child almost never hand-edits. Those get an extra, earlier
+    pre-flight offer to sync straight from the template by version number alone,
+    with no diff shown -- so an outdated copy of this script (and its manifest)
+    is refreshed before the content comparison runs. Every other tracked file --
+    including other scripts that declare their own $ScriptVersion, such as
+    Build.ps1 or the Tests\Test-*.ps1 checkers -- is diff-only: never blindly
+    copied, always reviewed as a normal drift entry (with a version note shown
+    alongside it when both sides parse a version).
 
-      - Versioned files: the dev/build/test scripts that declare their own
-        $ScriptVersion. Their versions are compared and, when the template's copy
-        is newer (or the same version but different content), the script offers to
-        copy the template's copy over the child's. This runs first, as a
-        pre-flight, so an outdated copy of this script (and its manifest) is
-        refreshed before the content comparison.
-
-      - Non-versioned files: CI workflows, lint/format config, and the AGENTS docs.
-        Their contents are compared after replaying the transformations
-        Setup-NewProject.ps1 applied to the child (module-name and GitHub owner
-        substitution, and stripping the TEMPLATE SETUP NOTES banner), so only
-        genuine drift is reported. These are never written automatically; pass
-        -Diff to review each difference side by side.
+    Non-versioned files -- CI workflows, lint/format config, and the AGENTS docs
+    -- are compared after replaying the transformations Setup-NewProject.ps1
+    applied to the child (module-name and GitHub owner substitution, and
+    stripping the TEMPLATE SETUP NOTES banner), so only genuine drift is
+    reported. Diff-only entries are never written automatically; pass -Diff to
+    review each difference side by side.
 
     Files the child owns (its Source\ code, the module manifest and its version,
-    the changelog, the license, generated docs) are not compared.
+    the changelog, the license, generated docs, Tests.ps1 and its PreTests.ps1 /
+    PostTests.ps1 hooks) are not compared at all.
+
+    Manifest entries belonging to a config-driven optional feature (the docs site,
+    SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, or one of the
+    opinionated formatting checks) are gated on that child's own choice, read from
+    Scripts\setup.psd1 -- a feature the child declined is skipped entirely rather
+    than reported as missing. One entry (Tests\Test-FindUnwantedStrings.ps1) is
+    compared at a different child-side path instead, when the child moved it to
+    .local\tests\ ([Features].UnwantedStringsLocal).
 
 .PARAMETER TemplatePath
     Path to the template checkout. Defaults to a sibling folder with the
@@ -113,7 +127,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.1'
+$ScriptVersion = '2.0.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -210,53 +224,61 @@ $script:HashBanner =
 # quotes are doubled for the single-quoted PowerShell string.
 $script:VersionPattern = '(?m)^\s*\$ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
 
-# Directories scanned (non-recursively) for versioned scripts. Tests\Pester is
-# deliberately excluded: those are the child's tests, not template tooling.
-$script:VersionedDirs = @(
-    '.'
-    'Build'
-    'Tests'
-    'Scripts'
-    'Scripts/Debug'
-    'Source/ScriptsToProcess'
-)
-
-# Versioned template scripts to keep OUT of the copy workflow. The template (the
-# parent) owns this list: a discovered versioned file whose '/'-relative path
-# matches one of these -like glob patterns is dropped during discovery, so it is
-# never version-checked, never offered for copy, and never shown -- exactly as if
-# it declared no $ScriptVersion. Populate it with template-internal tooling that
-# should not propagate to children (for example 'Scripts/Debug/*').
-$script:VersionedExclude = @(
-    'Tests.ps1'
-    'Source/ScriptsToProcess/Install-Dependencies.ps1'
-)
-
-# One non-versioned tracked file. {NAME} in a path is the module name, replaced
-# per side (the dev-loader .psm1 is renamed in a child). Required: a missing one
-# is drift. Strict: content drift is an error (vs 'review' only). ExistenceOnly:
-# a present file matches whatever its contents (the child rewrites it).
+# One tracked file. {NAME} in a path is the module name, replaced per side (the
+# dev-loader .psm1 is renamed in a child). Required: a missing one is drift.
+# Strict: content drift is an error (vs 'review' only). ExistenceOnly: a present
+# file matches whatever its contents (the child rewrites it). BlindCopy: this
+# entry is also offered in the versioned pre-flight (Invoke-VersionedPreflight)
+# -- a low-friction, no-diff version-number-based sync -- on top of always going
+# through the normal diff comparison below. Reserved for a short, curated list
+# of generic dev tooling nobody hand-edits; everything else that happens to
+# declare $ScriptVersion is still diff-only.
+#
+# Gate: name of a Scripts\setup.psd1 [Features] flag (see Get-ChildFeatureFlag).
+# When the child's config has that flag set to false, this entry is dropped
+# from comparison entirely -- never reported as missing, never offered for
+# copy -- exactly like a feature the child deliberately declined at setup.
+# $null (the default) means always applicable.
+#
+# LocalOverrideFlag / LocalOverridePath: for the one entry (currently just
+# Test-FindUnwantedStrings.ps1) whose child-side location depends on a config
+# choice rather than being present-or-absent. When the named flag is true,
+# Get-ApplicableManifest sets ChildPath to LocalOverridePath; Compare-Entry
+# then reads the CHILD from ChildPath while still reading the TEMPLATE from
+# Path -- the two must stay independent, since the template's own copy never
+# moves. ChildPath starts equal to Path (the common case: same relative path
+# on both sides) and is the only field Get-ApplicableManifest ever rewrites.
 function New-Entry {
     param(
         [Parameter(Mandatory)][string]$Path,
         [bool]$Required = $true,
         [bool]$Strict = $true,
-        [bool]$ExistenceOnly = $false
+        [bool]$ExistenceOnly = $false,
+        [bool]$BlindCopy = $false,
+        [string]$Gate = $null,
+        [string]$LocalOverrideFlag = $null,
+        [string]$LocalOverridePath = $null
     )
     return [pscustomobject]@{
-        Path          = $Path
-        Required       = $Required
-        Strict         = $Strict
-        ExistenceOnly = $ExistenceOnly
+        Path              = $Path
+        ChildPath         = $Path
+        Required          = $Required
+        Strict            = $Strict
+        ExistenceOnly     = $ExistenceOnly
+        BlindCopy         = $BlindCopy
+        Gate              = $Gate
+        LocalOverrideFlag = $LocalOverrideFlag
+        LocalOverridePath = $LocalOverridePath
     }
 }
 
-# Non-versioned tracked files. Versioned files (scripts carrying $ScriptVersion)
-# are discovered separately by Get-VersionedRelPath.
+# Every tracked file. Versioned dev scripts are listed explicitly below, either
+# as -BlindCopy (curated whitelist, offered for a no-diff sync) or diff-only
+# (everything else that carries $ScriptVersion) -- see New-Entry above.
 $script:Manifest = @(
     # GitHub automation and templates.
     (New-Entry '.github/workflows/ci.yml')
-    (New-Entry '.github/workflows/docs.yml' -Required $false)
+    (New-Entry '.github/workflows/docs.yml' -Required $false -Gate 'Docs')
     (New-Entry '.github/dependabot.yml')
     (New-Entry '.github/pull_request_template.md')
     (New-Entry '.github/ISSUE_TEMPLATE/bug_report.yml')
@@ -274,15 +296,60 @@ $script:Manifest = @(
     (New-Entry 'AGENTS.TESTING.md')
     (New-Entry 'AGENTS.WORKTREE.md')
     (New-Entry 'CLAUDE.md')
-    (New-Entry 'CONTRIBUTING.md')
-    (New-Entry 'SECURITY.md')
+    (New-Entry 'CONTRIBUTING.md' -Gate 'ContributingMd')
+    (New-Entry 'SECURITY.md' -Gate 'SecurityMd')
     (New-Entry 'README.md' -ExistenceOnly $true)
+    # Config-driven setup's own input file: content is this project's choices,
+    # never the template's, but the file itself must stay present.
+    (New-Entry 'Scripts/setup.psd1' -ExistenceOnly $true)
     # Module scaffolding that tracks the template (normalized for the name).
     (New-Entry 'Source/Build.psd1')
-    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1')
-    (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1')
-    # Editor / docs-site config (per-project; reviewed, not enforced).
-    (New-Entry 'mkdocs.yml' -Required $false -Strict $false)
+    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1' -BlindCopy $true)
+    # Has a '# FIXME: optionally mirror...' hand-edit block -- diff-only, lenient.
+    (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1' -Strict $false)
+    # Documentation site: mkdocs.yml plus the PlatyPS-driven Docs.ps1 above and
+    # the docs.yml workflow above. All three share the 'Docs' gate.
+    (New-Entry 'mkdocs.yml' -Required $false -Strict $false -Gate 'Docs')
+    # Generic dev tooling, curated whitelist: nobody hand-edits these, so they
+    # get the low-friction version-based sync on top of the normal diff.
+    (New-Entry 'Docs.ps1' -BlindCopy $true -Gate 'Docs')
+    (New-Entry 'Scripts/Compare-Template.ps1' -BlindCopy $true)
+    (New-Entry 'Scripts/Complete-WorkTree.ps1' -BlindCopy $true)
+    (New-Entry 'Scripts/New-Worktree.ps1' -BlindCopy $true)
+    (New-Entry 'Scripts/Push-NewTagToMain.ps1' -BlindCopy $true)
+    (New-Entry 'Scripts/Remove-WorkTree.ps1' -BlindCopy $true)
+    # Other versioned dev scripts: tracked, but diff-only -- reviewed, never
+    # blindly overwritten.
+    (New-Entry 'Build.ps1')
+    (New-Entry 'Scripts/Find-ModuleRoot.ps1')
+    # Used by nothing except the explicit-module-import check below; all three
+    # share the 'ExplicitModuleImport' gate.
+    (New-Entry 'Scripts/Find-ScriptCommand.ps1' -Gate 'ExplicitModuleImport')
+    (New-Entry 'Scripts/Resolve-CommandModule.ps1' -Gate 'ExplicitModuleImport')
+    # One-time setup script; usually deleted after use.
+    (New-Entry 'Scripts/Setup-NewProject.ps1' -Required $false)
+    # Debug helper; optional.
+    (New-Entry 'Scripts/Debug/Find-ModuleRoot.ps1' -Required $false)
+    (New-Entry 'Tests/Test-BacktickContinuation.ps1' -Gate 'BacktickContinuation')
+    (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -Gate 'ExplicitModuleImport')
+    # Its $UnwantedPatterns has no external override hook -- a genuine
+    # per-project hand-edit point, unlike this file's exclusions. Its child-side
+    # location depends on [Features].UnwantedStringsLocal rather than being
+    # simply present or absent, hence LocalOverride* instead of Gate.
+    $UnwantedStringsParams = @{
+        Strict            = $false
+        LocalOverrideFlag = 'UnwantedStringsLocal'
+        LocalOverridePath = '.local/tests/Test-FindUnwantedStrings.ps1'
+    }
+    (New-Entry 'Tests/Test-FindUnwantedStrings.ps1' @UnwantedStringsParams)
+    (New-Entry 'Tests/Test-FixmeComments.ps1')
+    (New-Entry 'Tests/Test-FormatOperator.ps1' -Gate 'FormatOperator')
+    (New-Entry 'Tests/Test-JoinPath.ps1')
+    (New-Entry 'Tests/Test-LineLength.ps1')
+    (New-Entry 'Tests/Test-ModuleSyntax.ps1')
+    (New-Entry 'Tests/Test-NonASCIICharacters.ps1' -Gate 'NonASCIICharacters')
+    (New-Entry 'Tests/Test-PSSA.ps1')
+    (New-Entry 'Tests/Test-WriteVerboseDebug.ps1' -Gate 'WriteVerboseDebug')
 )
 
 # --- pure helpers -----------------------------------------------------------
@@ -354,6 +421,32 @@ function Get-VersionAction {
     return 'refresh'
 }
 
+# Describe how two versions of a file relate, for a diff-only manifest entry
+# that happens to declare $ScriptVersion on both sides (a -BlindCopy entry
+# never reaches this -- its version is already handled by the pre-flight).
+# Purely informational; never triggers a copy.
+function Get-VersionNote {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$TemplateText,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$ChildText
+    )
+    $templateVersion = Get-ScriptVersion $TemplateText
+    $childVersion = Get-ScriptVersion $ChildText
+    if (-not $templateVersion -or -not $childVersion) { return '' }
+    $tv = $null
+    $cv = $null
+    $tParsed = [version]::TryParse($templateVersion, [ref]$tv)
+    $cParsed = [version]::TryParse($childVersion, [ref]$cv)
+    if (-not $tParsed -or -not $cParsed) { return '' }
+    if ($cv -lt $tv) {
+        return " (child $childVersion < template ${templateVersion}: outdated)"
+    }
+    if ($cv -gt $tv) {
+        return " (child $childVersion > template ${templateVersion}: ahead - upstream?)"
+    }
+    return " (both ${templateVersion}: changed without a version bump?)"
+}
+
 # Substitute the template's identity tokens (module name, GitHub owner) with the
 # child's, exactly as Setup-NewProject.ps1 did. Used both to normalize for
 # comparison and to rewrite a file copied into the child, so a copy never carries
@@ -387,58 +480,12 @@ function ConvertTo-NormalizedChild {
     return (Remove-TemplateBanner (Convert-Eol $Text))
 }
 
-# --- versioned discovery ----------------------------------------------------
-
-# True when the template excludes a versioned file from the copy workflow via
-# $script:VersionedExclude. Matched with -like against the '/'-relative path.
-function Test-VersionedExcluded {
-    param([Parameter(Mandatory)][string]$Rel)
-    foreach ($pattern in $script:VersionedExclude) {
-        if ($Rel -like $pattern) { return $true }
-    }
-    return $false
-}
-
-# Return the '/'-relative paths of versioned template files (those declaring a
-# single $ScriptVersion), discovered under VersionedDirs. The build/test hook
-# stubs (Pre/PostBuild, Pre/PostTests) deliberately carry no $ScriptVersion --
-# they are child customization points -- so they are not discovered here; they
-# are compared as lenient non-versioned files (see the manifest). Files the
-# template lists in $script:VersionedExclude are dropped here too, so an excluded
-# script never reaches the pre-flight or the report.
-function Get-VersionedRelPath {
-    param([Parameter(Mandatory)][string]$TemplateRoot)
-    $FunctionName = $MyInvocation.MyCommand.Name
-    $found = [System.Collections.Generic.List[string]]::new()
-    foreach ($dir in $script:VersionedDirs) {
-        $full = if ($dir -eq '.') { $TemplateRoot } else { Join-Rel $TemplateRoot $dir }
-        if (-not (Test-Path -LiteralPath $full)) { continue }
-        $files = Get-ChildItem -LiteralPath $full -Filter '*.ps1' -File
-        foreach ($file in $files) {
-            if (-not (Get-ScriptVersion (Get-RawText $file.FullName))) { continue }
-            $abs = [System.IO.Path]::GetRelativePath($TemplateRoot, $file.FullName)
-            $rel = $abs.Replace('\', '/')
-            if (Test-VersionedExcluded $rel) {
-                Write-Trace "${FunctionName}: excluded '$rel'"
-                continue
-            }
-            $found.Add($rel)
-            Write-Trace "${FunctionName}: versioned file '$rel'"
-        }
-    }
-    return $found
-}
-
-# A versioned file whose absence in the child is not drift: the one-time setup
-# script (usually deleted after use) and the optional debug helpers.
-function Test-OptionalVersioned {
-    param([Parameter(Mandatory)][string]$Rel)
-    if ($Rel -eq 'Scripts/Setup-NewProject.ps1') { return $true }
-    if ($Rel -like 'Scripts/Debug/*') { return $true }
-    return $false
-}
-
 # --- versioned pre-flight ---------------------------------------------------
+#
+# The versioned pre-flight below runs only over $script:Manifest entries marked
+# -BlindCopy (see New-Entry) -- a short, curated whitelist of generic dev
+# tooling. Every other manifest entry, whitelisted or not, still goes through
+# the diff-based comparison further down (Compare-Entry).
 
 # Write the template's copy into the child, substituting the identity tokens
 # first. Token-free files are copied byte-for-byte (preserving encoding and line
@@ -461,20 +508,21 @@ function Write-ChildFile {
     }
 }
 
-# Compare one versioned file and, when allowed, offer to update the child's copy.
-# Returns 'wrote' when the child's copy was written, 'flagged' when the file needs
-# attention but was not written, or 'ok' when nothing was reported.
+# Compare one whitelisted (-BlindCopy) manifest entry and, when allowed, offer to
+# update the child's copy. Returns 'wrote' when the child's copy was written,
+# 'flagged' when the file needs attention but was not written, or 'ok' when
+# nothing was reported.
 function Update-VersionedFile {
     param(
-        [Parameter(Mandatory)][string]$Rel,
+        [Parameter(Mandatory)][pscustomobject]$Entry,
         [Parameter(Mandatory)][string]$TemplateRoot,
         [Parameter(Mandatory)][string]$ChildRoot,
         [Parameter(Mandatory)][bool]$AllowUpdate
     )
     $FunctionName = $MyInvocation.MyCommand.Name
+    $Rel = $Entry.Path
     $templatePath = Join-Rel $TemplateRoot $Rel
-    $childPath = Join-Rel $ChildRoot $Rel
-    $optional = Test-OptionalVersioned $Rel
+    $childPath = Join-Rel $ChildRoot $Entry.ChildPath
 
     if (-not (Test-Path -LiteralPath $templatePath)) {
         Write-Warn "  The template has no $Rel; skipping."
@@ -484,7 +532,7 @@ function Update-VersionedFile {
     $templateVersion = Get-ScriptVersion $templateText
 
     if (-not (Test-Path -LiteralPath $childPath)) {
-        if ($optional) { return 'ok' }
+        if (-not $Entry.Required) { return 'ok' }
         $shown = if ($templateVersion) { $templateVersion } else { 'unversioned' }
         Write-Warn "  The child is missing $Rel (template $shown)."
         if ($AllowUpdate -and (Confirm-Prompt "  Copy $Rel from the template into the child?")) {
@@ -535,11 +583,12 @@ function Update-VersionedFile {
     return 'wrote'
 }
 
-# Compare every versioned file and offer to update the child's copies. When the
-# running script replaces itself, exit afterwards so the user re-runs the new
-# version (with its current manifest).
+# Compare every -BlindCopy entry in $Entries (the caller's already feature-filtered manifest)
+# and offer to update the child's copies. When the running script replaces itself, exit
+# afterwards so the user re-runs the new version (with its current manifest).
 function Invoke-VersionedPreflight {
     param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Entries,
         [Parameter(Mandatory)][string]$TemplateRoot,
         [Parameter(Mandatory)][string]$ChildRoot,
         [Parameter(Mandatory)][bool]$AllowUpdate
@@ -548,9 +597,9 @@ function Invoke-VersionedPreflight {
     $selfPath = (Resolve-Path -LiteralPath $PSCommandPath).Path
     $attention = 0
     $replacedSelf = $false
-    foreach ($rel in (Get-VersionedRelPath -TemplateRoot $TemplateRoot)) {
+    foreach ($entry in ($Entries | Where-Object BlindCopy)) {
         $updateParams = @{
-            Rel          = $rel
+            Entry        = $entry
             TemplateRoot = $TemplateRoot
             ChildRoot    = $ChildRoot
             AllowUpdate  = $AllowUpdate
@@ -558,7 +607,7 @@ function Invoke-VersionedPreflight {
         $status = Update-VersionedFile @updateParams
         if ($status -ne 'ok') { $attention++ }
         if ($status -ne 'wrote') { continue }
-        $childPath = Join-Rel $ChildRoot $rel
+        $childPath = Join-Rel $ChildRoot $entry.ChildPath
         if ((Resolve-Path -LiteralPath $childPath).Path -eq $selfPath) {
             $replacedSelf = $true
         }
@@ -583,7 +632,7 @@ function Compare-Entry {
         [Parameter(Mandatory)][string]$ChildRoot
     )
     $templateRel = $Entry.Path.Replace('{NAME}', $script:TemplateName)
-    $childRel = $Entry.Path.Replace('{NAME}', $script:ChildName)
+    $childRel = $Entry.ChildPath.Replace('{NAME}', $script:ChildName)
     $templatePath = Join-Rel $TemplateRoot $templateRel
     $childPath = Join-Rel $ChildRoot $childRel
 
@@ -610,12 +659,15 @@ function Compare-Entry {
         return $result
     }
 
-    $templateNorm = ConvertTo-NormalizedTemplate (Get-RawText $templatePath)
-    $childNorm = ConvertTo-NormalizedChild (Get-RawText $childPath)
+    $templateRawText = Get-RawText $templatePath
+    $childRawText = Get-RawText $childPath
+    $templateNorm = ConvertTo-NormalizedTemplate $templateRawText
+    $childNorm = ConvertTo-NormalizedChild $childRawText
     if ($templateNorm -ceq $childNorm) { return $result }
 
     $note = ''
     if (-not $Entry.Strict) { $note = ' (expected to differ)' }
+    $note += Get-VersionNote -TemplateText $templateRawText -ChildText $childRawText
     if ($childNorm -match [regex]::Escape($script:TemplateName)) {
         $note += ' (child still has the template name; setup incomplete?)'
     }
@@ -731,6 +783,114 @@ function Get-ChildOrigin {
     return ($url | Select-Object -First 1).Trim()
 }
 
+# Last-resort fallback for the child's GitHub owner: Setup-NewProject.ps1's own
+# config file, read directly rather than trusting a possibly-stale git remote
+# lookup to have already found one. Only consulted when -GitHubUser was not
+# passed and no origin remote resolved to a GitHub owner.
+function Get-ConfiguredGitHubUser {
+    param([Parameter(Mandatory)][string]$ChildRoot)
+    $configPath = Join-Rel $ChildRoot 'Scripts/setup.psd1'
+    if (-not (Test-Path -LiteralPath $configPath)) { return $null }
+    try {
+        $config = Import-PowerShellDataFile -Path $configPath
+    }
+    catch {
+        return $null
+    }
+    $project = $config['Project']
+    if ($project -isnot [hashtable]) { return $null }
+    $value = $project['GitHubUser']
+    if ($value -is [string] -and $value.Trim()) { return $value }
+    return $null
+}
+
+# --- feature gating ----------------------------------------------------------
+
+# Every [Features] flag this script understands, and the "keep everything" default
+# each takes when the child's Scripts\setup.psd1 is missing, unreadable, or simply
+# does not mention that key -- matching what an unedited config means for it.
+$script:FeatureDefaults = @{
+    Docs                 = $true
+    SecurityMd           = $true
+    ContributingMd       = $true
+    ExplicitModuleImport = $true
+    NonASCIICharacters   = $true
+    FormatOperator       = $true
+    WriteVerboseDebug    = $true
+    BacktickContinuation = $true
+    UnwantedStringsLocal = $false
+}
+
+# Resolve which config-driven features this child kept, from its own Scripts\setup.psd1. Falls
+# back to $script:FeatureDefaults wholesale when the file is missing or unreadable, and per-key
+# when the [Features] table exists but a given key is absent or the wrong type -- mirroring how
+# Setup-NewProject.ps1 treats those same conditions.
+function Get-ChildFeatureFlag {
+    param([Parameter(Mandatory)][string]$ChildRoot)
+    $flags = $script:FeatureDefaults.Clone()
+    $configPath = Join-Rel $ChildRoot 'Scripts/setup.psd1'
+    if (-not (Test-Path -LiteralPath $configPath)) { return $flags }
+    try {
+        $config = Import-PowerShellDataFile -Path $configPath
+    }
+    catch {
+        return $flags
+    }
+    $features = $config['Features']
+    if ($features -isnot [hashtable]) { return $flags }
+    foreach ($key in @($flags.Keys)) {
+        if ($features[$key] -is [bool]) {
+            $flags[$key] = $features[$key]
+        }
+    }
+    return $flags
+}
+
+# .pre-commit-config.yaml is edited in place -- one hook block removed -- by
+# Invoke-RemoveFormattingTest whenever any of these four checks is declined
+# (see Scripts\Setup-NewProject.ps1). Get-ApplicableManifest reports the
+# resulting difference for review instead of as strict drift, the same way
+# Python's remove_mkdocs.py-edited files (CONTRIBUTING.md, AGENTS.RELEASING.md
+# in that template) are compared leniently once the feature they describe is
+# actually gone.
+$script:PreCommitFormattingGates = @(
+    'NonASCIICharacters', 'FormatOperator', 'WriteVerboseDebug', 'BacktickContinuation'
+)
+
+# Split $script:Manifest into the entries applicable to this child's feature choices (Applicable)
+# and the ones tied to a declined feature (Skipped). Returns new entry objects; $script:Manifest
+# itself is never mutated, so repeated calls (and the Pester tests, which assert against the raw
+# manifest) stay unaffected. Two per-entry adjustments happen here, each only via a cloned copy:
+#   - LocalOverrideFlag true: ChildPath swaps to LocalOverridePath. Path (the template-side
+#     location) is deliberately left untouched, since the template's own copy never moves.
+#   - .pre-commit-config.yaml, when any $script:PreCommitFormattingGates flag is false: Strict
+#     downgrades to false (see comment above).
+function Get-ApplicableManifest {
+    param([Parameter(Mandatory)][hashtable]$Flags)
+    $applicable = [System.Collections.Generic.List[pscustomobject]]::new()
+    $skipped = [System.Collections.Generic.List[pscustomobject]]::new()
+    $preCommitEdited = $false
+    foreach ($gate in $script:PreCommitFormattingGates) {
+        if (-not $Flags[$gate]) { $preCommitEdited = $true }
+    }
+    foreach ($entry in $script:Manifest) {
+        if ($entry.Gate -and -not $Flags[$entry.Gate]) {
+            $skipped.Add($entry)
+            continue
+        }
+        if ($entry.LocalOverrideFlag -and $Flags[$entry.LocalOverrideFlag]) {
+            $entry = $entry.PSObject.Copy()
+            $entry.ChildPath = $entry.LocalOverridePath
+        }
+        if ($preCommitEdited -and $entry.Path -eq '.pre-commit-config.yaml') {
+            $entry = $entry.PSObject.Copy()
+            $entry.Strict = $false
+        }
+        $applicable.Add($entry)
+    }
+    return [pscustomobject]@{ Applicable = $applicable; Skipped = $skipped }
+}
+
 # --- main -------------------------------------------------------------------
 
 # Pester tests dot-source this script to load the helper functions above without
@@ -771,6 +931,9 @@ if (-not $script:ChildOwner) {
     $url = Get-ChildOrigin -Root $childRoot
     if ($url) { $script:ChildOwner = Get-OwnerFromUrl $url }
 }
+if (-not $script:ChildOwner) {
+    $script:ChildOwner = Get-ConfiguredGitHubUser -ChildRoot $childRoot
+}
 
 Write-Section 'Repositories'
 Write-Info 'Template' $templateRoot
@@ -783,7 +946,17 @@ if ($script:ChildOwner) {
     Write-Warn '  Owner placeholders will show as drift; pass -GitHubUser to fix.'
 }
 
+$childFlags = Get-ChildFeatureFlag -ChildRoot $childRoot
+Write-Section 'Feature configuration'
+foreach ($featureName in $script:FeatureDefaults.Keys | Sort-Object) {
+    $state = if ($childFlags[$featureName]) { 'on' } else { 'off' }
+    Write-Info $featureName $state
+}
+$manifestSplit = Get-ApplicableManifest -Flags $childFlags
+$applicableEntries = $manifestSplit.Applicable
+
 $preflightParams = @{
+    Entries      = $applicableEntries
     TemplateRoot = $templateRoot
     ChildRoot    = $childRoot
     AllowUpdate  = (-not $NoUpdate)
@@ -791,12 +964,20 @@ $preflightParams = @{
 Invoke-VersionedPreflight @preflightParams
 
 $results = @(
-    foreach ($entry in $script:Manifest) {
+    foreach ($entry in $applicableEntries) {
         Compare-Entry -Entry $entry -TemplateRoot $templateRoot -ChildRoot $childRoot
     }
 )
 
 Write-Section 'Comparison'
+if ($manifestSplit.Skipped.Count -gt 0) {
+    $SkipMsg = "  Skipping $($manifestSplit.Skipped.Count) file(s) tied to features " +
+    'this child declined:'
+    Write-Warn $SkipMsg
+    foreach ($skippedEntry in $manifestSplit.Skipped) {
+        Write-Host "    $($skippedEntry.Path)"
+    }
+}
 Write-Report -Results $results -ShowAll ([bool]$All)
 if ($Diff) {
     Show-Diff -Results $results -ChildRoot $childRoot -DiffTool $DiffTool

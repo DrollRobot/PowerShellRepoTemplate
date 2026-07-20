@@ -5,7 +5,8 @@
 .DESCRIPTION
     Dot-sources the script to load its helper functions -- the dot-source guard
     in the script skips the comparison itself -- and exercises the pure helpers
-    plus the versioned-file discovery against the real repo. NonLive; no tag.
+    plus the manifest (including which entries are blind-copy eligible) against
+    the real repo. NonLive; no tag.
 
 .NOTES
     The template identity tokens are assembled from string pieces so that a
@@ -136,67 +137,51 @@ Describe 'ConvertTo-NormalizedChild' {
     }
 }
 
-Describe 'Test-OptionalVersioned' {
-    It 'treats Setup-NewProject as optional' {
-        Test-OptionalVersioned 'Scripts/Setup-NewProject.ps1' | Should -BeTrue
-    }
-    It 'treats debug helpers as optional' {
-        Test-OptionalVersioned 'Scripts/Debug/Find-ModuleRoot.ps1' | Should -BeTrue
-    }
-    It 'treats a normal helper as required' {
-        Test-OptionalVersioned 'Scripts/New-Worktree.ps1' | Should -BeFalse
-    }
-}
-
-Describe 'Test-VersionedExcluded' {
-    BeforeAll { $script:SavedExclude = $script:VersionedExclude }
-    AfterEach { $script:VersionedExclude = $script:SavedExclude }
-    It 'excludes nothing when the list is empty' {
-        $script:VersionedExclude = @()
-        Test-VersionedExcluded 'Scripts/Compare-Template.ps1' | Should -BeFalse
-    }
-    It 'matches an exact path' {
-        $script:VersionedExclude = @('Tests/Test-LineLength.ps1')
-        Test-VersionedExcluded 'Tests/Test-LineLength.ps1' | Should -BeTrue
-    }
-    It 'matches a glob pattern' {
-        $script:VersionedExclude = @('Scripts/Debug/*')
-        Test-VersionedExcluded 'Scripts/Debug/Find-ModuleRoot.ps1' | Should -BeTrue
-    }
-    It 'leaves non-matching paths included' {
-        $script:VersionedExclude = @('Tests/Test-LineLength.ps1')
-        Test-VersionedExcluded 'Scripts/New-Worktree.ps1' | Should -BeFalse
-    }
-}
-
-Describe 'VersionedExclude default' {
-    It 'keeps the Tests.ps1 orchestrator out of the copy workflow' {
-        $script:VersionedExclude | Should -Contain 'Tests.ps1'
-    }
-}
-
 Describe 'New-Entry' {
-    It 'defaults to required, strict, content-compared' {
+    It 'defaults to required, strict, content-compared, not blind-copy, ungated' {
         $entry = New-Entry 'x'
         $entry.Required | Should -BeTrue
         $entry.Strict | Should -BeTrue
         $entry.ExistenceOnly | Should -BeFalse
+        $entry.BlindCopy | Should -BeFalse
+        $entry.Gate | Should -BeNullOrEmpty
+        $entry.LocalOverrideFlag | Should -BeNullOrEmpty
+        $entry.LocalOverridePath | Should -BeNullOrEmpty
+    }
+    It 'defaults ChildPath to the same value as Path' {
+        $entry = New-Entry 'some/file.ps1'
+        $entry.ChildPath | Should -Be 'some/file.ps1'
     }
     It 'honors overrides' {
-        $entry = New-Entry 'x' -Required $false -Strict $false -ExistenceOnly $true
+        $params = @{
+            Required          = $false
+            Strict            = $false
+            ExistenceOnly     = $true
+            BlindCopy         = $true
+            Gate              = 'SomeFeature'
+            LocalOverrideFlag = 'SomeFlag'
+            LocalOverridePath = 'elsewhere/x'
+        }
+        $entry = New-Entry 'x' @params
         $entry.Required | Should -BeFalse
         $entry.Strict | Should -BeFalse
         $entry.ExistenceOnly | Should -BeTrue
+        $entry.BlindCopy | Should -BeTrue
+        $entry.Gate | Should -Be 'SomeFeature'
+        $entry.LocalOverrideFlag | Should -Be 'SomeFlag'
+        $entry.LocalOverridePath | Should -Be 'elsewhere/x'
     }
 }
 
 Describe 'Manifest' {
-    It 'does not track the build/test hook stubs (the child owns them)' {
+    It 'does not track the child-owned build/test files' {
         $paths = $script:Manifest.Path
         $paths | Should -Not -Contain 'Build/PreBuild.ps1'
         $paths | Should -Not -Contain 'Build/PostBuild.ps1'
         $paths | Should -Not -Contain 'Tests/PreTests.ps1'
         $paths | Should -Not -Contain 'Tests/PostTests.ps1'
+        $paths | Should -Not -Contain 'Tests.ps1'
+        $paths | Should -Not -Contain 'Tests/Pester/Compare-Template.Tests.ps1'
     }
     It 'tracks the CI workflow as a strict required entry' {
         $entry = $script:Manifest | Where-Object Path -EQ '.github/workflows/ci.yml'
@@ -204,43 +189,278 @@ Describe 'Manifest' {
         $entry.Required | Should -BeTrue
         $entry.Strict | Should -BeTrue
     }
+    It 'tracks the curated whitelist as blind-copy eligible' {
+        $whitelist = @(
+            'Docs.ps1'
+            'Scripts/Compare-Template.ps1'
+            'Scripts/Complete-WorkTree.ps1'
+            'Scripts/New-Worktree.ps1'
+            'Scripts/Push-NewTagToMain.ps1'
+            'Scripts/Remove-WorkTree.ps1'
+            'Source/ScriptsToProcess/Confirm-Dependencies.ps1'
+        )
+        foreach ($path in $whitelist) {
+            $entry = $script:Manifest | Where-Object Path -EQ $path
+            $entry | Should -Not -BeNullOrEmpty -Because "$path should be tracked"
+            $entry.BlindCopy | Should -BeTrue -Because "$path should be blind-copy eligible"
+        }
+    }
+    It 'keeps other versioned dev scripts diff-only, never blind-copied' {
+        $diffOnly = @(
+            'Build.ps1'
+            'Scripts/Setup-NewProject.ps1'
+            'Scripts/Find-ModuleRoot.ps1'
+            'Scripts/Debug/Find-ModuleRoot.ps1'
+            'Scripts/Find-ScriptCommand.ps1'
+            'Scripts/Resolve-CommandModule.ps1'
+            'Source/ScriptsToProcess/Install-Dependencies.ps1'
+            'Tests/Test-LineLength.ps1'
+            'Tests/Test-PSSA.ps1'
+            'Tests/Test-FixmeComments.ps1'
+            'Tests/Test-FindUnwantedStrings.ps1'
+            'Tests/Test-WriteVerboseDebug.ps1'
+            'Tests/Test-NonASCIICharacters.ps1'
+            'Tests/Test-JoinPath.ps1'
+            'Tests/Test-FormatOperator.ps1'
+            'Tests/Test-BacktickContinuation.ps1'
+            'Tests/Test-ModuleSyntax.ps1'
+            'Tests/Test-ExplicitModuleImport.ps1'
+        )
+        foreach ($path in $diffOnly) {
+            $entry = $script:Manifest | Where-Object Path -EQ $path
+            $entry | Should -Not -BeNullOrEmpty -Because "$path should be tracked"
+            $entry.BlindCopy | Should -BeFalse -Because "$path should not be blind-copy eligible"
+        }
+    }
+    It 'treats the two known hand-edit points leniently' {
+        $installDeps = $script:Manifest |
+            Where-Object Path -EQ 'Source/ScriptsToProcess/Install-Dependencies.ps1'
+        $installDeps.Strict | Should -BeFalse
+        $unwantedStrings = $script:Manifest |
+            Where-Object Path -EQ 'Tests/Test-FindUnwantedStrings.ps1'
+        $unwantedStrings.Strict | Should -BeFalse
+    }
+    It 'tracks the setup config file as existence-only' {
+        $entry = $script:Manifest | Where-Object Path -EQ 'Scripts/setup.psd1'
+        $entry | Should -Not -BeNullOrEmpty
+        $entry.ExistenceOnly | Should -BeTrue
+    }
+    It 'gates every docs-feature file on Docs' {
+        $docsFiles = @(
+            '.github/workflows/docs.yml'
+            'mkdocs.yml'
+            'Docs.ps1'
+        )
+        foreach ($path in $docsFiles) {
+            $entry = $script:Manifest | Where-Object Path -EQ $path
+            $entry.Gate | Should -Be 'Docs' -Because "$path should be gated on Docs"
+        }
+    }
+    It 'gates the explicit-module-import trio on ExplicitModuleImport' {
+        $trio = @(
+            'Scripts/Find-ScriptCommand.ps1'
+            'Scripts/Resolve-CommandModule.ps1'
+            'Tests/Test-ExplicitModuleImport.ps1'
+        )
+        foreach ($path in $trio) {
+            $entry = $script:Manifest | Where-Object Path -EQ $path
+            $entry.Gate | Should -Be 'ExplicitModuleImport' -Because "$path should be gated"
+        }
+    }
+    It 'gates each opinionated formatting check on its own feature' {
+        $gateMap = @{
+            'Tests/Test-NonASCIICharacters.ps1'   = 'NonASCIICharacters'
+            'Tests/Test-FormatOperator.ps1'       = 'FormatOperator'
+            'Tests/Test-WriteVerboseDebug.ps1'    = 'WriteVerboseDebug'
+            'Tests/Test-BacktickContinuation.ps1' = 'BacktickContinuation'
+        }
+        foreach ($path in $gateMap.Keys) {
+            $entry = $script:Manifest | Where-Object Path -EQ $path
+            $entry.Gate | Should -Be $gateMap[$path]
+        }
+    }
+    It 'gates SECURITY.md and CONTRIBUTING.md independently' {
+        $security = $script:Manifest | Where-Object Path -EQ 'SECURITY.md'
+        $security.Gate | Should -Be 'SecurityMd'
+        $contributing = $script:Manifest | Where-Object Path -EQ 'CONTRIBUTING.md'
+        $contributing.Gate | Should -Be 'ContributingMd'
+    }
+    It 'points the unwanted-strings entry at a local override, not a gate' {
+        $entry = $script:Manifest | Where-Object Path -EQ 'Tests/Test-FindUnwantedStrings.ps1'
+        $entry.Gate | Should -BeNullOrEmpty
+        $entry.LocalOverrideFlag | Should -Be 'UnwantedStringsLocal'
+        $entry.LocalOverridePath | Should -Be '.local/tests/Test-FindUnwantedStrings.ps1'
+    }
 }
 
-Describe 'Get-VersionedRelPath' {
+Describe 'Get-ChildFeatureFlag' {
     BeforeAll {
-        # Discover against an empty exclude list so these cases stay independent of
-        # whatever the shipped $script:VersionedExclude default happens to be.
-        $script:SavedDiscoverExclude = $script:VersionedExclude
-        $script:VersionedExclude = @()
-        $script:Discovered = @(Get-VersionedRelPath -TemplateRoot $script:RepoRoot)
+        $ScratchParams = @{
+            Path      = [System.IO.Path]::GetTempPath()
+            ChildPath = [System.IO.Path]::GetRandomFileName()
+        }
+        $script:FlagScratchDir = Join-Path @ScratchParams
+        $ScratchScriptsDir = Join-Path -Path $script:FlagScratchDir -ChildPath 'Scripts'
+        New-Item -ItemType Directory -Path $ScratchScriptsDir -Force | Out-Null
     }
     AfterAll {
-        $script:VersionedExclude = $script:SavedDiscoverExclude
-    }
-    It 'includes the top-level dev scripts' {
-        $script:Discovered | Should -Contain 'Build.ps1'
-        $script:Discovered | Should -Contain 'Tests.ps1'
-    }
-    It 'includes the Scripts helpers' {
-        $script:Discovered | Should -Contain 'Scripts/New-Worktree.ps1'
-        $script:Discovered | Should -Contain 'Scripts/Compare-Template.ps1'
-    }
-    It 'excludes the build/test hook stubs' {
-        $script:Discovered | Should -Not -Contain 'Build/PreBuild.ps1'
-        $script:Discovered | Should -Not -Contain 'Build/PostBuild.ps1'
-        $script:Discovered | Should -Not -Contain 'Tests/PreTests.ps1'
-        $script:Discovered | Should -Not -Contain 'Tests/PostTests.ps1'
-    }
-    It 'drops files matching the versioned-exclude list' {
-        $saved = $script:VersionedExclude
-        try {
-            $script:VersionedExclude = @('Tests/Test-*.ps1')
-            $filtered = @(Get-VersionedRelPath -TemplateRoot $script:RepoRoot)
-            $filtered | Should -Not -Contain 'Tests/Test-PSSA.ps1'
-            $filtered | Should -Contain 'Scripts/Compare-Template.ps1'
+        $RemoveParams = @{
+            LiteralPath = $script:FlagScratchDir
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
         }
-        finally {
-            $script:VersionedExclude = $saved
+        Remove-Item @RemoveParams
+    }
+
+    It 'defaults every feature to true, and UnwantedStringsLocal to false, when no config exists' {
+        $flags = Get-ChildFeatureFlag -ChildRoot $script:FlagScratchDir
+        $flags['Docs'] | Should -BeTrue
+        $flags['SecurityMd'] | Should -BeTrue
+        $flags['UnwantedStringsLocal'] | Should -BeFalse
+    }
+    It 'reads a real [Features] table and leaves unmentioned keys at their default' {
+        $configPath = Join-Path -Path $script:FlagScratchDir -ChildPath 'Scripts\setup.psd1'
+        Set-Content -LiteralPath $configPath -Value @'
+@{
+    Features = @{
+        Docs = $false
+        UnwantedStringsLocal = $true
+    }
+}
+'@
+        $flags = Get-ChildFeatureFlag -ChildRoot $script:FlagScratchDir
+        $flags['Docs'] | Should -BeFalse
+        $flags['UnwantedStringsLocal'] | Should -BeTrue
+        $flags['SecurityMd'] | Should -BeTrue
+        Remove-Item -LiteralPath $configPath -Force
+    }
+    It 'falls back to defaults when the config file is not valid PowerShell data' {
+        $configPath = Join-Path -Path $script:FlagScratchDir -ChildPath 'Scripts\setup.psd1'
+        Set-Content -LiteralPath $configPath -Value 'not valid { data'
+        $flags = Get-ChildFeatureFlag -ChildRoot $script:FlagScratchDir
+        $flags['Docs'] | Should -BeTrue
+        Remove-Item -LiteralPath $configPath -Force
+    }
+}
+
+Describe 'Get-ApplicableManifest' {
+    BeforeAll {
+        $script:OriginalManifest = $script:Manifest
+        $LocalParams = @{
+            LocalOverrideFlag = 'UnwantedStringsLocal'
+            LocalOverridePath = '.local/moved.txt'
         }
+        $script:Manifest = @(
+            (New-Entry 'always/here.txt')
+            (New-Entry 'gated/on/docs.txt' -Gate 'Docs')
+            (New-Entry 'tracked/moves.txt' @LocalParams)
+            (New-Entry '.pre-commit-config.yaml')
+        )
+        # All-kept baseline; individual tests override just the flag(s) under test.
+        function script:New-TestFlag {
+            param([hashtable]$Overrides = @{})
+            $base = @{
+                Docs                 = $true
+                UnwantedStringsLocal = $false
+                NonASCIICharacters   = $true
+                FormatOperator       = $true
+                WriteVerboseDebug    = $true
+                BacktickContinuation = $true
+            }
+            foreach ($key in $Overrides.Keys) { $base[$key] = $Overrides[$key] }
+            return $base
+        }
+    }
+    AfterAll {
+        $script:Manifest = $script:OriginalManifest
+        Remove-Item -Path function:script:New-TestFlag -ErrorAction SilentlyContinue
+    }
+
+    It 'keeps ungated entries regardless of flags' {
+        $flags = New-TestFlag -Overrides @{ Docs = $false }
+        $result = Get-ApplicableManifest -Flags $flags
+        $result.Applicable.Path | Should -Contain 'always/here.txt'
+    }
+    It 'drops a gated entry when its flag is false' {
+        $flags = New-TestFlag -Overrides @{ Docs = $false }
+        $result = Get-ApplicableManifest -Flags $flags
+        $result.Applicable.Path | Should -Not -Contain 'gated/on/docs.txt'
+        $result.Skipped.Path | Should -Contain 'gated/on/docs.txt'
+    }
+    It 'keeps a gated entry when its flag is true' {
+        $flags = New-TestFlag
+        $result = Get-ApplicableManifest -Flags $flags
+        $result.Applicable.Path | Should -Contain 'gated/on/docs.txt'
+        $result.Skipped.Count | Should -Be 0
+    }
+    It 'remaps ChildPath, but never Path, when the local-override flag is true' {
+        $flags = New-TestFlag -Overrides @{ UnwantedStringsLocal = $true }
+        $result = Get-ApplicableManifest -Flags $flags
+        $moved = $result.Applicable | Where-Object LocalOverrideFlag -EQ 'UnwantedStringsLocal'
+        $moved.ChildPath | Should -Be '.local/moved.txt'
+        $moved.Path | Should -Be 'tracked/moves.txt' -Because 'the template copy never moves'
+    }
+    It 'leaves ChildPath unchanged when the local-override flag is false' {
+        $flags = New-TestFlag
+        $result = Get-ApplicableManifest -Flags $flags
+        $unmoved = $result.Applicable | Where-Object LocalOverrideFlag -EQ 'UnwantedStringsLocal'
+        $unmoved.ChildPath | Should -Be 'tracked/moves.txt'
+        $unmoved.Path | Should -Be 'tracked/moves.txt'
+    }
+    It 'does not mutate $script:Manifest' {
+        $flags = New-TestFlag -Overrides @{ UnwantedStringsLocal = $true }
+        $null = Get-ApplicableManifest -Flags $flags
+        $original = $script:Manifest | Where-Object LocalOverrideFlag -EQ 'UnwantedStringsLocal'
+        $original.Path | Should -Be 'tracked/moves.txt'
+        $original.ChildPath | Should -Be 'tracked/moves.txt'
+    }
+    It 'keeps .pre-commit-config.yaml strict when every formatting check is kept' {
+        $flags = New-TestFlag
+        $result = Get-ApplicableManifest -Flags $flags
+        $preCommit = $result.Applicable | Where-Object Path -EQ '.pre-commit-config.yaml'
+        $preCommit.Strict | Should -BeTrue
+    }
+    It 'downgrades .pre-commit-config.yaml to lenient when any one formatting check is declined' {
+        foreach ($gate in $script:PreCommitFormattingGates) {
+            $flags = New-TestFlag -Overrides @{ $gate = $false }
+            $result = Get-ApplicableManifest -Flags $flags
+            $preCommit = $result.Applicable | Where-Object Path -EQ '.pre-commit-config.yaml'
+            $preCommit.Strict | Should -BeFalse -Because "$gate = false should downgrade it"
+        }
+    }
+    It 'does not downgrade .pre-commit-config.yaml''s Strict in $script:Manifest itself' {
+        $flags = New-TestFlag -Overrides @{ NonASCIICharacters = $false }
+        $null = Get-ApplicableManifest -Flags $flags
+        $original = $script:Manifest | Where-Object Path -EQ '.pre-commit-config.yaml'
+        $original.Strict | Should -BeTrue
+    }
+}
+
+Describe 'Get-VersionNote' {
+    It 'returns empty when either side has no version' {
+        Get-VersionNote -TemplateText "`$ScriptVersion = '1.0.0'" -ChildText 'nothing here' |
+            Should -BeNullOrEmpty
+    }
+    It 'flags an outdated child' {
+        $params = @{
+            TemplateText = "`$ScriptVersion = '1.2.0'"
+            ChildText    = "`$ScriptVersion = '1.1.0'"
+        }
+        Get-VersionNote @params | Should -Match 'outdated'
+    }
+    It 'flags a child ahead of the template' {
+        $params = @{
+            TemplateText = "`$ScriptVersion = '1.0.0'"
+            ChildText    = "`$ScriptVersion = '2.0.0'"
+        }
+        Get-VersionNote @params | Should -Match 'ahead'
+    }
+    It 'flags matching versions with different content' {
+        $params = @{
+            TemplateText = "`$ScriptVersion = '1.0.0'"
+            ChildText    = "`$ScriptVersion = '1.0.0'"
+        }
+        Get-VersionNote @params | Should -Match 'without a version bump'
     }
 }

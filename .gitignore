@@ -3,6 +3,11 @@
 *.env*
 !*.env.ps1.example
 
+# local-only overrides and personal test files (see AGENTS.TESTING.md); this is
+# also where Setup-NewProject.ps1 relocates Test-FindUnwantedStrings.ps1 when
+# [Features].UnwantedStringsLocal is true, so its patterns are never committed
+/.local/
+
 # mkdocs documentation
 /site
 
