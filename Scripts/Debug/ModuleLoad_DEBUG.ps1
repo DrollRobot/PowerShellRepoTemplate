@@ -2,6 +2,7 @@
 # Copy this pattern to make per-function debug scripts (see .vscode\launch.json).
 
 # resolve the repo root via git so paths keep working if this folder moves
+$global:LASTEXITCODE = 0
 $ModuleRoot = git -C $PSScriptRoot rev-parse --show-toplevel
 if ($LASTEXITCODE -ne 0) { throw 'Not inside a git repository.' }
 $ModuleRoot = (Resolve-Path -LiteralPath $ModuleRoot).Path
