@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replace it ends the run immediately so the user re-runs the freshly written
   version (with its current manifest) rather than continuing against a stale
   in-memory copy.
+- `Scripts\Compare-Template.ps1`: when a versioned file matches on version but
+  differs in content, the pre-flight no longer prompts to copy over it (it may
+  be a hand-edit or a missed version bump). The file falls through to the
+  diff-based comparison for review instead.
 
 ## [1.1.0] - 2026-07-20
 

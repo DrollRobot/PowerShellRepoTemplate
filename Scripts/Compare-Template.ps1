@@ -17,8 +17,12 @@
     worktree helpers, the release script, the docs generator, the dependency
     hook) that a child almost never hand-edits. Those get an extra, earlier
     pre-flight offer to sync straight from the template by version number alone,
-    with no diff shown -- so an outdated copy of this script (and its manifest)
-    is refreshed before the content comparison runs. Every other tracked file --
+    with no diff shown -- but ONLY when the child's copy is strictly older, so an
+    outdated copy of this script (and its manifest) is refreshed before the
+    content comparison runs. When the versions match but the contents differ (a
+    possible hand-edit, or a change that missed a version bump), no copy is
+    offered; the file falls through to the diff-based comparison for review.
+    Every other tracked file --
     including other scripts that declare their own $ScriptVersion, such as
     Build.ps1 or the Tests\Test-*.ps1 checkers -- is diff-only: never blindly
     copied, always reviewed as a normal drift entry (with a version note shown
@@ -128,7 +132,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.1.0'
+$ScriptVersion = '2.2.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -566,11 +570,17 @@ function Update-VersionedFile {
         Write-Warn '  Consider upstreaming the change to the template; not overwriting it.'
         return 'flagged'
     }
-    if ($action -eq 'update') {
-        Write-Warn '  The child''s copy is outdated.'
-    } else {
+    # Same version, different content: the child may carry a real hand-edit, so
+    # never offer a version-based copy over it. Leave it for the diff-based
+    # comparison below (a -BlindCopy entry is still run through Compare-Entry),
+    # which reports it for review and includes it under -Diff.
+    if ($action -eq 'refresh') {
         Write-Warn '  The copies share a version but their contents differ (missing bump?).'
+        Write-Warn '  Not offering a copy; review it in the comparison/diff below.'
+        return 'flagged'
     }
+    # action -eq 'update': the child's copy is genuinely behind the template.
+    Write-Warn '  The child''s copy is outdated.'
     if (-not $AllowUpdate) {
         Write-Warn '  Skipping the update offer (-NoUpdate).'
         return 'flagged'

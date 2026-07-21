@@ -73,7 +73,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.2'
+$ScriptVersion = '2.1.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
