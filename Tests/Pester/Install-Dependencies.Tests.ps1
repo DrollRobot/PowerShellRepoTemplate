@@ -8,7 +8,7 @@
     manifest to exercise it in isolation. Only -Check is exercised (no real
     installs); the real -Scope/-Force install path is never run here, since
     that would hit the live PSGallery. The script uses `throw`, not `exit`, so
-    it is safe to invoke in-process via the call operator. NonLive; no tag.
+    it is safe to invoke in-process via the call operator. NotLive; no tag.
 #>
 
 BeforeAll {

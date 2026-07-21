@@ -5,7 +5,7 @@
 .DESCRIPTION
     Dot-sources the script to load Find-ScriptCommand -- a pure, AST-based
     function with no top-level execution, so no child-process isolation is
-    needed. NonLive; no tag.
+    needed. NotLive; no tag.
 #>
 
 BeforeAll {

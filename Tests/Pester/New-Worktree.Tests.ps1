@@ -6,7 +6,7 @@
     The script now guards its main body with `if ($MyInvocation.InvocationName
     -eq '.') { return }` (added alongside this test), so it can be dot-sourced
     to reach its pure helper functions without running the interactive/
-    mutating flow. Get-SourceWorkspace is covered here as a NonLive unit test.
+    mutating flow. Get-SourceWorkspace is covered here as a NotLive unit test.
 
     The actual worktree-creation flow is destructive (creates a real git
     worktree, branch, and pushes to "origin") and needs a real repo/cwd since

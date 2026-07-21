@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Tests.ps1`) from the copy/diff workflow via a template-owned list, since
   children are expected to customize them.
 - `Tests.ps1`: a `-Quiet` flag for the PowerShell lint checks.
-- `Tests.ps1`: a `NonLive`/`Live`/`Destructive` Pester tag scheme, gating
+- `Tests.ps1`: a `NotLive`/`Live`/`Destructive` Pester tag scheme, gating
   destructive tests behind the `DISPOSABLE_ENVIRONMENT` environment variable.
 - `Setup-NewProject.ps1` and `Compare-Template.ps1` now read a shared
   `Scripts\setup.psd1` config (a file whitelist plus optional feature toggles)

@@ -5,7 +5,7 @@
 .DESCRIPTION
     Regression test only: this fail-closed stub must keep refusing until a
     project implements its FIXME. The script throws (not `exit`s) to refuse,
-    so it is safe to dot-source in-process directly. NonLive; no tag.
+    so it is safe to dot-source in-process directly. NotLive; no tag.
 #>
 
 BeforeAll {

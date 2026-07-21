@@ -13,7 +13,7 @@
     is exercised against a throwaway local repo with remote-tracking refs
     written directly via `git update-ref` (no network, no push), and
     Find-Manifest's Source\-preference path uses a throwaway `git init` repo.
-    Both stay NonLive/integration -- no destructive mutation of anything
+    Both stay NotLive/integration -- no destructive mutation of anything
     outside the temp dir.
 
     The actual release flow (merge into main, version bump, tag, push) is

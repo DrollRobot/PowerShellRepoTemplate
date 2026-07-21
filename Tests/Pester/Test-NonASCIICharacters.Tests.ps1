@@ -7,7 +7,7 @@
     process (via a generated wrapper script) rather than dot-sourced -- dot-
     sourcing would terminate the Pester run itself. Non-ASCII fixture
     characters are built from code points ([char] 0x00E9, ...) so this test
-    file's own source stays pure ASCII. NonLive; no tag.
+    file's own source stays pure ASCII. NotLive; no tag.
 #>
 
 BeforeAll {

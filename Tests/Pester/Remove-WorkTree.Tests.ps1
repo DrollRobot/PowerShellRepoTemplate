@@ -7,7 +7,7 @@
     -eq '.') { return }` (added alongside this test), so it can be dot-sourced
     to reach its pure helper functions (Test-SamePath, Get-WorktreeEntry,
     Get-OpenWorktreeSlug) without running the interactive/destructive flow.
-    Those are covered here as NonLive unit tests.
+    Those are covered here as NotLive unit tests.
 
     The actual teardown flow (git worktree remove --force, git branch -D, git
     fetch --prune) is destructive and needs a real repo/cwd, since the script

@@ -12,7 +12,7 @@
     the "no patterns defined" skip. To exercise the matching and exception
     logic, a patched scratch copy is generated once, with the two empty array
     literals replaced by test patterns; everything else in the script is
-    untouched. NonLive; no tag.
+    untouched. NotLive; no tag.
 #>
 
 BeforeAll {

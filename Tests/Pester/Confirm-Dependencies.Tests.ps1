@@ -8,7 +8,7 @@
     Install-Dependencies.ps1 under that root. A scratch copy of both scripts
     is placed under a fixture module tree so this is exercised in isolation.
     Uses `return`/`throw`, not `exit`, so it is safe to invoke in-process via
-    the call operator. NonLive; no tag.
+    the call operator. NotLive; no tag.
 #>
 
 BeforeAll {

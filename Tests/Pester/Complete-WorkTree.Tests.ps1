@@ -14,7 +14,7 @@
     deliberately left untested here: this environment has `gh` installed and
     authenticated against a real account, so any test that reached that code
     path for real would risk pushing branches or opening pull requests against
-    a real repository. NonLive; no tag.
+    a real repository. NotLive; no tag.
 #>
 
 BeforeAll {

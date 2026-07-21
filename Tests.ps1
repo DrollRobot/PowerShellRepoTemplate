@@ -26,7 +26,7 @@
 .PARAMETER Test
     One or more test categories to run. Accepted values:
 
-      NonLive              -- Pester tests that are not tagged 'live' or
+      NotLive              -- Pester tests that are not tagged 'live' or
                              'destructive'. No connectivity or external
                              resources required.
       Live                 -- Pester tests tagged 'live', excluding any also
@@ -69,7 +69,7 @@
 .PARAMETER Path
     Scope the run to a single file or folder instead of the whole repo. The
     formatting/lint checks run against this path (a file checks just that file;
-    a folder checks everything matching under it, recursively). For NonLive,
+    a folder checks everything matching under it, recursively). For NotLive,
     Live, and Destructive, this path is what Invoke-Pester scans -- e.g. point
     it at a single *.Tests.ps1 file. Defaults to the repo root, so omitting it
     is unchanged.
@@ -86,7 +86,7 @@
 .PARAMETER Built
     Load the module from the built artifact instead of the source manifest.
     Looks for a root build first (Build.ps1 -BuildToRoot), then falls back to
-    the newest versioned build under Output\. Only valid with NonLive, Live,
+    the newest versioned build under Output\. Only valid with NotLive, Live,
     and Destructive.
 
 .PARAMETER Quiet
@@ -96,7 +96,7 @@
     to individual checks, not the Formatting aggregate or Pester runs.
 
 .EXAMPLE
-    .\Tests.ps1 NonLive
+    .\Tests.ps1 NotLive
     Runs Pester tests that need no connectivity or external resources.
 
 .EXAMPLE
@@ -104,8 +104,8 @@
     Runs the line-length check and prints only its one-line summary.
 
 .EXAMPLE
-    .\Tests.ps1 NonLive Live
-    Runs all non-destructive Pester tests (NonLive and Live).
+    .\Tests.ps1 NotLive Live
+    Runs all non-destructive Pester tests (NotLive and Live).
 
 .EXAMPLE
     .\Tests.ps1 Formatting
@@ -124,8 +124,8 @@
     Runs PSScriptAnalyzer against just the Source\Public folder.
 
 .EXAMPLE
-    .\Tests.ps1 NonLive -Path .\tests\pester\Get-Script.Tests.ps1
-    Runs one NonLive Pester test file.
+    .\Tests.ps1 NotLive -Path .\tests\pester\Get-Script.Tests.ps1
+    Runs one NotLive Pester test file.
 
 .EXAMPLE
     .\Tests.ps1 AutoFormat
@@ -141,7 +141,7 @@
     the 'remote' subset requires Tests\Confirm-RemoteDisposable.ps1 to confirm it.
 
 .EXAMPLE
-    .\Tests.ps1 NonLive Live -Built
+    .\Tests.ps1 NotLive Live -Built
     Runs Pester tests against the compiled module artifact.
 #>
 
@@ -150,7 +150,7 @@
 param(
     [Parameter(Position = 0, Mandatory, ValueFromRemainingArguments)]
     [ValidateSet(
-        'NonLive', 'Live', 'Destructive', 'Formatting',
+        'NotLive', 'Live', 'Destructive', 'Formatting',
         'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
         'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
         'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
@@ -360,16 +360,16 @@ try {
         . $PreTestsHook
     }
 
-    # --- NonLive ---
-    if ('NonLive' -in $Test) {
-        Write-Host "`n=== Invoke-Pester (NonLive) ===" -ForegroundColor Cyan
-        $NonLiveSplat = @{
+    # --- NotLive ---
+    if ('NotLive' -in $Test) {
+        Write-Host "`n=== Invoke-Pester (NotLive) ===" -ForegroundColor Cyan
+        $NotLiveSplat = @{
             Path             = $PesterTarget
             ExcludeTagFilter = 'live', 'destructive'
             PassThru         = $true
         }
-        $NonLiveResult = Invoke-Pester @NonLiveSplat
-        $PesterFailedCount += $NonLiveResult.FailedCount
+        $NotLiveResult = Invoke-Pester @NotLiveSplat
+        $PesterFailedCount += $NotLiveResult.FailedCount
     }
 
     # --- Individual formatting tests ---

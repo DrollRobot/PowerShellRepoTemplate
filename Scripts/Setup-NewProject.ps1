@@ -821,4 +821,4 @@ if ($Failed.Count -gt 0) {
 Write-Success '  Review the changes, then write some code!'
 Write-Host '    1. Review changes (git diff if history was kept).'
 Write-Host '    2. Resolve remaining FIXMEs.'
-Write-Host '    3. .\Build.ps1 and .\Tests.ps1 NonLive to confirm a clean baseline.'
+Write-Host '    3. .\Build.ps1 and .\Tests.ps1 NotLive to confirm a clean baseline.'

@@ -13,7 +13,7 @@
     installed in the CI/dev environment, a throwaway fixture module is built
     on disk and added to the child process's PSModulePath, giving a hermetic,
     always-"Installed" command to check the explicit-reference rule against.
-    NonLive; no tag.
+    NotLive; no tag.
 #>
 
 BeforeAll {

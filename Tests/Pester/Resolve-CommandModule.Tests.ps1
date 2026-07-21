@@ -13,7 +13,7 @@
     the template ships with no Source\Private functions yet to probe; a
     lighter HostPublic check against the real host module is included too,
     since that combination is the checker's actual real-world use in
-    Test-ExplicitModuleImport.ps1. NonLive; no tag.
+    Test-ExplicitModuleImport.ps1. NotLive; no tag.
 #>
 
 BeforeAll {

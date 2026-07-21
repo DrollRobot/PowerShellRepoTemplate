@@ -38,7 +38,6 @@ To customize:
 ## Checklist
 
 - [ ] My code follows the conventions in AGENTS.md
-- [ ] I have performed a self-review of my changes
-- [ ] `.\Tests.ps1 NonLive` passes
-- [ ] `.\Tests.ps1 Formatting` reports no findings
+- [ ] I have performed a human review of my changes
+- [ ] All relevant tests described in AGENTS.TESTING.md are passing
 - [ ] I have updated CHANGELOG.md and documentation as needed

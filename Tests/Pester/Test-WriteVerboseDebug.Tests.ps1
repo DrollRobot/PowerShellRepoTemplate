@@ -5,7 +5,7 @@
 .DESCRIPTION
     The checker calls `exit` at top level, so it is invoked as a child pwsh
     process (via a generated wrapper script) rather than dot-sourced -- dot-
-    sourcing would terminate the Pester run itself. NonLive; no tag.
+    sourcing would terminate the Pester run itself. NotLive; no tag.
 #>
 
 BeforeAll {

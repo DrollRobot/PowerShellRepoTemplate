@@ -39,8 +39,8 @@ Every `destructive` test MUST also carry exactly one of `local` or `remote`. A
 
 **First: Pester tests**
 ```powershell
-# run NonLive tests first, for rapid feedback
-.\Tests.ps1 NonLive # runs all non-live, non-destructive tests
+# run NotLive tests first, for rapid feedback
+.\Tests.ps1 NotLive # runs all non-live, non-destructive tests
 # then run tests with dependencies (where applicable)
 .\Tests.ps1 Live # run all live, non-destructive tests
 ```

@@ -6,7 +6,7 @@
     Dot-sources the script to load its helper functions -- the dot-source guard
     in the script skips the comparison itself -- and exercises the pure helpers
     plus the manifest (including which entries are blind-copy eligible) against
-    the real repo. NonLive; no tag.
+    the real repo. NotLive; no tag.
 
 .NOTES
     The template identity tokens are assembled from string pieces so that a
@@ -265,6 +265,16 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             $entry.Gate | Should -Be 'ExplicitModuleImport' -Because "$path should be gated"
         }
     }
+    It 'gates the dependency-check pair on Dependencies' {
+        $pair = @(
+            'Source/ScriptsToProcess/Confirm-Dependencies.ps1'
+            'Source/ScriptsToProcess/Install-Dependencies.ps1'
+        )
+        foreach ($path in $pair) {
+            $entry = $script:Manifest | Where-Object Path -EQ $path
+            $entry.Gate | Should -Be 'Dependencies' -Because "$path should be gated"
+        }
+    }
     It 'gates each opinionated formatting check on its own feature' {
         $gateMap = @{
             'Tests/Test-NonASCIICharacters.ps1'   = 'NonASCIICharacters'
@@ -315,6 +325,7 @@ Describe 'Get-ChildFeatureFlag' -Tag 'integration', 'functional' {
         $flags = Get-ChildFeatureFlag -ChildRoot $script:FlagScratchDir
         $flags['Docs'] | Should -BeTrue
         $flags['SecurityMd'] | Should -BeTrue
+        $flags['Dependencies'] | Should -BeTrue
         $flags['UnwantedStringsLocal'] | Should -BeFalse
     }
     It 'reads a real [Features] table and leaves unmentioned keys at their default' {

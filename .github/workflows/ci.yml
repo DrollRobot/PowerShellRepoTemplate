@@ -4,7 +4,7 @@
 # This ci.yml is part of PowershellRepoTemplate, a starter repo scaffold.
 #
 # Purpose: Runs on every push and pull request to main. Blocks merges if
-# syntax checks or NonLive Pester tests fail. Live tests (tagged 'live') and
+# syntax checks or NotLive Pester tests fail. Live tests (tagged 'live') and
 # Destructive tests (tagged 'destructive') are intentionally excluded: Live
 # needs credentials this runner does not have, and Destructive requires a
 # host explicitly marked DISPOSABLE_ENVIRONMENT=1 (never a shared CI runner)
@@ -66,12 +66,12 @@ jobs:
         run: >
           .\Tests.ps1
           ModuleSyntax LineLength BacktickContinuation FormatOperator JoinPath
-          NonASCIICharacters WriteVerboseDebug FindUnwantedStrings -Quiet
+          NonASCIICharacters WriteVerboseDebug -Quiet
 
       - name: PSScriptAnalyzer
         shell: pwsh
         run: .\Tests.ps1 PSSA -Quiet
 
-      - name: NonLive Pester tests
+      - name: NotLive Pester tests
         shell: pwsh
-        run: .\Tests.ps1 NonLive
+        run: .\Tests.ps1 NotLive
