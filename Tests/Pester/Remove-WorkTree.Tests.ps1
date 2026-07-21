@@ -10,13 +10,12 @@
     Those are covered here as NotLive unit tests.
 
     The actual teardown flow (git worktree remove --force, git branch -D, git
-    fetch --prune) is destructive and needs a real repo/cwd, since the script
-    has no -RepoPath parameter. It is exercised here against a throwaway repo
-    (with a local bare repo standing in for "origin") as a destructive,local
-    integration test gated on DISPOSABLE_ENVIRONMENT=1, per AGENTS.TESTING.md.
-    This was written but could not be executed in this session
-    (DISPOSABLE_ENVIRONMENT was unset) -- treat it as unverified until it has
-    been run at least once.
+    fetch --prune) needs a real repo/cwd, since the script has no -RepoPath
+    parameter. It is exercised here against a throwaway repo (with a local bare
+    repo standing in for "origin") as a plain integration test. Everything lives
+    under the temp scratch dir and is removed in AfterAll, so it mutates no
+    preexisting local state and is not tagged destructive -- it runs in every
+    normal test run and in CI.
 #>
 
 BeforeAll {
@@ -113,66 +112,58 @@ Describe 'Remove-WorkTree helpers' -Tag 'unit', 'functional' {
     }
 }
 
-# Computed at discovery time (outside BeforeAll) because Pester evaluates
-# -Skip: expressions during discovery, before any BeforeAll block has run.
-$script:DisposableOk = $env:DISPOSABLE_ENVIRONMENT -eq '1'
-
-Describe 'Remove-WorkTree' -Tag 'integration', 'functional', 'destructive', 'local' {
+Describe 'Remove-WorkTree' -Tag 'integration', 'functional' {
     BeforeAll {
-        if ($script:DisposableOk) {
-            $FixtureParams = @{
-                Path      = $script:ScratchDir
-                ChildPath = "rwt-fixture-$([guid]::NewGuid().ToString('N'))"
-            }
-            $script:FixtureRoot = Join-Path @FixtureParams
-            $script:OriginPath = Join-Path -Path $script:FixtureRoot -ChildPath 'origin.git'
-            $script:RepoPath = Join-Path -Path $script:FixtureRoot -ChildPath 'repo'
-            New-Item -ItemType Directory -Path $script:FixtureRoot -Force | Out-Null
-
-            & git init --bare --initial-branch=develop $script:OriginPath *> $null
-            & git clone $script:OriginPath $script:RepoPath *> $null
-
-            Push-Location -LiteralPath $script:RepoPath
-            try {
-                & git config user.email 'test@example.invalid'
-                & git config user.name 'Test'
-                $ReadmeParams = @{
-                    LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'README.md'
-                    Value       = '# fixture'
-                }
-                Set-Content @ReadmeParams
-                & git add -A
-                & git commit -m 'Initial commit' *> $null
-                & git push origin develop *> $null
-
-                $WtHome = Join-Path -Path $script:FixtureRoot -ChildPath 'repo-wt'
-                $WtPath = Join-Path -Path $WtHome -ChildPath 'issue-1'
-                New-Item -ItemType Directory -Path $WtHome -Force | Out-Null
-                & git worktree add -b wt/issue-1 $WtPath develop *> $null
-            }
-            finally {
-                Pop-Location
-            }
-
-            $script:OriginalLocation = Get-Location
-            Set-Location -LiteralPath $script:RepoPath
+        $FixtureParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = "rwt-fixture-$([guid]::NewGuid().ToString('N'))"
         }
+        $script:FixtureRoot = Join-Path @FixtureParams
+        $script:OriginPath = Join-Path -Path $script:FixtureRoot -ChildPath 'origin.git'
+        $script:RepoPath = Join-Path -Path $script:FixtureRoot -ChildPath 'repo'
+        New-Item -ItemType Directory -Path $script:FixtureRoot -Force | Out-Null
+
+        & git init --bare --initial-branch=develop $script:OriginPath *> $null
+        & git clone $script:OriginPath $script:RepoPath *> $null
+
+        Push-Location -LiteralPath $script:RepoPath
+        try {
+            & git config user.email 'test@example.invalid'
+            & git config user.name 'Test'
+            $ReadmeParams = @{
+                LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'README.md'
+                Value       = '# fixture'
+            }
+            Set-Content @ReadmeParams
+            & git add -A
+            & git commit -m 'Initial commit' *> $null
+            & git push origin develop *> $null
+
+            $WtHome = Join-Path -Path $script:FixtureRoot -ChildPath 'repo-wt'
+            $WtPath = Join-Path -Path $WtHome -ChildPath 'issue-1'
+            New-Item -ItemType Directory -Path $WtHome -Force | Out-Null
+            & git worktree add -b wt/issue-1 $WtPath develop *> $null
+        }
+        finally {
+            Pop-Location
+        }
+
+        $script:OriginalLocation = Get-Location
+        Set-Location -LiteralPath $script:RepoPath
     }
 
     AfterAll {
-        if ($script:DisposableOk) {
-            Set-Location -LiteralPath $script:OriginalLocation
-            $CleanupParams = @{
-                LiteralPath = $script:FixtureRoot
-                Recurse     = $true
-                Force       = $true
-                ErrorAction = 'SilentlyContinue'
-            }
-            Remove-Item @CleanupParams
+        Set-Location -LiteralPath $script:OriginalLocation
+        $CleanupParams = @{
+            LiteralPath = $script:FixtureRoot
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
         }
+        Remove-Item @CleanupParams
     }
 
-    It 'removes the worktree and deletes its branch' -Skip:(-not $script:DisposableOk) {
+    It 'removes the worktree and deletes its branch' {
         $Params = @{
             FilePath         = 'pwsh'
             ArgumentList     = @(
