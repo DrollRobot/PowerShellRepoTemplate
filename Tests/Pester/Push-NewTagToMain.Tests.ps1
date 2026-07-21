@@ -16,13 +16,12 @@
     Both stay NotLive/integration -- no destructive mutation of anything
     outside the temp dir.
 
-    The actual release flow (merge into main, version bump, tag, push) is
-    destructive and needs a real repo/cwd, since the script has no -RepoPath
-    parameter. It is exercised as a destructive,local integration test against
-    a throwaway repo with a local bare repo standing in for "origin", gated on
-    DISPOSABLE_ENVIRONMENT=1. This was written but could not be executed in
-    this session (DISPOSABLE_ENVIRONMENT was unset) -- treat it as unverified
-    until it has been run at least once.
+    The actual release flow (merge into main, version bump, tag, push) needs a
+    real repo/cwd, since the script has no -RepoPath parameter. It is exercised
+    as a plain integration test against a throwaway repo with a local bare repo
+    standing in for "origin". Everything lives under the temp scratch dir and is
+    removed in AfterAll, so it mutates no preexisting local state and is not
+    tagged destructive -- it runs in every normal test run and in CI.
 #>
 
 BeforeAll {
@@ -112,20 +111,21 @@ Describe 'Find-Manifest' -Tag 'unit', 'functional' {
         { Find-Manifest -Path $Missing } | Should -Throw
     }
 
-    It 'walks up from the current location when no Source\ manifest is found' {
+    It 'throws when no Source\ manifest is found and no -Path is given' {
         $RootParams = @{
             Path      = $script:ScratchDir
-            ChildPath = "walkup-$([guid]::NewGuid().ToString('N'))"
+            ChildPath = "nomanifest-$([guid]::NewGuid().ToString('N'))"
         }
         $Root = Join-Path @RootParams
         $Sub = Join-Path -Path $Root -ChildPath 'a\b'
         New-Item -ItemType Directory -Path $Sub -Force | Out-Null
-        $ManifestPath = Join-Path -Path $Root -ChildPath 'Found.psd1'
-        Set-Content -LiteralPath $ManifestPath -Value '@{}'
+        # A stray .psd1 beside the current location must NOT be picked up now
+        # that the walk-up fallback is gone; only a Source\ manifest counts.
+        Set-Content -LiteralPath (Join-Path -Path $Root -ChildPath 'Stray.psd1') -Value '@{}'
 
         Push-Location -LiteralPath $Sub
         try {
-            Find-Manifest -Path $null | Should -Be (Resolve-Path $ManifestPath).Path
+            { Find-Manifest -Path $null } | Should -Throw
         }
         finally {
             Pop-Location
@@ -218,70 +218,62 @@ Describe 'Get-SyncStatus' -Tag 'integration', 'functional' {
     }
 }
 
-# Computed at discovery time (outside BeforeAll) because Pester evaluates
-# -Skip: expressions during discovery, before any BeforeAll block has run.
-$script:DisposableOk = $env:DISPOSABLE_ENVIRONMENT -eq '1'
-
-Describe 'Push-NewTagToMain' -Tag 'integration', 'functional', 'destructive', 'local' {
+Describe 'Push-NewTagToMain' -Tag 'integration', 'functional' {
     BeforeAll {
-        if ($script:DisposableOk) {
-            $FixtureParams = @{
-                Path      = $script:ScratchDir
-                ChildPath = "pntm-fixture-$([guid]::NewGuid().ToString('N'))"
-            }
-            $script:FixtureRoot = Join-Path @FixtureParams
-            $script:OriginPath = Join-Path -Path $script:FixtureRoot -ChildPath 'origin.git'
-            $script:RepoPath = Join-Path -Path $script:FixtureRoot -ChildPath 'repo'
-            New-Item -ItemType Directory -Path $script:FixtureRoot -Force | Out-Null
-
-            & git init --bare --initial-branch=main $script:OriginPath *> $null
-            & git clone $script:OriginPath $script:RepoPath *> $null
-
-            Push-Location -LiteralPath $script:RepoPath
-            try {
-                & git config user.email 'test@example.invalid'
-                & git config user.name 'Test'
-                $ManifestDir = Join-Path -Path $script:RepoPath -ChildPath 'Source'
-                New-Item -ItemType Directory -Path $ManifestDir -Force | Out-Null
-                $ManifestPath = Join-Path -Path $ManifestDir -ChildPath 'Fixture.psd1'
-                $ManifestContent = @('@{', "    ModuleVersion = '1.0.0'", '}')
-                Set-Content -LiteralPath $ManifestPath -Value $ManifestContent
-                & git add -A
-                & git commit -m 'Initial commit' *> $null
-                & git push origin main *> $null
-                & git checkout -b feature *> $null
-                $XParams = @{
-                    LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'x.txt'
-                    Value       = 'x'
-                }
-                Set-Content @XParams
-                & git add -A
-                & git commit -m 'work' *> $null
-                & git push -u origin feature *> $null
-            }
-            finally {
-                Pop-Location
-            }
-
-            $script:OriginalLocation = Get-Location
-            Set-Location -LiteralPath $script:RepoPath
+        $FixtureParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = "pntm-fixture-$([guid]::NewGuid().ToString('N'))"
         }
+        $script:FixtureRoot = Join-Path @FixtureParams
+        $script:OriginPath = Join-Path -Path $script:FixtureRoot -ChildPath 'origin.git'
+        $script:RepoPath = Join-Path -Path $script:FixtureRoot -ChildPath 'repo'
+        New-Item -ItemType Directory -Path $script:FixtureRoot -Force | Out-Null
+
+        & git init --bare --initial-branch=main $script:OriginPath *> $null
+        & git clone $script:OriginPath $script:RepoPath *> $null
+
+        Push-Location -LiteralPath $script:RepoPath
+        try {
+            & git config user.email 'test@example.invalid'
+            & git config user.name 'Test'
+            $ManifestDir = Join-Path -Path $script:RepoPath -ChildPath 'Source'
+            New-Item -ItemType Directory -Path $ManifestDir -Force | Out-Null
+            $ManifestPath = Join-Path -Path $ManifestDir -ChildPath 'Fixture.psd1'
+            $ManifestContent = @('@{', "    ModuleVersion = '1.0.0'", '}')
+            Set-Content -LiteralPath $ManifestPath -Value $ManifestContent
+            & git add -A
+            & git commit -m 'Initial commit' *> $null
+            & git push origin main *> $null
+            & git checkout -b feature *> $null
+            $XParams = @{
+                LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'x.txt'
+                Value       = 'x'
+            }
+            Set-Content @XParams
+            & git add -A
+            & git commit -m 'work' *> $null
+            & git push -u origin feature *> $null
+        }
+        finally {
+            Pop-Location
+        }
+
+        $script:OriginalLocation = Get-Location
+        Set-Location -LiteralPath $script:RepoPath
     }
 
     AfterAll {
-        if ($script:DisposableOk) {
-            Set-Location -LiteralPath $script:OriginalLocation
-            $CleanupParams = @{
-                LiteralPath = $script:FixtureRoot
-                Recurse     = $true
-                Force       = $true
-                ErrorAction = 'SilentlyContinue'
-            }
-            Remove-Item @CleanupParams
+        Set-Location -LiteralPath $script:OriginalLocation
+        $CleanupParams = @{
+            LiteralPath = $script:FixtureRoot
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
         }
+        Remove-Item @CleanupParams
     }
 
-    It 'merges, bumps, tags, and pushes' -Skip:(-not $script:DisposableOk) {
+    It 'merges, bumps, tags, and pushes' {
         $Params = @{
             FilePath         = 'pwsh'
             ArgumentList     = @(
@@ -300,5 +292,173 @@ Describe 'Push-NewTagToMain' -Tag 'integration', 'functional', 'destructive', 'l
         $Tags | Should -Not -BeNullOrEmpty
         $MainLog = & git -C $script:RepoPath log main --oneline -1
         $MainLog | Should -Match 'Release v1.0.1'
+    }
+}
+
+Describe 'Push-NewTagToMain -NoManifest' -Tag 'integration', 'functional' {
+    BeforeAll {
+        $FixtureParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = "pntm-nomani-$([guid]::NewGuid().ToString('N'))"
+        }
+        $script:FixtureRoot = Join-Path @FixtureParams
+        $script:OriginPath = Join-Path -Path $script:FixtureRoot -ChildPath 'origin.git'
+        $script:RepoPath = Join-Path -Path $script:FixtureRoot -ChildPath 'repo'
+        New-Item -ItemType Directory -Path $script:FixtureRoot -Force | Out-Null
+
+        & git init --bare --initial-branch=main $script:OriginPath *> $null
+        & git clone $script:OriginPath $script:RepoPath *> $null
+
+        Push-Location -LiteralPath $script:RepoPath
+        try {
+            & git config user.email 'test@example.invalid'
+            & git config user.name 'Test'
+            # A bare script repo: no Source\ folder, no .psd1 anywhere.
+            $ScriptParams = @{
+                LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'tool.ps1'
+                Value       = "Write-Output 'hello'"
+            }
+            Set-Content @ScriptParams
+            & git add -A
+            & git commit -m 'Initial commit' *> $null
+            & git push origin main *> $null
+            & git checkout -b feature *> $null
+            $EditParams = @{
+                LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'tool.ps1'
+                Value       = "Write-Output 'hello world'"
+            }
+            Set-Content @EditParams
+            & git add -A
+            & git commit -m 'work' *> $null
+            & git push -u origin feature *> $null
+        }
+        finally {
+            Pop-Location
+        }
+
+        $script:OriginalLocation = Get-Location
+        Set-Location -LiteralPath $script:RepoPath
+    }
+
+    AfterAll {
+        Set-Location -LiteralPath $script:OriginalLocation
+        $CleanupParams = @{
+            LiteralPath = $script:FixtureRoot
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
+        }
+        Remove-Item @CleanupParams
+    }
+
+    It 'tags a manifest-less repo from -Version alone' {
+        $Params = @{
+            FilePath         = 'pwsh'
+            ArgumentList     = @(
+                '-NoProfile', '-NonInteractive', '-File', $script:Sut,
+                '-NoManifest', '-Version', '1.2.0', '-Build', 'none', '-Yes'
+            )
+            WorkingDirectory = $script:RepoPath
+            NoNewWindow      = $true
+            Wait             = $true
+            PassThru         = $true
+        }
+        $Proc = Start-Process @Params
+        $Proc.ExitCode | Should -Be 0
+
+        # The tag is created and annotated ('tag' object, not 'commit').
+        $Tags = & git -C $script:RepoPath tag --list 'v1.2.0'
+        $Tags | Should -Not -BeNullOrEmpty
+        (& git -C $script:RepoPath cat-file -t 'v1.2.0') | Should -Be 'tag'
+
+        # No manifest was ever written, and with nothing to commit there is no
+        # 'Release' commit -- main is just the merged feature work.
+        $Psd1 = & git -C $script:RepoPath ls-files '*.psd1'
+        $Psd1 | Should -BeNullOrEmpty
+        $MainLog = & git -C $script:RepoPath log main --oneline -1
+        $MainLog | Should -Match 'work'
+        $MainLog | Should -Not -Match 'Release'
+    }
+}
+
+Describe 'Push-NewTagToMain duplicate-tag guard' -Tag 'integration', 'functional' {
+    BeforeAll {
+        $FixtureParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = "pntm-duptag-$([guid]::NewGuid().ToString('N'))"
+        }
+        $script:FixtureRoot = Join-Path @FixtureParams
+        $script:OriginPath = Join-Path -Path $script:FixtureRoot -ChildPath 'origin.git'
+        $script:RepoPath = Join-Path -Path $script:FixtureRoot -ChildPath 'repo'
+        New-Item -ItemType Directory -Path $script:FixtureRoot -Force | Out-Null
+
+        & git init --bare --initial-branch=main $script:OriginPath *> $null
+        & git clone $script:OriginPath $script:RepoPath *> $null
+
+        Push-Location -LiteralPath $script:RepoPath
+        try {
+            & git config user.email 'test@example.invalid'
+            & git config user.name 'Test'
+            $ManifestDir = Join-Path -Path $script:RepoPath -ChildPath 'Source'
+            New-Item -ItemType Directory -Path $ManifestDir -Force | Out-Null
+            $ManifestPath = Join-Path -Path $ManifestDir -ChildPath 'Fixture.psd1'
+            $ManifestContent = @('@{', "    ModuleVersion = '1.0.0'", '}')
+            Set-Content -LiteralPath $ManifestPath -Value $ManifestContent
+            & git add -A
+            & git commit -m 'Initial commit' *> $null
+            & git push origin main *> $null
+            # A tag for the current version already exists on this repo.
+            & git tag -a 'v1.0.0' -m 'Release 1.0.0' *> $null
+            & git checkout -b feature *> $null
+            $XParams = @{
+                LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'x.txt'
+                Value       = 'x'
+            }
+            Set-Content @XParams
+            & git add -A
+            & git commit -m 'work' *> $null
+            & git push -u origin feature *> $null
+        }
+        finally {
+            Pop-Location
+        }
+
+        $script:OriginalLocation = Get-Location
+        Set-Location -LiteralPath $script:RepoPath
+    }
+
+    AfterAll {
+        Set-Location -LiteralPath $script:OriginalLocation
+        $CleanupParams = @{
+            LiteralPath = $script:FixtureRoot
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
+        }
+        Remove-Item @CleanupParams
+    }
+
+    It 'aborts before any mutation when the target tag already exists' {
+        # -NoVersion targets the current version (1.0.0), whose tag exists.
+        $Params = @{
+            FilePath         = 'pwsh'
+            ArgumentList     = @(
+                '-NoProfile', '-NonInteractive', '-File', $script:Sut,
+                '-NoVersion', '-Build', 'none', '-Yes'
+            )
+            WorkingDirectory = $script:RepoPath
+            NoNewWindow      = $true
+            Wait             = $true
+            PassThru         = $true
+        }
+        $Proc = Start-Process @Params
+        $Proc.ExitCode | Should -Not -Be 0
+
+        # The guard fires before 'switch to main', so the repo is untouched:
+        # still on feature, main still at its initial commit (feature unmerged).
+        $Branch = & git -C $script:RepoPath rev-parse --abbrev-ref HEAD
+        $Branch | Should -Be 'feature'
+        $MainLog = & git -C $script:RepoPath log main --oneline -1
+        $MainLog | Should -Match 'Initial commit'
     }
 }

@@ -39,13 +39,18 @@
     Merge, tag, and push without changing the version (no manifest update or
     release commit). For when the version was already updated by hand.
 
+.PARAMETER NoManifest
+    Release a repo that has no .psd1 manifest (a bare script). The manifest is
+    never read or written; the tag is cut from -Version alone. Requires
+    -Version (there is no manifest to derive or bump a version from), so it is
+    only valid together with it. Merge, tag 'v<Version>', and push proceed as
+    normal.
+
 .PARAMETER ManifestPath
     Path to the .psd1 manifest holding ModuleVersion. If omitted, the manifest
     is resolved from the source tree: the repo root is located with
     'git rev-parse --show-toplevel' and its Source\ folder is searched for a
-    single .psd1 (excluding ModuleBuilder's Build.psd1). If no Source manifest
-    is found, falls back to walking up the directory tree from the current
-    location until a directory containing exactly one .psd1 file is found.
+    single .psd1 (excluding ModuleBuilder's Build.psd1).
 
 .PARAMETER Build
     Whether to build the module after updating the version, using Build.ps1 in
@@ -70,6 +75,9 @@
 
 .EXAMPLE
     .\Push-NewTagToMain.ps1 -NoVersion
+
+.EXAMPLE
+    .\Push-NewTagToMain.ps1 -NoManifest -Version 1.2.0 -Build none
 
 .EXAMPLE
     .\Push-NewTagToMain.ps1 -Bump patch -Yes
@@ -101,6 +109,12 @@ param(
     [Parameter(ParameterSetName = 'NoVersion', Mandatory)]
     [switch]$NoVersion,
 
+    # In the 'Version' set only, so it always pairs with an explicit -Version:
+    # a manifest-less repo (a bare script) has nothing to read a version from or
+    # write one to, so the version cannot be derived or bumped.
+    [Parameter(ParameterSetName = 'Version')]
+    [switch]$NoManifest,
+
     [string]$ManifestPath,
 
     [Parameter(Mandatory)]
@@ -116,10 +130,11 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.3'
+$ScriptVersion = '1.3.0'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
+$useNoManifest = [bool]$NoManifest
 
 # Answer every confirmation prompt with 'y' (set from -Yes). Script-scoped so
 # the helper functions below can read it.
@@ -229,9 +244,6 @@ function Get-RepoRoot {
 #      ModuleBuilder's Build.psd1) -- the metadata source of truth for a
 #      ModuleBuilder layout, where the built copy in the root (if any) is
 #      generated and must not be edited.
-#   3. Fallback: walk up the directory tree from the current location until a
-#      directory containing exactly one .psd1 is found (for non-ModuleBuilder
-#      repos built directly at the root).
 function Find-Manifest {
     param([string]$Path)
 
@@ -261,24 +273,7 @@ function Find-Manifest {
         }
     }
 
-    # Fallback: walk up from the current location.
-    $searchDir = (Get-Location).Path
-    while ($searchDir) {
-        $candidates = @(Get-ChildItem -Path $searchDir -Filter '*.psd1' -File)
-        if ($candidates.Count -eq 1) {
-            return $candidates[0].FullName
-        }
-        elseif ($candidates.Count -gt 1) {
-            $names = ($candidates | Select-Object -ExpandProperty Name) -join ', '
-            throw "Multiple .psd1 files found in '$searchDir': $names. Specify -ManifestPath."
-        }
-        $parent = Split-Path -Path $searchDir -Parent
-        if ($parent -eq $searchDir) { break }
-        $searchDir = $parent
-    }
-    $NoManifestMsg = "No .psd1 file found under a Source\ folder or walking up from " +
-    "'$(Get-Location)'. Specify -ManifestPath."
-    throw $NoManifestMsg
+    throw "No single .psd1 found under the repo's Source\ folder. Specify -ManifestPath."
 }
 
 # Surgically rewrite only the ModuleVersion assignment in the manifest, leaving
@@ -331,7 +326,10 @@ if ($source -eq 'main') {
 
 Write-Info "Original branch" $source
 Write-Info "Target branch" "main"
-if ($useNoVersion) {
+if ($useNoManifest) {
+    Write-Info "Version change" "tag '$Version' only (-NoManifest)"
+}
+elseif ($useNoVersion) {
     Write-Info "Version change" "none (-NoVersion)"
 }
 elseif ($useBump) {
@@ -429,50 +427,75 @@ else {
 
 Write-Section "Versions"
 
-$manifest = Find-Manifest -Path $ManifestPath
-$currentVersion = [version](Import-PowerShellDataFile -Path $manifest).ModuleVersion
-
-# Decide whether the version actually changes. A bump always changes it; an
-# explicit -Version only changes it when it differs from the current one.
-if ($useNoVersion) {
+if ($useNoManifest) {
+    # No manifest to read or write: the tag comes straight from -Version and no
+    # version-update step runs. $currentVersion is set to the same value so the
+    # shared tag/commit logic below can treat it uniformly.
+    $manifest = $null
+    $currentVersion = [version]$Version
+    $newVersion = $currentVersion
     $versionChanged = $false
-}
-elseif (-not $useBump) {
-    $versionChanged = ([version]$Version -ne $currentVersion)
-    if (-not $versionChanged) {
-        Write-Info "Note" "requested version matches current; version unchanged"
-    }
+    Write-Info "Manifest" "none (-NoManifest)"
+    Write-Info "Tag version" $Version
 }
 else {
-    $versionChanged = $true
-}
+    $manifest = Find-Manifest -Path $ManifestPath
+    $currentVersion = [version](Import-PowerShellDataFile -Path $manifest).ModuleVersion
 
-$newVersion = if ($versionChanged) {
-    if ($useBump) {
-        switch ($Bump) {
-            'major' { [version]::new($currentVersion.Major + 1, 0, 0) }
-            'minor' { [version]::new($currentVersion.Major, $currentVersion.Minor + 1, 0) }
-            'patch' {
-                $patchNum = [Math]::Max($currentVersion.Build, 0) + 1
-                [version]::new($currentVersion.Major, $currentVersion.Minor, $patchNum)
-            }
+    # Decide whether the version actually changes. A bump always changes it; an
+    # explicit -Version only changes it when it differs from the current one.
+    if ($useNoVersion) {
+        $versionChanged = $false
+    }
+    elseif (-not $useBump) {
+        $versionChanged = ([version]$Version -ne $currentVersion)
+        if (-not $versionChanged) {
+            Write-Info "Note" "requested version matches current; version unchanged"
         }
     }
     else {
-        [version]$Version
+        $versionChanged = $true
+    }
+
+    $newVersion = if ($versionChanged) {
+        if ($useBump) {
+            switch ($Bump) {
+                'major' { [version]::new($currentVersion.Major + 1, 0, 0) }
+                'minor' { [version]::new($currentVersion.Major, $currentVersion.Minor + 1, 0) }
+                'patch' {
+                    $patchNum = [Math]::Max($currentVersion.Build, 0) + 1
+                    [version]::new($currentVersion.Major, $currentVersion.Minor, $patchNum)
+                }
+            }
+        }
+        else {
+            [version]$Version
+        }
+    }
+    else {
+        $currentVersion
+    }
+
+    Write-Info "Manifest" $manifest
+    Write-Info "Current version" $currentVersion
+    if ($versionChanged) {
+        Write-Info "Target version" "$currentVersion -> $newVersion"
+    }
+    else {
+        $ResultMsg = 'version already set; manifest update skipped ' +
+        '(a build may still commit)'
+        Write-Info "Result" $ResultMsg
     }
 }
-else {
-    $currentVersion
-}
 
-Write-Info "Manifest" $manifest
-Write-Info "Current version" $currentVersion
-if ($versionChanged) {
-    Write-Info "Target version" "$currentVersion -> $newVersion"
-}
-else {
-    Write-Info "Result" "version already set; manifest update skipped (a build may still commit)"
+# The tag that will be created below. Check it up front, before any merge or
+# commit, so a duplicate aborts while the repo is still untouched rather than
+# after it has been left on main with a release commit made. Runs in every mode.
+$targetTag = "v$($newVersion.ToString())"
+if (Invoke-NativeOk git rev-parse --verify --quiet "refs/tags/$targetTag") {
+    $DupTagMsg = "Tag '$targetTag' already exists; nothing to release. " +
+    'Delete it or choose another version.'
+    throw $DupTagMsg
 }
 
 # --- release steps ---------------------------------------------------------
@@ -554,9 +577,9 @@ else {
 }
 
 Write-Section "Step: tag release"
-Invoke-Step "Create annotated tag 'v$versionStr'?" {
-    Write-Run "git tag -a `"v$versionStr`" -m `"Release $versionStr`""
-    git tag -a "v$versionStr" -m "Release $versionStr"
+Invoke-Step "Create annotated tag '$targetTag'?" {
+    Write-Run "git tag -a `"$targetTag`" -m `"Release $versionStr`""
+    git tag -a "$targetTag" -m "Release $versionStr"
 }
 
 Write-Section "Step: push main"
