@@ -14,7 +14,8 @@
 
     Steps always run in this order, regardless of the config file's own table order: strip
     TEMPLATE SETUP NOTES banners -> replace the template name, rename files that carry it, and
-    stamp a fresh manifest GUID -> select a license -> remove any declined [Features] (docs
+    stamp a fresh manifest GUID -> fill in the GitHub owner/repo placeholders (Project.GitHubUser;
+    blank skips) -> select a license -> remove any declined [Features] (docs
     site, SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the pre-import
     dependency check, the opinionated formatting checks, each independently) and relocate the
     unwanted-strings check to .local\tests\ if [Features].UnwantedStringsLocal is true ->
@@ -27,8 +28,15 @@
     script. Scripts\Compare-Template.ps1 reads the same [Features] table afterward, so a declined
     feature is never reported as missing drift.
 
+    This orchestrator and its step scripts live in Scripts\TemplateSetup\. Shared console-output
+    and file-walk helpers come from Scripts\TemplateSetup\_Common.ps1; individually runnable
+    steps are being split into their own scripts there (e.g. Set-GitHubUser.ps1). Scripts\setup.psd1
+    deliberately stays one level up in Scripts\ so it survives once TemplateSetup\ is removed and
+    Scripts\Compare-Template.ps1 can keep reading it.
+
 .PARAMETER ConfigPath
-    Path to the setup config file. Defaults to Scripts\setup.psd1 next to this script.
+    Path to the setup config file. Defaults to Scripts\setup.psd1 (one level up from this
+    script's TemplateSetup\ folder).
 
 .PARAMETER DryRun
     Preview every change without writing anything.
@@ -38,17 +46,17 @@
     step's own confirmation is skipped too.
 
 .EXAMPLE
-    .\Scripts\Setup-NewProject.ps1 -DryRun
+    .\Scripts\TemplateSetup\Setup-NewProject.ps1 -DryRun
 
     Shows everything Scripts\setup.psd1 would change, without writing.
 
 .EXAMPLE
-    .\Scripts\Setup-NewProject.ps1
+    .\Scripts\TemplateSetup\Setup-NewProject.ps1
 
     Runs the full conversion, previewing first and asking for one confirmation.
 
 .EXAMPLE
-    .\Scripts\Setup-NewProject.ps1 -Yes
+    .\Scripts\TemplateSetup\Setup-NewProject.ps1 -Yes
 
     Runs the full conversion non-interactively (still previews first).
 
@@ -83,8 +91,25 @@ $ErrorActionPreference = 'Stop'
 # checked by hand.
 $PSNativeCommandUseErrorActionPreference = $false
 
-$script:RepoRoot = Split-Path -Path $PSScriptRoot -Parent
 $script:AssumeYes = [bool] $Yes
+# Captured under a distinct name BEFORE the dot-sources below. Each extracted step script has its
+# own top-level param() block (e.g. -DryRun, -Yes, -RepoRoot); dot-sourcing runs that block in
+# THIS scope, resetting any same-named variable to its (empty/false) default. Keeping the
+# orchestrator's own run mode under $script:DryRunMode means a dot-sourced step can never clobber
+# it. Every future extracted step must follow the same rule.
+$script:DryRunMode = [bool] $DryRun
+
+# Shared console-output and file-walk helpers (Write-Section/Info/Warn/Success, Confirm-Step,
+# Get-TemplateTextFile). Each extracted step script dot-sources the same file.
+. (Join-Path -Path $PSScriptRoot -ChildPath '_Common.ps1')
+# Individually runnable step scripts, dot-sourced for their functions only; each guards its own
+# parameter-driven body against running under a dot-source.
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Set-GitHubUser.ps1')
+
+# Set AFTER the dot-sources: a step's -RepoRoot param defaults to empty, and dot-sourcing it here
+# would otherwise overwrite this. This script lives in Scripts\TemplateSetup\, so the repo root is
+# two levels up.
+$script:RepoRoot = Split-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -Parent
 
 # Built from pieces so that a later run of this same script (after it has already renamed the
 # project once) cannot match its own constant. Mirrors Scripts\Compare-Template.ps1.
@@ -101,55 +126,6 @@ $script:LicenseCandidates = @('mit', 'apache', 'gnu', 'proprietary', 'none')
 $script:LicenseNeedsHolder = @('mit', 'apache', 'proprietary')
 # Proprietary additionally distinguishes the copyright holder (author) from the owning company.
 $script:LicenseNeedsCompany = @('proprietary')
-
-# Text files eligible for in-place string replacement.
-$script:TextExtensions = @(
-    '.ps1', '.psd1', '.psm1', '.md', '.yml', '.yaml', '.json', '.code-workspace', '.txt'
-)
-$script:ExcludedFolders = @('.git', '.local', 'Output', '.staging', 'site')
-
-# --- output helpers (mirrors Scripts\Compare-Template.ps1) ------------------
-
-function Write-Section {
-    param([Parameter(Mandatory)][string]$Title)
-    Write-Host ''
-    Write-Host "== $Title ==" -ForegroundColor Cyan
-}
-
-function Write-Info {
-    param(
-        [Parameter(Mandatory)][string]$Label,
-        [Parameter(Mandatory)][string]$Value
-    )
-    Write-Host "  $(($Label + ':').PadRight(20))$Value"
-}
-
-function Write-Warn {
-    param([Parameter(Mandatory)][string]$Message)
-    Write-Host $Message -ForegroundColor Yellow
-}
-
-function Write-Success {
-    param([Parameter(Mandatory)][string]$Message)
-    Write-Host $Message -ForegroundColor Green
-}
-
-# Ask the user a yes/no question. Always 'yes' in assume-yes mode, with the auto-answer printed
-# so the transcript still shows the step.
-function Confirm-Step {
-    param([Parameter(Mandatory)][string]$Prompt)
-    if ($script:AssumeYes) {
-        Write-Host "$Prompt [y/n] y " -NoNewline
-        Write-Host '(auto: -Yes)' -ForegroundColor DarkGray
-        return $true
-    }
-    while ($true) {
-        $Answer = (Read-Host "$Prompt [y/n]").Trim().ToLowerInvariant()
-        if ($Answer -in @('y', 'yes')) { return $true }
-        if ($Answer -in @('n', 'no')) { return $false }
-        Write-Host "  Please answer 'y' or 'n'."
-    }
-}
 
 # --- config loading and validation ------------------------------------------
 
@@ -229,6 +205,7 @@ function Test-SetupConfig {
     $Problems = [System.Collections.Generic.List[string]]::new()
 
     $Name = Get-ConfigString -Raw $Raw -Path 'Project.Name' -Problems $Problems
+    $GitHubUser = Get-ConfigString -Raw $Raw -Path 'Project.GitHubUser' -Problems $Problems
     $LicenseKey = Get-ConfigString -Raw $Raw -Path 'License.Key' -Problems $Problems
     $LicenseYear = Get-ConfigString -Raw $Raw -Path 'License.Year' -Problems $Problems
     $LicenseName = Get-ConfigString -Raw $Raw -Path 'License.Name' -Problems $Problems
@@ -265,6 +242,12 @@ function Test-SetupConfig {
         $Problems.Add('[Project.Name] is required.')
     }
 
+    # Blank is a valid, deliberate skip; whitespace-only is almost certainly a typo, so flag it.
+    if ($GitHubUser -and -not $GitHubUser.Trim()) {
+        $Problems.Add('[Project.GitHubUser] is whitespace only; leave it blank to skip, or ' +
+            'set a GitHub username.')
+    }
+
     if ($LicenseKey -and $LicenseKey -notin $script:LicenseCandidates) {
         $CandidateList = $script:LicenseCandidates -join ', '
         $Problems.Add("[License.Key] '$LicenseKey' is not one of: $CandidateList.")
@@ -293,14 +276,15 @@ function Test-SetupConfig {
 
     if ($GitReinit -and -not (Test-PristineTemplateClone)) {
         $ReinitMsg = '[Git.Reinit]=true, but this repo no longer looks like a pristine ' +
-            'template clone (git history does not start at the template''s own root commit). ' +
-            'Set [Git.Reinit]=false, or investigate before re-running.'
+        'template clone (git history does not start at the template''s own root commit). ' +
+        'Set [Git.Reinit]=false, or investigate before re-running.'
         $Problems.Add($ReinitMsg)
     }
 
     return [pscustomobject]@{
         Problems                 = $Problems
         Name                     = $Name
+        GitHubUser               = $GitHubUser
         LicenseKey               = $LicenseKey
         LicenseYear              = $LicenseYear
         LicenseName              = $LicenseName
@@ -322,23 +306,12 @@ function Test-SetupConfig {
 
 # --- steps --------------------------------------------------------------------
 
-function Get-TemplateTextFile {
-    $ExcludePattern = ($script:ExcludedFolders |
-        ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
-    Get-ChildItem -Path $script:RepoRoot -Recurse -File |
-        # A zero-length file (e.g. a placeholder .claude\settings.json) can never contain the
-        # template name, a banner, or a FIXME placeholder; excluding it here also keeps
-        # Get-Content -Raw's $null-for-empty-file quirk from reaching every caller below.
-        Where-Object { $_.Extension -in $script:TextExtensions -and $_.Length -gt 0 } |
-        Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern }
-}
-
 function Invoke-StripHeader {
     param([Parameter(Mandatory)][bool]$DryRun)
     $MarkdownBlock = '(?ms)^<!--\s*\r?\n=+\r?\nTEMPLATE SETUP NOTES.*?-->\s*\r?\n'
     $HashBlock = '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES.*?\r?\n# =+\s*\r?\n'
     $Changed = @()
-    foreach ($File in (Get-TemplateTextFile)) {
+    foreach ($File in (Get-TemplateTextFile -RepoRoot $script:RepoRoot)) {
         $Content = Get-Content -Path $File.FullName -Raw
         $Updated = $Content -replace $MarkdownBlock, '' -replace $HashBlock, ''
         if ($Updated -ne $Content) {
@@ -361,11 +334,11 @@ function Invoke-RenameProject {
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][bool]$DryRun
     )
-    $RenameTargets = Get-TemplateTextFile | Where-Object {
+    $RenameTargets = Get-TemplateTextFile -RepoRoot $script:RepoRoot | Where-Object {
         (Get-Content -Path $_.FullName -Raw) -match [regex]::Escape($script:TemplateName)
     }
     $ExcludePattern = ($script:ExcludedFolders |
-        ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
+            ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
     $FileRenames = Get-ChildItem -Path $script:RepoRoot -Recurse -File |
         Where-Object { $_.Name -match [regex]::Escape($script:TemplateName) } |
         Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern }
@@ -520,7 +493,7 @@ function Invoke-RemoveExplicitModuleImport {
 # Removes the pre-import dependency-check feature: both ScriptsToProcess scripts, plus the
 # ScriptsToProcess entry that wires Confirm-Dependencies.ps1 into the (already renamed) module
 # manifest -- so a declined feature never leaves the manifest pointing at a deleted script.
-function Invoke-RemoveDependencies {
+function Invoke-RemoveDependency {
     param(
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][bool]$DryRun
@@ -537,7 +510,7 @@ function Invoke-RemoveDependencies {
     if (Test-Path -LiteralPath $ManifestPath) {
         $Content = Get-Content -Path $ManifestPath -Raw
         $Pattern = "(?ms)^    ScriptsToProcess  = @\(\r?\n" +
-            "        'ScriptsToProcess\\Confirm-Dependencies\.ps1'\r?\n    \)"
+        "        'ScriptsToProcess\\Confirm-Dependencies\.ps1'\r?\n    \)"
         $Updated = $Content -replace $Pattern, '    ScriptsToProcess  = @()'
         if ($Updated -ne $Content) {
             Set-Content -Path $ManifestPath -Value $Updated -NoNewline
@@ -732,10 +705,12 @@ Write-Info 'Script version' $ScriptVersion
 Write-Info 'Repo root' $script:RepoRoot
 
 if (-not $ConfigPath) {
-    $ConfigPath = Join-Path -Path $PSScriptRoot -ChildPath 'setup.psd1'
+    # setup.psd1 lives one level up in Scripts\, not in this TemplateSetup\ folder.
+    $ScriptsDir = Split-Path -Path $PSScriptRoot -Parent
+    $ConfigPath = Join-Path -Path $ScriptsDir -ChildPath 'setup.psd1'
 }
 Write-Info 'Config file' $ConfigPath
-if ($DryRun) { Write-Warn 'DRY RUN: nothing will be written.' }
+if ($script:DryRunMode) { Write-Warn 'DRY RUN: nothing will be written.' }
 
 $RawConfig = Import-SetupConfig -Path $ConfigPath
 $Config = Test-SetupConfig -Raw $RawConfig
@@ -753,6 +728,13 @@ if ($Config.Problems.Count -gt 0) {
 Write-Section 'Preview'
 $null = Invoke-StripHeader -DryRun $true
 $null = Invoke-RenameProject -Name $Config.Name -DryRun $true
+$GitHubUserPreviewParams = @{
+    RepoRoot   = $script:RepoRoot
+    Name       = $Config.Name
+    GitHubUser = $Config.GitHubUser
+    DryRun     = $true
+}
+$null = Set-GitHubUser @GitHubUserPreviewParams
 $LicensePreviewParams = @{
     Key     = $Config.LicenseKey
     Year    = $Config.LicenseYear
@@ -770,14 +752,14 @@ if ($Config.GitReinit) {
     $null = Invoke-ReinitGit -Branch $Config.GitBranch -DryRun $true
 }
 
-if ($DryRun) {
+if ($script:DryRunMode) {
     Write-Host ''
     Write-Host '  (dry run -- nothing changed)' -ForegroundColor Yellow
     return
 }
 
 Write-Host ''
-if (-not (Confirm-Step 'Apply the setup above?')) {
+if (-not (Confirm-Step -Prompt 'Apply the setup above?' -AssumeYes:$script:AssumeYes)) {
     Write-Warn '  Aborted; nothing changed.'
     throw 'Aborted by user.'
 }
@@ -790,6 +772,15 @@ Invoke-SetupStep -Key 'strip_headers' -Failed $Failed -Action {
 }
 Invoke-SetupStep -Key 'rename_project' -Failed $Failed -Action {
     Invoke-RenameProject -Name $Config.Name -DryRun $false
+}
+Invoke-SetupStep -Key 'set_github_user' -Failed $Failed -Action {
+    $Params = @{
+        RepoRoot   = $script:RepoRoot
+        Name       = $Config.Name
+        GitHubUser = $Config.GitHubUser
+        DryRun     = $false
+    }
+    Set-GitHubUser @Params
 }
 Invoke-SetupStep -Key 'choose_license' -Failed $Failed -Action {
     $Params = @{

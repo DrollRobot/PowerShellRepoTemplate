@@ -1,14 +1,14 @@
 # Scripts\setup.psd1
 #
 # Config-driven template setup. Edit the values below, then run:
-#   .\Scripts\Setup-NewProject.ps1
+#   .\Scripts\TemplateSetup\Setup-NewProject.ps1
 # -DryRun previews every change with nothing applied; -Yes skips the single
 # confirmation prompt (still previews first). Every field is documented
 # inline below.
 #
 # This file is not deleted by setup and is not template-only tooling:
 # Scripts\Compare-Template.ps1 keeps reading it afterward, so it stays in
-# Scripts\ rather than a one-time-setup-only folder.
+# Scripts\ rather than inside the one-time Scripts\TemplateSetup\ folder.
 
 @{
     # Version of THIS config file's shape (the sections and keys below), owned by
@@ -25,6 +25,14 @@
         # throughout the repo. Shipped as the template's own name -- a no-op
         # until you change it.
         Name = 'PowershellRepoTemplate'
+
+        # Your GitHub username or org, e.g. 'octocat'. Fills in the FIXME
+        # owner/repo placeholders in clone URLs, CI badges, and the docs-site
+        # URL: 'FIXME/FIXME' -> '<GitHubUser>/<Name>' and
+        # 'FIXME.github.io/FIXME' -> '<GitHubUser>.github.io/<Name>'. Leave
+        # blank (the shipped default) to skip and fill those in by hand later;
+        # they show up in the closing FIXME report either way.
+        GitHubUser = ''
     }
 
     License = @{

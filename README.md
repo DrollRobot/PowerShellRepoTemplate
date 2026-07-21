@@ -3,8 +3,8 @@
 TEMPLATE SETUP NOTES -- remove this block - FIXME
 =============================================================================
 This README.md is part of PowershellRepoTemplate, a starter scaffold for
-PowerShell module repos. Scripts\Setup-NewProject.ps1 automates most of the
-conversion; see "Making a new repo from this template" below.
+PowerShell module repos. Scripts\TemplateSetup\Setup-NewProject.ps1 automates
+most of the conversion; see "Making a new repo from this template" below.
 =============================================================================
 -->
 
@@ -46,19 +46,24 @@ Clone the repo, naming the new folder after your module:
 git clone https://github.com/FIXME/PowershellRepoTemplate.git YourModuleName
 ```
 
-Edit `Scripts\setup.psd1` with your project name, license choice, and feature
-toggles, then run the guided setup script (preview first with -DryRun):
+Edit `Scripts\setup.psd1` with your project name, GitHub username, license
+choice, and feature toggles, then run the guided setup script (preview first
+with -DryRun):
 
 ```powershell
-.\Scripts\Setup-NewProject.ps1 -DryRun
-.\Scripts\Setup-NewProject.ps1
+.\Scripts\TemplateSetup\Setup-NewProject.ps1 -DryRun
+.\Scripts\TemplateSetup\Setup-NewProject.ps1
 ```
 
-It renames everything, stamps a fresh manifest GUID, selects a license,
-removes any declined optional features, and lists the remaining FIXMEs to
-finish by hand -- including the GitHub owner/repo placeholders in URLs, which
-are always left for you to fill in. Set `[Git].Reinit = $true` in the config
-to start a fresh git history.
+It renames everything, stamps a fresh manifest GUID, fills in the GitHub
+owner/repo placeholders in URLs from `Project.GitHubUser` (leave it blank to
+skip and fill them in by hand), selects a license, removes any declined
+optional features, and lists the remaining FIXMEs to finish by hand. Set
+`[Git].Reinit = $true` in the config to start a fresh git history.
+
+The orchestrator lives in `Scripts\TemplateSetup\` alongside its individually
+runnable step scripts (e.g. `Set-GitHubUser.ps1`); `Scripts\setup.psd1` stays
+one level up so it survives once you delete `TemplateSetup\`.
 
 Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
 

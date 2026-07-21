@@ -19,8 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Scripts\TemplateSetup\Set-GitHubUser.ps1`: a standalone, config-driven setup
+  step that fills in the GitHub owner/repo placeholders (`FIXME/FIXME` ->
+  `<GitHubUser>/<Name>`, `FIXME.github.io/FIXME` -> `<GitHubUser>.github.io/<Name>`).
+  Driven by the new `Project.GitHubUser` key in `Scripts\setup.psd1` (blank
+  skips), and runnable on its own.
+
 ### Changed
 
+- Setup is moving toward per-step scripts under a dedicated folder, matching the
+  Python template. `Scripts\Setup-NewProject.ps1` moved to
+  `Scripts\TemplateSetup\Setup-NewProject.ps1` and now dot-sources shared helpers
+  from `Scripts\TemplateSetup\_Common.ps1`; `Scripts\setup.psd1` stays in
+  `Scripts\` so it survives once `TemplateSetup\` is deleted. Update any command
+  or hook that referenced the old path.
 - `Scripts\Compare-Template.ps1`: the versioned pre-flight now compares the
   script against itself first, ahead of the other blind-copy tooling. Opting to
   replace it ends the run immediately so the user re-runs the freshly written

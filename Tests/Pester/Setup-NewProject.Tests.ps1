@@ -30,7 +30,7 @@
 BeforeAll {
     $SutParams = @{
         Path      = $PSScriptRoot
-        ChildPath = '..\..\Scripts\Setup-NewProject.ps1'
+        ChildPath = '..\..\Scripts\TemplateSetup\Setup-NewProject.ps1'
     }
     $script:Sut = (Resolve-Path (Join-Path @SutParams)).Path
     $RepoRootParams = @{
@@ -89,7 +89,7 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
     function script:New-ValidRawConfig {
         param([hashtable] $Overrides = @{})
         $Base = @{
-            Project  = @{ Name = 'MyModule' }
+            Project  = @{ Name = 'MyModule'; GitHubUser = '' }
             License  = @{ Key = 'none'; Year = ''; Name = ''; Company = '' }
             Git      = @{ Branch = 'main'; Reinit = $false }
             Features = @{
@@ -116,16 +116,30 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
     }
 
     It 'requires Project.Name' {
-        $Raw = New-ValidRawConfig -Overrides @{ Project = @{ Name = '' } }
+        $Raw = New-ValidRawConfig -Overrides @{ Project = @{ Name = ''; GitHubUser = '' } }
         $Result = Test-SetupConfig -Raw $Raw
         $Result.Problems | Should -Contain '[Project.Name] is required.'
     }
 
     It 'rejects a Project.Name with invalid characters' {
-        $NameTable = @{ Name = 'bad name!' }
+        $NameTable = @{ Name = 'bad name!'; GitHubUser = '' }
         $Raw = New-ValidRawConfig -Overrides @{ Project = $NameTable }
         $Result = Test-SetupConfig -Raw $Raw
         $Result.Problems.Count | Should -BeGreaterThan 0
+    }
+
+    It 'accepts a blank Project.GitHubUser as a deliberate skip' {
+        $Raw = New-ValidRawConfig -Overrides @{ Project = @{ Name = 'MyModule'; GitHubUser = '' } }
+        $Result = Test-SetupConfig -Raw $Raw
+        $Result.Problems.Count | Should -Be 0
+        $Result.GitHubUser | Should -Be ''
+    }
+
+    It 'rejects a whitespace-only Project.GitHubUser' {
+        $ProjectTable = @{ Name = 'MyModule'; GitHubUser = '   ' }
+        $Raw = New-ValidRawConfig -Overrides @{ Project = $ProjectTable }
+        $Result = Test-SetupConfig -Raw $Raw
+        ($Result.Problems -join "`n") | Should -Match 'Project.GitHubUser'
     }
 
     It 'rejects an unknown License.Key' {
@@ -184,7 +198,7 @@ Describe 'Setup-NewProject -DryRun' -Tag 'integration', 'functional' {
         $ConfigPath = Join-Path @ConfigParams
         $ConfigContent = @'
 @{
-    Project = @{ Name = 'DryRunPreviewOnly' }
+    Project = @{ Name = 'DryRunPreviewOnly'; GitHubUser = '' }
     License = @{ Key = 'none'; Year = ''; Name = ''; Company = '' }
     Git = @{ Branch = 'main'; Reinit = $false }
     Features = @{

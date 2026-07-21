@@ -214,7 +214,7 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
     It 'keeps other versioned dev scripts diff-only, never blind-copied' {
         $diffOnly = @(
             'Build.ps1'
-            'Scripts/Setup-NewProject.ps1'
+            'Scripts/TemplateSetup/Setup-NewProject.ps1'
             'Scripts/Find-ScriptCommand.ps1'
             'Scripts/Resolve-CommandModule.ps1'
             'Source/ScriptsToProcess/Install-Dependencies.ps1'

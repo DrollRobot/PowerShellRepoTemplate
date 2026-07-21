@@ -5,7 +5,7 @@
     bring versioned tooling files up to date.
 
 .DESCRIPTION
-    A module created from this template (via Scripts\Setup-NewProject.ps1, which
+    A module created from this template (via Scripts\TemplateSetup\Setup-NewProject.ps1, which
     is config-driven -- see Scripts\setup.psd1) keeps a set of tooling, CI, and
     config files that should track the template as it evolves. Run this script
     from inside the child repo, pointing -TemplatePath at a template checkout, to
@@ -220,7 +220,7 @@ $script:TemplateName = 'Powershell' + 'RepoTemplate'
 $script:OwnerToken = 'FIX' + 'ME'
 
 # The two TEMPLATE SETUP NOTES banner forms, taken verbatim from the strip step
-# in Scripts\Setup-NewProject.ps1 (markdown comment block and hash block).
+# in Scripts\TemplateSetup\Setup-NewProject.ps1 (markdown comment block and hash block).
 $script:MarkdownBanner =
     '(?ms)^<!--\s*\r?\n=+\r?\nTEMPLATE SETUP NOTES.*?-->\s*\r?\n'
 $script:HashBanner =
@@ -343,8 +343,12 @@ $script:Manifest = @(
     # share the 'ExplicitModuleImport' gate.
     (New-Entry 'Scripts/Find-ScriptCommand.ps1' -Gate 'ExplicitModuleImport')
     (New-Entry 'Scripts/Resolve-CommandModule.ps1' -Gate 'ExplicitModuleImport')
-    # One-time setup script; usually deleted after use.
-    (New-Entry 'Scripts/Setup-NewProject.ps1' -Required $false)
+    # One-time setup orchestrator and its step scripts; the whole
+    # Scripts\TemplateSetup\ folder is usually deleted after use, so each entry
+    # is -Required $false (a child that removed them is not flagged as drift).
+    (New-Entry 'Scripts/TemplateSetup/Setup-NewProject.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/_Common.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/Set-GitHubUser.ps1' -Required $false)
     (New-Entry 'Tests/Test-BacktickContinuation.ps1' -Gate 'BacktickContinuation')
     (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -Gate 'ExplicitModuleImport')
     # Its $UnwantedPatterns has no external override hook -- a genuine
@@ -897,7 +901,7 @@ function Get-ChildFeatureFlag {
 
 # .pre-commit-config.yaml is edited in place -- one hook block removed -- by
 # Invoke-RemoveFormattingTest whenever any of these four checks is declined
-# (see Scripts\Setup-NewProject.ps1). Get-ApplicableManifest reports the
+# (see Scripts\TemplateSetup\Setup-NewProject.ps1). Get-ApplicableManifest reports the
 # resulting difference for review instead of as strict drift, the same way
 # Python's remove_mkdocs.py-edited files (CONTRIBUTING.md, AGENTS.RELEASING.md
 # in that template) are compared leniently once the feature they describe is
@@ -966,8 +970,9 @@ $templateRoot = (Resolve-Path -LiteralPath $TemplatePath).Path
 if ($templateRoot -eq $childRoot) {
     Stop-Script 'The template path and the child repo are the same folder.'
 }
-if (-not (Test-Path -LiteralPath (Join-Rel $templateRoot 'Scripts/Setup-NewProject.ps1'))) {
-    Write-Warn "  '$templateRoot' has no Scripts\Setup-NewProject.ps1; is it the template?"
+$SetupRel = 'Scripts/TemplateSetup/Setup-NewProject.ps1'
+if (-not (Test-Path -LiteralPath (Join-Rel $templateRoot $SetupRel))) {
+    Write-Warn "  '$templateRoot' has no $SetupRel; is it the template?"
 }
 
 $script:ChildName = Get-ModuleName -Root $childRoot
