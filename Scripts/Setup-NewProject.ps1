@@ -4,8 +4,8 @@
 
 .DESCRIPTION
     Config-driven version of the template-to-project conversion. Edit Scripts\setup.psd1 with
-    your values (project name, GitHub username, license choice, which optional features to keep,
-    whether to reinitialize git), then run this script with no arguments.
+    your values (project name, license choice, which optional features to keep, whether to
+    reinitialize git), then run this script with no arguments.
 
     Validates every field in the config up front -- if anything is wrong, nothing runs and every
     problem is listed at once. Previews every change every step would make (nothing applied
@@ -14,11 +14,11 @@
 
     Steps always run in this order, regardless of the config file's own table order: strip
     TEMPLATE SETUP NOTES banners -> replace the template name, rename files that carry it, and
-    stamp a fresh manifest GUID -> fill in the GitHub owner/repo placeholders (only if
-    [Project].GitHubUser is set) -> select a license -> remove any declined [Features] (docs
-    site, SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the opinionated
-    formatting checks, each independently) and relocate the unwanted-strings check to
-    .local\tests\ if [Features].UnwantedStringsLocal is true -> reinitialize git (only if
+    stamp a fresh manifest GUID -> select a license -> remove any declined [Features] (docs
+    site, SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the pre-import
+    dependency check, the opinionated formatting checks, each independently) and relocate the
+    unwanted-strings check to .local\tests\ if [Features].UnwantedStringsLocal is true ->
+    reinitialize git (only if
     [Git].Reinit is true; destructive, has its own extra confirmation) -> report any remaining
     FIXMEs (read-only, always last, not gated by -DryRun's early exit).
 
@@ -73,7 +73,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.1'
+$ScriptVersion = '2.0.2'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -229,7 +229,6 @@ function Test-SetupConfig {
     $Problems = [System.Collections.Generic.List[string]]::new()
 
     $Name = Get-ConfigString -Raw $Raw -Path 'Project.Name' -Problems $Problems
-    $GitHubUser = Get-ConfigString -Raw $Raw -Path 'Project.GitHubUser' -Problems $Problems
     $LicenseKey = Get-ConfigString -Raw $Raw -Path 'License.Key' -Problems $Problems
     $LicenseYear = Get-ConfigString -Raw $Raw -Path 'License.Year' -Problems $Problems
     $LicenseName = Get-ConfigString -Raw $Raw -Path 'License.Name' -Problems $Problems
@@ -245,6 +244,8 @@ function Test-SetupConfig {
     $FeatureContributingMd = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.ExplicitModuleImport'; Problems = $Problems }
     $FeatureExplicitImport = Get-ConfigBool @Params
+    $Params = @{ Raw = $Raw; Path = 'Features.Dependencies'; Problems = $Problems }
+    $FeatureDependencies = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.NonASCIICharacters'; Problems = $Problems }
     $FeatureNonASCII = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.FormatOperator'; Problems = $Problems }
@@ -262,11 +263,6 @@ function Test-SetupConfig {
     }
     elseif (-not $Name) {
         $Problems.Add('[Project.Name] is required.')
-    }
-
-    if ($GitHubUser -and -not $GitHubUser.Trim()) {
-        $Problems.Add('[Project.GitHubUser] is whitespace only; leave it blank to skip, or ' +
-            'set a real value.')
     }
 
     if ($LicenseKey -and $LicenseKey -notin $script:LicenseCandidates) {
@@ -305,7 +301,6 @@ function Test-SetupConfig {
     return [pscustomobject]@{
         Problems                 = $Problems
         Name                     = $Name
-        GitHubUser               = $GitHubUser
         LicenseKey               = $LicenseKey
         LicenseYear              = $LicenseYear
         LicenseName              = $LicenseName
@@ -316,6 +311,7 @@ function Test-SetupConfig {
         FeatureSecurityMd        = $FeatureSecurityMd
         FeatureContributingMd    = $FeatureContributingMd
         FeatureExplicitImport    = $FeatureExplicitImport
+        FeatureDependencies      = $FeatureDependencies
         FeatureNonASCII          = $FeatureNonASCII
         FeatureFormatOperator    = $FeatureFormatOperator
         FeatureWriteVerboseDebug = $FeatureWriteVerboseDebug
@@ -402,30 +398,6 @@ function Invoke-RenameProject {
     }
     else {
         Write-Warn "  Manifest not found at $ManifestPath; GUID not updated."
-    }
-    return $true
-}
-
-function Invoke-SetGitHubUser {
-    param(
-        [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][AllowEmptyString()][string]$GitHubUser,
-        [Parameter(Mandatory)][bool]$DryRun
-    )
-    if (-not $GitHubUser) {
-        Write-Info 'GitHub user' 'skipped (blank in config)'
-        return $true
-    }
-    Write-Info 'GitHub user' "$GitHubUser/$Name"
-    if ($DryRun) { return $true }
-
-    foreach ($File in (Get-TemplateTextFile)) {
-        $Content = Get-Content -Path $File.FullName -Raw
-        $Updated = $Content.Replace('FIXME.github.io/FIXME', "$GitHubUser.github.io/$Name")
-        $Updated = $Updated.Replace('FIXME/FIXME', "$GitHubUser/$Name")
-        if ($Updated -ne $Content) {
-            Set-Content -Path $File.FullName -Value $Updated -NoNewline
-        }
     }
     return $true
 }
@@ -545,6 +517,35 @@ function Invoke-RemoveExplicitModuleImport {
     return $true
 }
 
+# Removes the pre-import dependency-check feature: both ScriptsToProcess scripts, plus the
+# ScriptsToProcess entry that wires Confirm-Dependencies.ps1 into the (already renamed) module
+# manifest -- so a declined feature never leaves the manifest pointing at a deleted script.
+function Invoke-RemoveDependencies {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][bool]$DryRun
+    )
+    $Targets = @(
+        'Source\ScriptsToProcess\Confirm-Dependencies.ps1'
+        'Source\ScriptsToProcess\Install-Dependencies.ps1'
+    )
+    Write-Info 'Remove dependency-check feature' ($Targets -join ', ')
+    if ($DryRun) { return $true }
+    Invoke-RemoveRepoPath -RelativePath $Targets
+
+    $ManifestPath = Join-Path -Path $script:RepoRoot -ChildPath "Source\$Name.psd1"
+    if (Test-Path -LiteralPath $ManifestPath) {
+        $Content = Get-Content -Path $ManifestPath -Raw
+        $Pattern = "(?ms)^    ScriptsToProcess  = @\(\r?\n" +
+            "        'ScriptsToProcess\\Confirm-Dependencies\.ps1'\r?\n    \)"
+        $Updated = $Content -replace $Pattern, '    ScriptsToProcess  = @()'
+        if ($Updated -ne $Content) {
+            Set-Content -Path $ManifestPath -Value $Updated -NoNewline
+        }
+    }
+    return $true
+}
+
 # Remove the block for one hook (matched by its 'id:') from .pre-commit-config.yaml, if the file
 # and that hook are present. Each hook is 5 lines: the '- id:' line plus 4 indented property
 # lines, usually followed by one blank separator line before the next hook.
@@ -610,6 +611,7 @@ function Invoke-FeatureStep {
         'SecurityMd' { return Invoke-RemoveSecurityMd -DryRun $DryRun }
         'ContributingMd' { return Invoke-RemoveContributingMd -DryRun $DryRun }
         'ExplicitModuleImport' { return Invoke-RemoveExplicitModuleImport -DryRun $DryRun }
+        'Dependencies' { return Invoke-RemoveDependencies -Name $Step.Name -DryRun $DryRun }
         'FormattingTest' {
             $Params = @{ FileName = $Step.FileName; HookId = $Step.HookId; DryRun = $DryRun }
             return Invoke-RemoveFormattingTest @Params
@@ -619,9 +621,9 @@ function Invoke-FeatureStep {
 }
 
 # Build the list of feature steps this run needs, in a fixed order, from the validated config.
-# Declined keep-by-default features (Docs, SecurityMd, ContributingMd, ExplicitModuleImport, the
-# four formatting checks) are included as removals; UnwantedStringsLocal is the opposite -- it is
-# included when true (opted in), since false is the always-shipped default.
+# Declined keep-by-default features (Docs, SecurityMd, ContributingMd, ExplicitModuleImport,
+# Dependencies, the four formatting checks) are included as removals; UnwantedStringsLocal is the
+# opposite -- it is included when true (opted in), since false is the always-shipped default.
 function Get-FeatureStep {
     param([Parameter(Mandatory)][pscustomobject]$Config)
 
@@ -639,6 +641,13 @@ function Get-FeatureStep {
         $Steps.Add([pscustomobject]@{
                 Key  = 'remove_explicit_module_import'
                 Type = 'ExplicitModuleImport'
+            })
+    }
+    if (-not $Config.FeatureDependencies) {
+        $Steps.Add([pscustomobject]@{
+                Key  = 'remove_dependencies'
+                Type = 'Dependencies'
+                Name = $Config.Name
             })
     }
 
@@ -744,8 +753,6 @@ if ($Config.Problems.Count -gt 0) {
 Write-Section 'Preview'
 $null = Invoke-StripHeader -DryRun $true
 $null = Invoke-RenameProject -Name $Config.Name -DryRun $true
-$GitHubUserPreviewParams = @{ Name = $Config.Name; GitHubUser = $Config.GitHubUser; DryRun = $true }
-$null = Invoke-SetGitHubUser @GitHubUserPreviewParams
 $LicensePreviewParams = @{
     Key     = $Config.LicenseKey
     Year    = $Config.LicenseYear
@@ -783,10 +790,6 @@ Invoke-SetupStep -Key 'strip_headers' -Failed $Failed -Action {
 }
 Invoke-SetupStep -Key 'rename_project' -Failed $Failed -Action {
     Invoke-RenameProject -Name $Config.Name -DryRun $false
-}
-Invoke-SetupStep -Key 'set_github_user' -Failed $Failed -Action {
-    $Params = @{ Name = $Config.Name; GitHubUser = $Config.GitHubUser; DryRun = $false }
-    Invoke-SetGitHubUser @Params
 }
 Invoke-SetupStep -Key 'choose_license' -Failed $Failed -Action {
     $Params = @{

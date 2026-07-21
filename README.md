@@ -28,16 +28,15 @@ tools in the PowerShell ecosystem.
 
 - **ModuleBuilder** to compile per-function source files into a single
   distributable .psm1 + manifest.
-- **Pester** for testing, with a NonLive/Live/Destructive tag convention.
-- **PSScriptAnalyzer** for linting and auto-formatting, orchestrated by
-  `Tests.ps1` alongside a suite of focused house-style checks.
-- **PlatyPS** for generating per-command markdown help from comment-based
-  help (`Docs.ps1`).
+- **Pester** for testing. The standard for Powershell.
+- **PSScriptAnalyzer** for linting and auto-formatting. Really the only
+  option for Powershell.
+- **PlatyPS** Official Microsoft tool for generating per-command markdown
+  help from comment-based help.
 - **mkdocs-material** for the documentation site. Integrates easily with
   GitHub Pages for hosting.
-- **GitHub Actions** for CI and docs deployment. Free for public repos.
-- **VSCode** for development. Workspace, launch configs, and terminal
-  auto-approve settings included.
+- **GitHub Actions** for CI and docs deployment.
+- **VSCode** for development. Workspace, launch configs included.
 
 ## Making a new repo from this template
 
@@ -47,23 +46,26 @@ Clone the repo, naming the new folder after your module:
 git clone https://github.com/FIXME/PowershellRepoTemplate.git YourModuleName
 ```
 
-Run the guided setup script (preview first with -DryRun):
+Edit `Scripts\setup.psd1` with your project name, license choice, and feature
+toggles, then run the guided setup script (preview first with -DryRun):
 
 ```powershell
-.\Scripts\Setup-NewProject.ps1 -Name YourModuleName -DryRun
-.\Scripts\Setup-NewProject.ps1 -Name YourModuleName -GitHubUser you -License mit
+.\Scripts\Setup-NewProject.ps1 -DryRun
+.\Scripts\Setup-NewProject.ps1
 ```
 
-It renames everything, stamps a fresh manifest GUID, fills in GitHub URLs,
-selects a license, and lists the remaining FIXMEs to finish by hand. Add
-`-StripTemplateHeaders` to remove the TEMPLATE SETUP NOTES banners and
-`-ReinitGit` to start a fresh git history.
+It renames everything, stamps a fresh manifest GUID, selects a license,
+removes any declined optional features, and lists the remaining FIXMEs to
+finish by hand -- including the GitHub owner/repo placeholders in URLs, which
+are always left for you to fill in. Set `[Git].Reinit = $true` in the config
+to start a fresh git history.
 
 Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
 
 ```powershell
 uv tool install pre-commit
 pre-commit install
+pre-commit install --hook-type pre-push
 pre-commit autoupdate
 uvx detect-secrets scan @(git ls-files) > .secrets.baseline
 ```

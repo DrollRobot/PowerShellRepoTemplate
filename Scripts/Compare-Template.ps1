@@ -36,8 +36,9 @@
     PostTests.ps1 hooks) are not compared at all.
 
     Manifest entries belonging to a config-driven optional feature (the docs site,
-    SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, or one of the
-    opinionated formatting checks) are gated on that child's own choice, read from
+    SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the pre-import
+    dependency check, or one of the opinionated formatting checks) are gated on that
+    child's own choice, read from
     Scripts\setup.psd1 -- a feature the child declined is skipped entirely rather
     than reported as missing. One entry (Tests\Test-FindUnwantedStrings.ps1) is
     compared at a different child-side path instead, when the child moved it to
@@ -127,7 +128,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.1'
+$ScriptVersion = '2.0.2'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -306,9 +307,10 @@ $script:Manifest = @(
     (New-Entry 'Scripts/setup.psd1' -ExistenceOnly $true)
     # Module scaffolding that tracks the template (normalized for the name).
     (New-Entry 'Source/Build.psd1')
-    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1' -BlindCopy $true)
+    $DepsGate = @{ Gate = 'Dependencies' }
+    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1' -BlindCopy $true @DepsGate)
     # Has a '# FIXME: optionally mirror...' hand-edit block -- diff-only, lenient.
-    (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1' -Strict $false)
+    (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1' -Strict $false @DepsGate)
     # Documentation site: mkdocs.yml plus the PlatyPS-driven Docs.ps1 above and
     # the docs.yml workflow above. All three share the 'Docs' gate.
     (New-Entry 'mkdocs.yml' -Required $false -Strict $false -Gate 'Docs')
@@ -790,26 +792,6 @@ function Get-ChildOrigin {
     return ($url | Select-Object -First 1).Trim()
 }
 
-# Last-resort fallback for the child's GitHub owner: Setup-NewProject.ps1's own
-# config file, read directly rather than trusting a possibly-stale git remote
-# lookup to have already found one. Only consulted when -GitHubUser was not
-# passed and no origin remote resolved to a GitHub owner.
-function Get-ConfiguredGitHubUser {
-    param([Parameter(Mandatory)][string]$ChildRoot)
-    $configPath = Join-Rel $ChildRoot 'Scripts/setup.psd1'
-    if (-not (Test-Path -LiteralPath $configPath)) { return $null }
-    try {
-        $config = Import-PowerShellDataFile -Path $configPath
-    }
-    catch {
-        return $null
-    }
-    $project = $config['Project']
-    if ($project -isnot [hashtable]) { return $null }
-    $value = $project['GitHubUser']
-    if ($value -is [string] -and $value.Trim()) { return $value }
-    return $null
-}
 
 # --- feature gating ----------------------------------------------------------
 
@@ -821,6 +803,7 @@ $script:FeatureDefaults = @{
     SecurityMd           = $true
     ContributingMd       = $true
     ExplicitModuleImport = $true
+    Dependencies         = $true
     NonASCIICharacters   = $true
     FormatOperator       = $true
     WriteVerboseDebug    = $true
@@ -937,9 +920,6 @@ $script:ChildOwner = $GitHubUser
 if (-not $script:ChildOwner) {
     $url = Get-ChildOrigin -Root $childRoot
     if ($url) { $script:ChildOwner = Get-OwnerFromUrl $url }
-}
-if (-not $script:ChildOwner) {
-    $script:ChildOwner = Get-ConfiguredGitHubUser -ChildRoot $childRoot
 }
 
 Write-Section 'Repositories'

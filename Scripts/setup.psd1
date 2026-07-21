@@ -16,13 +16,7 @@
         # file renames and as the replacement for 'PowershellRepoTemplate'
         # throughout the repo. Shipped as the template's own name -- a no-op
         # until you change it.
-        Name       = 'PowershellRepoTemplate'
-
-        # Your GitHub account or org name. Replaces the 'FIXME/FIXME' and
-        # 'FIXME.github.io/FIXME' placeholders in URLs (mkdocs.yml, README
-        # badges, CHANGELOG links). Leave blank to skip this step; the
-        # placeholders are left as FIXME for you to fill in by hand.
-        GitHubUser = ''
+        Name = 'PowershellRepoTemplate'
     }
 
     License = @{
@@ -69,6 +63,11 @@
         # scripts (Scripts\Find-ScriptCommand.ps1, Scripts\Resolve-CommandModule.ps1)
         # -- nothing else uses those helpers, so all three go together.
         ExplicitModuleImport = $true
+
+        # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependencies.ps1
+        # and Install-Dependencies.ps1, plus the ScriptsToProcess entry in the module
+        # manifest that wires the check in. false removes all three together.
+        Dependencies = $true
 
         # Opinionated formatting checks some teams don't want enforced.
         # Removing one also drops its pre-commit hook entry, if present.

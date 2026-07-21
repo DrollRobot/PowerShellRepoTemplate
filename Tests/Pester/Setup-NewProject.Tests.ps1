@@ -89,7 +89,7 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
     function script:New-ValidRawConfig {
         param([hashtable] $Overrides = @{})
         $Base = @{
-            Project  = @{ Name = 'MyModule'; GitHubUser = '' }
+            Project  = @{ Name = 'MyModule' }
             License  = @{ Key = 'none'; Year = ''; Name = ''; Company = '' }
             Git      = @{ Branch = 'main'; Reinit = $false }
             Features = @{
@@ -97,6 +97,7 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
                 SecurityMd           = $true
                 ContributingMd       = $true
                 ExplicitModuleImport = $true
+                Dependencies         = $true
                 NonASCIICharacters   = $true
                 FormatOperator       = $true
                 WriteVerboseDebug    = $true
@@ -115,13 +116,13 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
     }
 
     It 'requires Project.Name' {
-        $Raw = New-ValidRawConfig -Overrides @{ Project = @{ Name = ''; GitHubUser = '' } }
+        $Raw = New-ValidRawConfig -Overrides @{ Project = @{ Name = '' } }
         $Result = Test-SetupConfig -Raw $Raw
         $Result.Problems | Should -Contain '[Project.Name] is required.'
     }
 
     It 'rejects a Project.Name with invalid characters' {
-        $NameTable = @{ Name = 'bad name!'; GitHubUser = '' }
+        $NameTable = @{ Name = 'bad name!' }
         $Raw = New-ValidRawConfig -Overrides @{ Project = $NameTable }
         $Result = Test-SetupConfig -Raw $Raw
         $Result.Problems.Count | Should -BeGreaterThan 0
@@ -183,7 +184,7 @@ Describe 'Setup-NewProject -DryRun' -Tag 'integration', 'functional' {
         $ConfigPath = Join-Path @ConfigParams
         $ConfigContent = @'
 @{
-    Project = @{ Name = 'DryRunPreviewOnly'; GitHubUser = '' }
+    Project = @{ Name = 'DryRunPreviewOnly' }
     License = @{ Key = 'none'; Year = ''; Name = ''; Company = '' }
     Git = @{ Branch = 'main'; Reinit = $false }
     Features = @{
@@ -191,6 +192,7 @@ Describe 'Setup-NewProject -DryRun' -Tag 'integration', 'functional' {
         SecurityMd = $true
         ContributingMd = $true
         ExplicitModuleImport = $true
+        Dependencies = $true
         NonASCIICharacters = $true
         FormatOperator = $true
         WriteVerboseDebug = $true
