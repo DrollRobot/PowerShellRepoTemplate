@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `Scripts\Compare-Template.ps1`: the versioned pre-flight now compares the
+  script against itself first, ahead of the other blind-copy tooling. Opting to
+  replace it ends the run immediately so the user re-runs the freshly written
+  version (with its current manifest) rather than continuing against a stale
+  in-memory copy.
+
 ## [1.1.0] - 2026-07-20
 
 ### Added

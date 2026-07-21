@@ -128,7 +128,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.2'
+$ScriptVersion = '2.1.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -585,8 +585,10 @@ function Update-VersionedFile {
 }
 
 # Compare every -BlindCopy entry in $Entries (the caller's already feature-filtered manifest)
-# and offer to update the child's copies. When the running script replaces itself, exit
-# afterwards so the user re-runs the new version (with its current manifest).
+# and offer to update the child's copies. The running script itself is compared FIRST, ahead
+# of the rest: if the child's copy is outdated and the user opts to replace it, the run ends
+# immediately (before any other file is examined) so the user re-runs the new version -- with
+# its current manifest -- rather than continuing against a script that no longer matches memory.
 function Invoke-VersionedPreflight {
     <#
     .OUTPUTS
@@ -604,9 +606,25 @@ function Invoke-VersionedPreflight {
     )
     Write-Section 'Versioned files'
     $selfPath = (Resolve-Path -LiteralPath $PSCommandPath).Path
+    $blindCopy = @($Entries | Where-Object BlindCopy)
+
+    # Find the entry that IS this running script (by resolved path, so a renamed
+    # manifest path still matches) and compare it first. Everything else follows.
+    $selfEntry = $null
+    foreach ($entry in $blindCopy) {
+        $childPath = Join-Rel $ChildRoot $entry.ChildPath
+        if ((Test-Path -LiteralPath $childPath) -and
+            (Resolve-Path -LiteralPath $childPath).Path -eq $selfPath) {
+            $selfEntry = $entry
+            break
+        }
+    }
+    $ordered = @($blindCopy | Where-Object { $_ -ne $selfEntry })
+    if ($selfEntry) { $ordered = @($selfEntry) + $ordered }
+
     $attention = 0
     $replacedSelf = $false
-    foreach ($entry in ($Entries | Where-Object BlindCopy)) {
+    foreach ($entry in $ordered) {
         $updateParams = @{
             Entry        = $entry
             TemplateRoot = $TemplateRoot
@@ -615,13 +633,14 @@ function Invoke-VersionedPreflight {
         }
         $status = Update-VersionedFile @updateParams
         if ($status -ne 'ok') { $attention++ }
-        if ($status -ne 'wrote') { continue }
-        $childPath = Join-Rel $ChildRoot $entry.ChildPath
-        if ((Resolve-Path -LiteralPath $childPath).Path -eq $selfPath) {
+        # Replacing this script ends the run at once: comparing anything further
+        # would run against a script file that no longer matches memory.
+        if ($status -eq 'wrote' -and $entry -eq $selfEntry) {
             $replacedSelf = $true
+            break
         }
     }
-    if ($attention -eq 0) {
+    if (-not $replacedSelf -and $attention -eq 0) {
         Write-Success '  All versioned files are up to date with the template.'
     }
     if ($replacedSelf) {
