@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Scripts\Compare-Template.ps1`: condensed the versioned pre-flight output to a
   single colored summary line per file (path, both versions, and verdict),
   followed only by the update question when one is asked.
+- `Scripts\setup.psd1` now carries a `ScriptVersion` key, and
+  `Scripts\Compare-Template.ps1` compares it by version instead of mere
+  existence: matching versions pass with contents ignored (the child owns its
+  choices), while a version mismatch is flagged for review and shown under
+  `-Diff` -- it is never copied. The version is read by the same parser used for
+  scripts' `$ScriptVersion` (the leading `$` is now optional).
 
 ## [1.1.0] - 2026-07-20
 

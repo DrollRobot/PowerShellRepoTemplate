@@ -42,6 +42,9 @@ Describe 'Get-ScriptVersion' -Tag 'unit', 'functional' {
         $text = "# a note about `$ScriptVersion`n`$ScriptVersion = '2.0.0'"
         Get-ScriptVersion $text | Should -Be '2.0.0'
     }
+    It 'reads a bare hashtable-key version (no $), as in a .psd1' {
+        Get-ScriptVersion "@{`n    ScriptVersion = '1.0.0'`n}" | Should -Be '1.0.0'
+    }
     It 'returns null when there is no version' {
         Get-ScriptVersion 'nothing here' | Should -BeNullOrEmpty
     }
@@ -143,6 +146,7 @@ Describe 'New-Entry' -Tag 'unit', 'functional' {
         $entry.Required | Should -BeTrue
         $entry.Strict | Should -BeTrue
         $entry.ExistenceOnly | Should -BeFalse
+        $entry.VersionOnly | Should -BeFalse
         $entry.BlindCopy | Should -BeFalse
         $entry.Gate | Should -BeNullOrEmpty
         $entry.LocalOverrideFlag | Should -BeNullOrEmpty
@@ -157,6 +161,7 @@ Describe 'New-Entry' -Tag 'unit', 'functional' {
             Required          = $false
             Strict            = $false
             ExistenceOnly     = $true
+            VersionOnly       = $true
             BlindCopy         = $true
             Gate              = 'SomeFeature'
             LocalOverrideFlag = 'SomeFlag'
@@ -166,6 +171,7 @@ Describe 'New-Entry' -Tag 'unit', 'functional' {
         $entry.Required | Should -BeFalse
         $entry.Strict | Should -BeFalse
         $entry.ExistenceOnly | Should -BeTrue
+        $entry.VersionOnly | Should -BeTrue
         $entry.BlindCopy | Should -BeTrue
         $entry.Gate | Should -Be 'SomeFeature'
         $entry.LocalOverrideFlag | Should -Be 'SomeFlag'
@@ -238,10 +244,12 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             Where-Object Path -EQ 'Tests/Test-FindUnwantedStrings.ps1'
         $unwantedStrings.Strict | Should -BeFalse
     }
-    It 'tracks the setup config file as existence-only' {
+    It 'tracks the setup config file as version-only, never blind-copied' {
         $entry = $script:Manifest | Where-Object Path -EQ 'Scripts/setup.psd1'
         $entry | Should -Not -BeNullOrEmpty
-        $entry.ExistenceOnly | Should -BeTrue
+        $entry.VersionOnly | Should -BeTrue
+        $entry.ExistenceOnly | Should -BeFalse
+        $entry.BlindCopy | Should -BeFalse
     }
     It 'gates every docs-feature file on Docs' {
         $docsFiles = @(

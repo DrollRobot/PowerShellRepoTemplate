@@ -132,7 +132,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.2.1'
+$ScriptVersion = '2.3.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -227,14 +227,20 @@ $script:HashBanner =
     '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES.*?\r?\n# =+\s*\r?\n'
 
 # Extracts a script's own $ScriptVersion. Anchored to line start so the
-# SuppressMessageAttribute line above the declaration cannot match. Escaped
-# quotes are doubled for the single-quoted PowerShell string.
-$script:VersionPattern = '(?m)^\s*\$ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
+# SuppressMessageAttribute line above the declaration cannot match. The '$' is
+# optional so a .psd1 data file (setup.psd1) can declare the same version as a
+# bare 'ScriptVersion = ...' hashtable key -- read by the same Get-ScriptVersion,
+# not a separate method. Escaped quotes are doubled for the single-quoted string.
+$script:VersionPattern = '(?m)^\s*\$?ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
 
 # One tracked file. {NAME} in a path is the module name, replaced per side (the
 # dev-loader .psm1 is renamed in a child). Required: a missing one is drift.
 # Strict: content drift is an error (vs 'review' only). ExistenceOnly: a present
-# file matches whatever its contents (the child rewrites it). BlindCopy: this
+# file matches whatever its contents (the child rewrites it). VersionOnly: a
+# present file is compared by declared version alone (setup.psd1) -- equal
+# versions match with contents ignored, a version mismatch is flagged for review
+# and shown under -Diff, and it is never copied (the child owns the contents).
+# BlindCopy: this
 # entry is also offered in the versioned pre-flight (Invoke-VersionedPreflight)
 # -- a low-friction, no-diff version-number-based sync -- on top of always going
 # through the normal diff comparison below. Reserved for a short, curated list
@@ -261,6 +267,7 @@ function New-Entry {
         [bool]$Required = $true,
         [bool]$Strict = $true,
         [bool]$ExistenceOnly = $false,
+        [bool]$VersionOnly = $false,
         [bool]$BlindCopy = $false,
         [string]$Gate = $null,
         [string]$LocalOverrideFlag = $null,
@@ -272,6 +279,7 @@ function New-Entry {
         Required          = $Required
         Strict            = $Strict
         ExistenceOnly     = $ExistenceOnly
+        VersionOnly       = $VersionOnly
         BlindCopy         = $BlindCopy
         Gate              = $Gate
         LocalOverrideFlag = $LocalOverrideFlag
@@ -307,8 +315,10 @@ $script:Manifest = @(
     (New-Entry 'SECURITY.md' -Gate 'SecurityMd')
     (New-Entry 'README.md' -ExistenceOnly $true)
     # Config-driven setup's own input file: content is this project's choices,
-    # never the template's, but the file itself must stay present.
-    (New-Entry 'Scripts/setup.psd1' -ExistenceOnly $true)
+    # never the template's. Compared by its declared ScriptVersion alone -- a
+    # version mismatch means the template changed the config's shape and is
+    # flagged for a manual diff; the contents are never copied.
+    (New-Entry 'Scripts/setup.psd1' -VersionOnly $true)
     # Module scaffolding that tracks the template (normalized for the name).
     (New-Entry 'Source/Build.psd1')
     $DepsGate = @{ Gate = 'Dependencies' }
@@ -389,7 +399,8 @@ function Remove-TemplateBanner {
     return ($Text -replace $script:MarkdownBanner, '' -replace $script:HashBanner, '')
 }
 
-# Extract a script's declared $ScriptVersion, or $null when it declares none.
+# Extract a declared version, or $null when none. Reads a script's $ScriptVersion
+# and a .psd1 data file's bare 'ScriptVersion' key alike (see VersionPattern).
 function Get-ScriptVersion {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Text)
     $match = [regex]::Match($Text, $script:VersionPattern)
@@ -691,6 +702,28 @@ function Compare-Entry {
     }
     if ($Entry.ExistenceOnly) {
         $result.Note = ' (exists; contents not compared)'
+        return $result
+    }
+    # Compared by declared version alone (setup.psd1): equal versions match with
+    # contents ignored (the child owns them); a mismatch is flagged for review and
+    # opened under -Diff, but never copied. A missing version on either side counts
+    # as a mismatch so the child gets prompted to reconcile.
+    if ($Entry.VersionOnly) {
+        $templateRawText = Get-RawText $templatePath
+        $childRawText = Get-RawText $childPath
+        $templateVersion = Get-ScriptVersion $templateRawText
+        $childVersion = Get-ScriptVersion $childRawText
+        if ($templateVersion -and $childVersion -and $templateVersion -eq $childVersion) {
+            $result.Note = " (version $childVersion; contents not compared)"
+            return $result
+        }
+        $templateShown = if ($templateVersion) { $templateVersion } else { 'unversioned' }
+        $childShown = if ($childVersion) { $childVersion } else { 'unversioned' }
+        $result.Status = 'review'
+        $result.Note = " (version template $templateShown, child $childShown; reconcile)"
+        $result.HasText = $true
+        $result.TemplateNorm = ConvertTo-NormalizedTemplate $templateRawText
+        $result.ChildNorm = ConvertTo-NormalizedChild $childRawText
         return $result
     }
 
