@@ -132,7 +132,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.2.0'
+$ScriptVersion = '2.2.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -562,25 +562,22 @@ function Update-VersionedFile {
     Write-Trace "${FunctionName}: $Rel action=$action"
     if ($action -eq 'ok') { return 'ok' }
 
+    # One colored summary line per file: path, both versions, and the verdict.
+    # 'ahead' (child newer, never touched) and 'refresh' (same version, contents
+    # differ -- left for the diff report) stop here; only 'update' asks a question.
     $templateShown = if ($templateVersion) { $templateVersion } else { 'unversioned' }
     $childShown = if ($childVersion) { $childVersion } else { 'unversioned' }
-    Write-Info $Rel "template $templateShown, child $childShown"
-    if ($action -eq 'ahead') {
-        Write-Warn "  The child's copy of $Rel is NEWER than the template's."
-        Write-Warn '  Consider upstreaming the change to the template; not overwriting it.'
-        return 'flagged'
-    }
-    # Same version, different content: the child may carry a real hand-edit, so
-    # never offer a version-based copy over it. Leave it for the diff-based
-    # comparison below (a -BlindCopy entry is still run through Compare-Entry),
-    # which reports it for review and includes it under -Diff.
-    if ($action -eq 'refresh') {
-        Write-Warn '  The copies share a version but their contents differ (missing bump?).'
-        Write-Warn '  Not offering a copy; review it in the comparison/diff below.'
-        return 'flagged'
-    }
+    $verdict = @{
+        ahead   = @{ Text = 'child is NEWER than template'; Color = 'Cyan' }
+        refresh = @{ Text = 'same version, contents differ (missing bump?)'; Color = 'Red' }
+        update  = @{ Text = 'child is outdated'; Color = 'Yellow' }
+    }[$action]
+    $versions = "template $templateShown, child $childShown"
+    Write-Host "  $Rel ($versions) - $($verdict.Text)" -ForegroundColor $verdict.Color
+
+    if ($action -eq 'ahead') { return 'flagged' }
+    if ($action -eq 'refresh') { return 'flagged' }
     # action -eq 'update': the child's copy is genuinely behind the template.
-    Write-Warn '  The child''s copy is outdated.'
     if (-not $AllowUpdate) {
         Write-Warn '  Skipping the update offer (-NoUpdate).'
         return 'flagged'

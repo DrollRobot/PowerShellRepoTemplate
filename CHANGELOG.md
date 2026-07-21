@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   differs in content, the pre-flight no longer prompts to copy over it (it may
   be a hand-edit or a missed version bump). The file falls through to the
   diff-based comparison for review instead.
+- `Scripts\Compare-Template.ps1`: condensed the versioned pre-flight output to a
+  single colored summary line per file (path, both versions, and verdict),
+  followed only by the update question when one is asked.
 
 ## [1.1.0] - 2026-07-20
 
