@@ -81,7 +81,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.1.0'
+$ScriptVersion = '2.1.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -309,7 +309,8 @@ function Test-SetupConfig {
 function Invoke-StripHeader {
     param([Parameter(Mandatory)][bool]$DryRun)
     $MarkdownBlock = '(?ms)^<!--\s*\r?\n=+\r?\nTEMPLATE SETUP NOTES.*?-->\s*\r?\n'
-    $HashBlock = '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES.*?\r?\n# =+\s*\r?\n'
+    $HashBlock =
+        '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
     $Changed = @()
     foreach ($File in (Get-TemplateTextFile -RepoRoot $script:RepoRoot)) {
         $Content = Get-Content -Path $File.FullName -Raw

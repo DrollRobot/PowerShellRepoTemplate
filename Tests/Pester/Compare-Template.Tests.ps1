@@ -94,6 +94,14 @@ Describe 'Remove-TemplateBanner' -Tag 'unit', 'functional' {
         $text = "# ======`n# TEMPLATE SETUP NOTES`n# delete me`n# ======`nreal: content`n"
         Remove-TemplateBanner $text | Should -Be "real: content`n"
     }
+    It 'strips a hash banner box with a title divider rule' {
+        # The shipped banners use three rule lines: open, a divider under the
+        # title, then the close. A lazy match stops at the divider and leaves
+        # the notes body; assert the whole box (body included) is removed.
+        $text = "# ======`n# TEMPLATE SETUP NOTES`n# ======`n# body one`n" +
+            "# body two`n# ======`nreal: content`n"
+        Remove-TemplateBanner $text | Should -Be "real: content`n"
+    }
     It 'leaves text without a banner unchanged' {
         Remove-TemplateBanner "no banner here`n" | Should -Be "no banner here`n"
     }

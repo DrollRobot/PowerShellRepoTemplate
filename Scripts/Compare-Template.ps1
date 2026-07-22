@@ -133,7 +133,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.4.0'
+$ScriptVersion = '2.4.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -220,12 +220,17 @@ function Confirm-Prompt {
 $script:TemplateName = 'Powershell' + 'RepoTemplate'
 $script:OwnerToken = 'FIX' + 'ME'
 
-# The two TEMPLATE SETUP NOTES banner forms, taken verbatim from the strip step
+# The two TEMPLATE SETUP NOTES banner forms, kept in lock-step with the strip step
 # in Scripts\TemplateSetup\Setup-NewProject.ps1 (markdown comment block and hash block).
+# The hash box is three rule lines -- open '# ===', title, divider '# ===', body,
+# close '# ===' -- so the run between title and close is a greedy sweep of comment
+# lines '(?:#[^\n]*\r?\n)*'. A lazy '.*?' would stop at the divider and leave the
+# whole notes body behind; the greedy run backtracks off the trailing blank line to
+# land on the real closing rule.
 $script:MarkdownBanner =
     '(?ms)^<!--\s*\r?\n=+\r?\nTEMPLATE SETUP NOTES.*?-->\s*\r?\n'
 $script:HashBanner =
-    '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES.*?\r?\n# =+\s*\r?\n'
+    '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
 
 # Extracts a script's own $ScriptVersion. Anchored to line start so the
 # SuppressMessageAttribute line above the declaration cannot match. The '$' is
