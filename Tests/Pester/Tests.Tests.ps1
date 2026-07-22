@@ -58,11 +58,18 @@ BeforeAll {
             '-NoProfile', '-NonInteractive', '-File', $script:Sut,
             'Destructive', '-Path', $FixturePath
         )
+        # Every case here is a refusal/no-op path; none should run a local
+        # destructive body. Clear DISPOSABLE_ENVIRONMENT for the child so the
+        # gate is exercised deterministically regardless of the ambient value
+        # (a disposable host sets it to 1, which would otherwise pass the gate).
+        $PriorDisposable = $env:DISPOSABLE_ENVIRONMENT
         Push-Location -LiteralPath $script:RepoRoot
         try {
+            $env:DISPOSABLE_ENVIRONMENT = $null
             $Output = & pwsh @ArgList 2>&1
         }
         finally {
+            $env:DISPOSABLE_ENVIRONMENT = $PriorDisposable
             Pop-Location
         }
         return [PSCustomObject]@{
