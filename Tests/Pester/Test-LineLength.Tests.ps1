@@ -131,6 +131,22 @@ Describe 'Test-LineLength' -Tag 'unit', 'functional' {
         }
     }
 
+    Context '-AnyType' {
+        It 'ignores a long line in a non-PowerShell file by default' {
+            $File = New-ScratchFile -Content @('#' * 110) -Extension '.txt'
+            $Result = Invoke-Checker -ScriptArgs @('-Path', $File)
+            $Result.ExitCode | Should -Be 0
+            $Result.Output | Should -Match '0 long line'
+        }
+
+        It 'flags a long line in a non-PowerShell file with -AnyType' {
+            $File = New-ScratchFile -Content @('#' * 110) -Extension '.txt'
+            $Result = Invoke-Checker -ScriptArgs @('-Path', $File, '-AnyType')
+            $Result.ExitCode | Should -Be 1
+            $Result.Output | Should -Match '1 long line'
+        }
+    }
+
     Context '-Quiet' {
         It 'suppresses the detail table and remediation note' {
             $File = New-ScratchFile -Content @('#' * 110)

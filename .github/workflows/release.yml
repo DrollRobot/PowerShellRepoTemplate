@@ -1,0 +1,100 @@
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This release.yml is part of PowershellRepoTemplate, a starter repo scaffold.
+#
+# Purpose: Builds the module with ModuleBuilder, zips each Output\ folder, and
+# publishes a GitHub release with those zips attached. Triggers on push of a
+# 'v*' tag (e.g. v1.2.3). Uses the built-in github.token -- no PAT to set up.
+#
+# To cut a release (see AGENTS.RELEASING.md for the full checklist):
+#   git tag v1.2.3
+#   git push origin v1.2.3
+#
+# Releasing the template itself: this workflow does not apply -- the template
+# is distributed as a template, not built or packaged as a module. A real
+# module made from this template uses it as-is and removes this block.
+# =============================================================================
+
+# .github/workflows/release.yml
+
+name: Release
+run-name: Release on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.actor }}
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install PowerShell modules
+        shell: pwsh
+        run: |
+          $moduleBuilderParams = @{
+              Name               = 'ModuleBuilder'
+              Force              = $true
+              Scope              = 'CurrentUser'
+              SkipPublisherCheck = $true
+          }
+          Install-Module @moduleBuilderParams
+
+          $powerShellGetParams = @{
+              Name               = 'PowerShellGet'
+              RequiredVersion    = '2.2.5'
+              Force              = $true
+              Scope              = 'CurrentUser'
+              SkipPublisherCheck = $true
+          }
+          Install-Module @powerShellGetParams
+
+      - name: Derive version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $v = '${{ github.ref_name }}'.TrimStart('v')
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build
+        shell: pwsh
+        run: .\Build.ps1 -Version ${{ steps.ver.outputs.version }}
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $folders = Get-ChildItem -Path 'Output' -Directory
+          foreach ($folder in $folders) {
+              $zipName = "$($folder.Name)-$v.zip"
+              $archiveParams = @{
+                  Path            = Join-Path -Path $folder.FullName -ChildPath '*'
+                  DestinationPath = Join-Path -Path 'Output' -ChildPath $zipName
+              }
+              Compress-Archive @archiveParams
+          }
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $assets = Get-ChildItem -Path 'Output' -File | Select-Object -ExpandProperty FullName
+          $releaseArgs = @(
+              'release'
+              'create'
+              '${{ github.ref_name }}'
+          )
+          $releaseArgs += $assets
+          $releaseArgs += '--title'
+          $releaseArgs += "v$v"
+          $releaseArgs += '--generate-notes'
+          gh @releaseArgs

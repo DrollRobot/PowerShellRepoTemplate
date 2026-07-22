@@ -1,16 +1,39 @@
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This docs.yml is part of PowershellRepoTemplate, a starter repo scaffold.
+#
+# Purpose: Builds Docs/ with MkDocs Material and deploys it to GitHub Pages.
+# Triggers on a push to main that touches Docs/** or mkdocs.yml, or manually
+# via workflow_dispatch. `mkdocs gh-deploy` builds and pushes straight to a
+# gh-pages branch, creating it on first run.
+#
+# GitHub setup (one-time):
+#   1. Push this file (with Docs/ and mkdocs.yml) so the workflow runs once
+#      and creates the gh-pages branch.
+#   2. Go to Settings -> Pages.
+#   3. Under "Build and deployment", set Source to "Deploy from a branch".
+#   4. Set Branch to gh-pages / (root), then Save.
+#   Site publishes at https://<owner>.github.io/<repo>/.
+#
+# Don't want a docs site? Answer "no" to the Docs feature in
+# Scripts/TemplateSetup/Setup-NewProject.ps1 and it removes this file,
+# mkdocs.yml, Docs.ps1, and Docs/ for you. By hand: delete the same four.
+# =============================================================================
+
+# .github/workflows/docs.yml
+
 name: Deploy Documentation
+run-name: Docs on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.actor }}
 
 on:
   push:
     branches:
       - main
     paths:
-      # NOTE: GitHub path filters are case-sensitive; this must match the
-      # capitalized Docs/ folder in this repo.
       - 'Docs/**'
       - 'mkdocs.yml'
 
-  # Allow manual trigger from the Actions tab
   workflow_dispatch:
 
 permissions:
