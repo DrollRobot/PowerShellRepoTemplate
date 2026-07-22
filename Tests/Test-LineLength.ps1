@@ -12,6 +12,8 @@
     Search subdirectories recursively (only applies when Path is a directory).
 .PARAMETER MaxLength
     Maximum allowed line length in characters. Defaults to 100.
+.PARAMETER AnyType
+    Check files of any extension instead of only .ps1, .psm1, and .psd1.
 .PARAMETER Quiet
     Suppress the per-finding table and the AI-agent remediation note, printing
     only the one-line summary. Useful for a quick pass/fail check.
@@ -23,12 +25,13 @@ param(
     [string[]] $Path = @((Get-Location).Path),
     [switch] $Recurse,
     [int] $MaxLength = 100,
+    [switch] $AnyType,
     [switch] $Quiet
 )
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.3'
+$ScriptVersion = '1.0.4'
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(
@@ -68,8 +71,10 @@ $files = foreach ($Item in $Path) {
         Get-ChildItem @GetChildParams
     }
 }
+if (-not $AnyType) {
+    $files = @($files | Where-Object Extension -in '.ps1', '.psm1', '.psd1')
+}
 $files = @($files |
-    Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
     Where-Object {
         $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
         (-not ($ExcludedFiles -contains $Rel)) -and
