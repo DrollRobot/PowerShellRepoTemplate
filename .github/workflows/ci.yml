@@ -28,6 +28,8 @@
 # it will not prevent merging a failing PR.
 # =============================================================================
 
+# .github/workflows/ci.yml
+
 name: CI
 
 on:

@@ -13,6 +13,8 @@
 #   - Update the URL if you host docs somewhere other than GitHub Pages.
 # =============================================================================
 
+# .github/ISSUE_TEMPLATE/config.yml
+
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
