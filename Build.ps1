@@ -32,6 +32,10 @@
     after the ModuleBuilder step. Use it for project-specific tasks that depend on
     the finished build output (e.g. copying extra files, updating docs).
 
+    If Build.psd1 declares Script Generators, any Build\Generators\*.ps1 files are
+    dot-sourced before the ModuleBuilder step. Generator functions must be declared
+    with the global: prefix so Invoke-ScriptGenerator can discover them.
+
 .PARAMETER SourcePath
     Path to the source directory containing the source manifest, Public/, Private/, etc.
     Defaults to the 'source' folder next to this script.
@@ -81,7 +85,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.2.0'
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
@@ -230,6 +234,20 @@ if (Test-Path $preBuildScript) {
 # --- Build ---------------------------------------------------------------------
 Write-Host '==> Build' -ForegroundColor Green
 Resolve-Dependency -Name ModuleBuilder -Critical
+
+# Project-local Script Generators (Build\Generators\*.ps1) define their
+# functions with the global: prefix so ModuleBuilder's Invoke-ScriptGenerator
+# (which resolves generator commands from its own module scope, chained only
+# to the global scope) can discover them. Dot-source them before Build-Module.
+if ($buildConfig.ContainsKey('Generators') -and $buildConfig.Generators) {
+    $generatorDir = Join-Path -Path $RepoRoot -ChildPath 'Build\Generators'
+    if (Test-Path $generatorDir) {
+        foreach ($generatorFile in Get-ChildItem -Path $generatorDir -Filter '*.ps1') {
+            Write-Host "   Loading generator $($generatorFile.Name)" -ForegroundColor Cyan
+            . $generatorFile.FullName
+        }
+    }
+}
 
 # ConvertTo-Script (the standalone-script Generator) calls Update-ScriptFileInfo,
 # which re-parses the generated .ps1 with Test-ScriptFileInfo. PowerShellGet 1.x
