@@ -186,7 +186,6 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         $paths | Should -Not -Contain 'Build/PostBuild.ps1'
         $paths | Should -Not -Contain 'Tests/PreTests.ps1'
         $paths | Should -Not -Contain 'Tests/PostTests.ps1'
-        $paths | Should -Not -Contain 'Tests.ps1'
         $paths | Should -Not -Contain 'Tests/Pester/Compare-Template.Tests.ps1'
     }
     It 'tracks the CI workflow as a strict required entry' {
@@ -214,6 +213,7 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
     It 'keeps other versioned dev scripts diff-only, never blind-copied' {
         $diffOnly = @(
             'Build.ps1'
+            'Tests.ps1'
             'Scripts/TemplateSetup/Setup-NewProject.ps1'
             'Scripts/Find-ScriptCommand.ps1'
             'Scripts/Resolve-CommandModule.ps1'

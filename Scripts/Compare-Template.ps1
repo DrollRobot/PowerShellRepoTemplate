@@ -36,8 +36,9 @@
     review each difference side by side.
 
     Files the child owns (its Source\ code, the module manifest and its version,
-    the changelog, the license, generated docs, Tests.ps1 and its PreTests.ps1 /
-    PostTests.ps1 hooks) are not compared at all.
+    the changelog, the license, generated docs, and Tests.ps1's child-owned
+    PreTests.ps1 / PostTests.ps1 hooks) are not compared at all. Tests.ps1 itself
+    is a project-agnostic orchestrator and is tracked (diff-only).
 
     Manifest entries belonging to a config-driven optional feature (the docs site,
     SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the pre-import
@@ -132,7 +133,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.3.0'
+$ScriptVersion = '2.4.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -307,6 +308,7 @@ $script:Manifest = @(
     (New-Entry '.secrets.baseline' -ExistenceOnly $true)
     # Agent and contributor docs.
     (New-Entry 'AGENTS.md' -Strict $false)
+    (New-Entry 'AGENTS.COMMITTING.md')
     (New-Entry 'AGENTS.RELEASING.md')
     (New-Entry 'AGENTS.TESTING.md')
     (New-Entry 'AGENTS.WORKTREE.md')
@@ -337,8 +339,11 @@ $script:Manifest = @(
     (New-Entry 'Scripts/Push-NewTagToMain.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Remove-WorkTree.ps1' -BlindCopy $true)
     # Other versioned dev scripts: tracked, but diff-only -- reviewed, never
-    # blindly overwritten.
+    # blindly overwritten. Tests.ps1 is a project-agnostic orchestrator: its
+    # project-specific parts live in the child-owned PreTests.ps1 / PostTests.ps1
+    # hooks, so the orchestrator itself tracks the template like Build.ps1.
     (New-Entry 'Build.ps1')
+    (New-Entry 'Tests.ps1')
     # Used by nothing except the explicit-module-import check below; all three
     # share the 'ExplicitModuleImport' gate.
     (New-Entry 'Scripts/Find-ScriptCommand.ps1' -Gate 'ExplicitModuleImport')
