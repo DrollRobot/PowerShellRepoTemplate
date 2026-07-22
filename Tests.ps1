@@ -172,7 +172,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.3'
+$ScriptVersion = '1.1.4'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -276,7 +276,8 @@ $PesterTarget = if ($PSBoundParameters.ContainsKey('Path')) {
 # those folder names).
 $BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'source\Build.psd1'
 $BuildConfig = Import-PowerShellDataFile -Path $BuildPsd1Path
-$CopiedFolderNames = @($BuildConfig.CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
+$CopyPaths = if ($BuildConfig.ContainsKey('CopyPaths')) { $BuildConfig.CopyPaths } else { @() }
+$CopiedFolderNames = @($CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
 
 # Exposed as a global (not just via $TestContext) because the formatting/lint
 # scripts run as separate invocations and can only see globals. Test-Explicit-
