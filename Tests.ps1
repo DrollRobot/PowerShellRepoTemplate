@@ -85,9 +85,9 @@
 
 .PARAMETER Built
     Load the module from the built artifact instead of the source manifest.
-    Looks for a root build first (Build.ps1 -BuildToRoot), then falls back to
-    the newest versioned build under Output\. Only valid with NotLive, Live,
-    and Destructive.
+    Looks for a root build first (Build.ps1 -BuildToRoot), then a flat build
+    at Output\<ModuleName>\, then falls back to the newest versioned build
+    under Output\. Only valid with NotLive, Live, and Destructive.
 
 .PARAMETER Quiet
     Forward -Quiet to the individual formatting checks so each prints only its
@@ -172,7 +172,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.4'
+$ScriptVersion = '1.2.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -232,12 +232,19 @@ $ManifestPath = if ($Built) {
     if (Test-Path $RootManifest) {
         $RootManifest
     } else {
-        # Default build layout: Output\<ModuleName>\<version>\<ModuleName>.psd1
+        # Flat build layout: Output\<ModuleName>\<ModuleName>.psd1
+        # (UnversionedOutputDirectory in Build.psd1). Falls back to the
+        # versioned layout Output\<ModuleName>\<version>\<ModuleName>.psd1.
         $OutputRoot = Join-Path -Path $PSScriptRoot -ChildPath "Output\$ModuleName"
-        Get-ChildItem -Path $OutputRoot -Directory -ErrorAction SilentlyContinue |
-            Sort-Object { [version]$_.Name } -Descending |
-            Select-Object -First 1 |
-            ForEach-Object { Join-Path -Path $_.FullName -ChildPath "$ModuleName.psd1" }
+        $FlatManifest = Join-Path -Path $OutputRoot -ChildPath "$ModuleName.psd1"
+        if (Test-Path $FlatManifest) {
+            $FlatManifest
+        } else {
+            Get-ChildItem -Path $OutputRoot -Directory -ErrorAction SilentlyContinue |
+                Sort-Object { [version]$_.Name } -Descending |
+                Select-Object -First 1 |
+                ForEach-Object { Join-Path -Path $_.FullName -ChildPath "$ModuleName.psd1" }
+        }
     }
 } else {
     Join-Path -Path $PSScriptRoot -ChildPath "source\$ModuleName.psd1"
