@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-22
+
 ### Added
 
 - `Scripts\TemplateSetup\Set-GitHubUser.ps1`: a standalone, config-driven setup
@@ -26,6 +28,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<GitHubUser>/<Name>`, `FIXME.github.io/FIXME` -> `<GitHubUser>.github.io/<Name>`).
   Driven by the new `Project.GitHubUser` key in `Scripts\setup.psd1` (blank
   skips), and runnable on its own.
+- `Tests\Test-LineLength.ps1`: a `-AnyType` switch to check files of any
+  extension instead of only `.ps1`, `.psm1`, and `.psd1`.
+- `Build.ps1`: support for project-local Script Generators -- dot-sources
+  `Build\Generators\*.ps1` before the ModuleBuilder step when `Build.psd1`
+  declares a `Generators` key. Generator functions must be defined with the
+  `global:` prefix so ModuleBuilder's `Invoke-ScriptGenerator` can resolve them.
+- `.github\workflows\release.yml`: a new workflow that builds the module, zips
+  each `Output\` folder, and publishes a GitHub release with those zips
+  attached when a `v*` tag is pushed.
+- `Push-NewTagToMain.ps1`: a `-NoManifest` switch (pairs with `-Version`) to
+  tag a manifest-less repo (a bare script) directly from `-Version`, skipping
+  manifest resolution and the version-update step.
+- `Compare-Template.ps1`: now tracks `AGENTS.COMMITTING.md` and `Tests.ps1`
+  (both strict, diff-only) in its manifest, so children keep them in sync with
+  the template.
 
 ### Changed
 
@@ -53,6 +70,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   choices), while a version mismatch is flagged for review and shown under
   `-Diff` -- it is never copied. The version is read by the same parser used for
   scripts' `$ScriptVersion` (the leading `$` is now optional).
+- `Docs.ps1` now generates docs from the source manifest under `Source\`
+  instead of a built module in the repo root, so docs no longer depend on a
+  prior build existing or on where it lives. Docs are also written to
+  `Docs\Commands` (matching the repo's casing) instead of `docs\commands`.
+- `Push-NewTagToMain.ps1`'s manifest lookup no longer walks up the directory
+  tree; it resolves only via an explicit `-ManifestPath` or the single
+  `Source\` manifest, and throws otherwise.
+
+### Fixed
+
+- `Tests.ps1 -Built` now falls back to a flat
+  `Output\<ModuleName>\<ModuleName>.psd1` build layout when no versioned build
+  exists, instead of silently resolving no manifest.
+- `Compare-Template.ps1` no longer leaves `Source\Build.psd1`'s TEMPLATE SETUP
+  NOTES banner un-stripped in child repos -- its header now matches the
+  standard banner title the strip step looks for.
+- `Compare-Template.ps1` and `Setup-NewProject.ps1` now strip the entire
+  TEMPLATE SETUP NOTES box, not just its header line -- the notes body and
+  closing rule used to survive normalization.
+- `ci.yml`, `dependabot.yml`, and the three `ISSUE_TEMPLATE` files now carry
+  the self-path comment their TEMPLATE SETUP NOTES banner needs to be
+  recognized and stripped, matching every other tracked file.
+- `Build.ps1` no longer throws under strict mode when the source `Build.psd1`
+  has no `CopyPaths` key.
+- `Push-NewTagToMain.ps1` now checks for a duplicate tag upfront, before any
+  merge or commit, instead of failing late once the repo is already on `main`
+  with a release commit made.
 
 ## [1.1.0] - 2026-07-20
 
@@ -148,6 +192,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build tooling (ModuleBuilder), PlatyPS docs generation, GitHub Actions CI, and
   pre-commit hooks.
 
-[Unreleased]: https://github.com/FIXME/FIXME/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/FIXME/FIXME/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/FIXME/FIXME/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/FIXME/FIXME/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/FIXME/FIXME/releases/tag/v1.0.0
