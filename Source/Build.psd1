@@ -1,16 +1,18 @@
-@{
-    # =========================================================================
-    # ModuleBuilder Notes -- Build.psd1
-    #
-    # This file lives in Source/ next to the module manifest. Build-Module
-    # reads it automatically when pointed at the manifest via -SourcePath.
-    # Every key here is a default override for a Build-Module parameter.
-    #
-    # Typical invocation:
-    #   Build-Module -SourcePath ./Source/<ModuleName>.psd1
-    #   (or just: Build-Module  -- if run from the Source/ folder)
-    # =========================================================================
+# =============================================================================
+# TEMPLATE SETUP NOTES -- remove this block - FIXME
+# =============================================================================
+# This file lives in Source/ next to the module manifest. Build-Module
+# reads it automatically when pointed at the manifest via -SourcePath.
+# Every key here is a default override for a Build-Module parameter.
+#
+# Typical invocation:
+#   Build-Module -SourcePath ./Source/<ModuleName>.psd1
+#   (or just: Build-Module  -- if run from the Source/ folder)
+# ============================================================================
 
+# Source\Build.psd1
+
+@{
     Path = 'PowershellRepoTemplate.psd1'
 
     SourceDirectories = @(
