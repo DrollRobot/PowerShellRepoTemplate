@@ -5,49 +5,24 @@
     bring versioned tooling files up to date.
 
 .DESCRIPTION
-    A module created from this template (via Scripts\TemplateSetup\Setup-NewProject.ps1, which
-    is config-driven -- see Scripts\setup.psd1) keeps a set of tooling, CI, and
-    config files that should track the template as it evolves. Run this script
-    from inside the child repo, pointing -TemplatePath at a template checkout, to
-    see where the two have drifted.
+    A module created from this template (via Scripts\TemplateSetup\Setup-NewProject.ps1,
+    config-driven from Scripts\setup.psd1) keeps a set of tooling, CI, and config
+    files that track the template as it evolves. Run this from inside the child
+    repo, pointing -TemplatePath at a template checkout, to see where they drifted.
 
-    Every tracked file is a single manifest entry ($script:Manifest) and always
-    goes through the diff-based comparison below. A curated few of those entries
-    are ALSO marked -BlindCopy: generic dev tooling (this script itself, the
-    worktree helpers, the release script, the docs generator, the dependency
-    hook) that a child almost never hand-edits. Those get an extra, earlier
-    pre-flight offer to sync straight from the template by version number alone,
-    with no diff shown -- but ONLY when the child's copy is strictly older, so an
-    outdated copy of this script (and its manifest) is refreshed before the
-    content comparison runs. When the versions match but the contents differ (a
-    possible hand-edit, or a change that missed a version bump), no copy is
-    offered; the file falls through to the diff-based comparison for review.
-    Every other tracked file --
-    including other scripts that declare their own $ScriptVersion, such as
-    Build.ps1 or the Tests\Test-*.ps1 checkers -- is diff-only: never blindly
-    copied, always reviewed as a normal drift entry (with a version note shown
-    alongside it when both sides parse a version).
+    Each tracked file is one $script:Manifest entry whose flags decide how it is
+    compared -- see New-Entry. Both sides are normalized first (line endings, the
+    TEMPLATE SETUP NOTES banner, and the module-name / GitHub-owner substitutions
+    Setup-NewProject.ps1 applied), so only genuine drift is reported. Files the
+    child owns -- its Source\ code, module manifest, changelog, license, generated
+    docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked.
 
-    Non-versioned files -- CI workflows, lint/format config, and the AGENTS docs
-    -- are compared after replaying the transformations Setup-NewProject.ps1
-    applied to the child (module-name and GitHub owner substitution, and
-    stripping the TEMPLATE SETUP NOTES banner), so only genuine drift is
-    reported. Diff-only entries are never written automatically; pass -Diff to
-    review each difference side by side.
-
-    Files the child owns (its Source\ code, the module manifest and its version,
-    the changelog, the license, generated docs, and Tests.ps1's child-owned
-    PreTests.ps1 / PostTests.ps1 hooks) are not compared at all. Tests.ps1 itself
-    is a project-agnostic orchestrator and is tracked (diff-only).
-
-    Manifest entries belonging to a config-driven optional feature (the docs site,
-    SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the pre-import
-    dependency check, or one of the opinionated formatting checks) are gated on that
-    child's own choice, read from
-    Scripts\setup.psd1 -- a feature the child declined is skipped entirely rather
-    than reported as missing. One entry (Tests\Test-FindUnwantedStrings.ps1) is
-    compared at a different child-side path instead, when the child moved it to
-    .local\tests\ ([Features].UnwantedStringsLocal).
+    -BlindCopy entries also get an earlier pre-flight that offers to refresh an
+    outdated child copy from the template by version number, before the diff
+    comparison. Nothing is written without confirmation; pass -Diff to review each
+    remaining difference side by side. An entry's Gate ties it to a
+    Scripts\setup.psd1 [Features] choice, so a feature the child declined is
+    skipped rather than reported as missing.
 
 .PARAMETER TemplatePath
     Path to the template checkout. Defaults to a sibling folder with the
@@ -133,7 +108,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.5.1'
+$ScriptVersion = '2.5.3'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -214,9 +189,8 @@ function Confirm-Prompt {
 
 # Built from pieces on purpose: Setup-NewProject.ps1 string-replaces the template
 # name and owner placeholders across every text file in a child. Assembling the
-# tokens here keeps those contiguous strings out of this file so a child's setup
-# run cannot rewrite (and break) the tool's own constants. This mirrors the
-# Python compare_to_template.py, which builds its identity tokens the same way.
+# tokens here keeps those contiguous strings out of this file, so a child's setup
+# run cannot rewrite (and break) the tool's own constants.
 $script:TemplateName = 'Powershell' + 'RepoTemplate'
 $script:OwnerToken = 'FIX' + 'ME'
 
@@ -239,34 +213,67 @@ $script:HashBanner =
 # not a separate method. Escaped quotes are doubled for the single-quoted string.
 $script:VersionPattern = '(?m)^\s*\$?ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
 
-# One tracked file. {NAME} in a path is the module name, replaced per side (the
-# dev-loader .psm1 is renamed in a child). Required: a missing one is drift.
-# Strict: content drift is an error (vs 'review' only). ExistenceOnly: a present
-# file matches whatever its contents (the child rewrites it). VersionOnly: a
-# present file is compared by declared version alone (setup.psd1) -- equal
-# versions match with contents ignored, a version mismatch is flagged for review
-# and shown under -Diff, and it is never copied (the child owns the contents).
-# BlindCopy: this
-# entry is also offered in the versioned pre-flight (Invoke-VersionedPreflight)
-# -- a low-friction, no-diff version-number-based sync -- on top of always going
-# through the normal diff comparison below. Reserved for a short, curated list
-# of generic dev tooling nobody hand-edits; everything else that happens to
-# declare $ScriptVersion is still diff-only.
-#
-# Gate: name of a Scripts\setup.psd1 [Features] flag (see Get-ChildFeatureFlag).
-# When the child's config has that flag set to false, this entry is dropped
-# from comparison entirely -- never reported as missing, never offered for
-# copy -- exactly like a feature the child deliberately declined at setup.
-# $null (the default) means always applicable.
-#
-# LocalOverrideFlag / LocalOverridePath: for the one entry (currently just
-# Test-FindUnwantedStrings.ps1) whose child-side location depends on a config
-# choice rather than being present-or-absent. When the named flag is true,
-# Get-ApplicableManifest sets ChildPath to LocalOverridePath; Compare-Entry
-# then reads the CHILD from ChildPath while still reading the TEMPLATE from
-# Path -- the two must stay independent, since the template's own copy never
-# moves. ChildPath starts equal to Path (the common case: same relative path
-# on both sides) and is the only field Get-ApplicableManifest ever rewrites.
+<#
+.SYNOPSIS
+    Build one $script:Manifest entry describing a tracked file and how to compare it.
+
+.DESCRIPTION
+    Returns a [pscustomobject] with the fields the comparison reads. ChildPath
+    starts equal to Path and is the only field Get-ApplicableManifest ever
+    rewrites. {NAME} in a path is replaced with the module name per side when the
+    entry is compared.
+
+.PARAMETER Path
+    Template-relative path of the file, using '/' separators. Also seeds the
+    child-relative path (ChildPath).
+
+.PARAMETER Required
+    $true (the default) makes a missing child copy count as drift; $false marks
+    the file optional, so an absent copy is not reported.
+
+.PARAMETER Strict
+    $true (the default) reports content drift as an error ('modified'); $false
+    reports it as 'review' only, for a file expected to differ.
+
+.PARAMETER ExistenceOnly
+    Compare presence only: when the child copy exists its contents are not
+    checked, because the child owns them.
+
+.PARAMETER VersionOnly
+    Compare by declared version alone. Equal versions match with contents ignored;
+    a mismatch (or a version missing on either side) is flagged for review and
+    shown under -Diff. The file is never copied.
+
+.PARAMETER BlindCopy
+    Also include the entry in the pre-flight version sync (Invoke-VersionedPreflight),
+    which offers to refresh an outdated child copy from the template before the
+    diff comparison runs.
+
+.PARAMETER Gate
+    Name of a Scripts\setup.psd1 [Features] flag (see Get-ChildFeatureFlag). When
+    that flag is false the entry is dropped from comparison entirely. $null (the
+    default) means the entry always applies.
+
+.PARAMETER LocalOverrideFlag
+    Name of a [Features] flag that, when true, relocates the child-side copy to
+    LocalOverridePath. The template-side copy stays at Path.
+
+.PARAMETER LocalOverridePath
+    Child-relative path used in place of Path when LocalOverrideFlag is true.
+
+.EXAMPLE
+    New-Entry 'AGENTS.md' -Strict $false
+
+    A required, diff-only entry whose content may differ (reported as 'review').
+
+.EXAMPLE
+    New-Entry 'Tests/Test-PSSA.ps1' -BlindCopy $true
+
+    A versioned checker that also gets the pre-flight refresh offer.
+
+.OUTPUTS
+    System.Management.Automation.PSCustomObject. One manifest entry.
+#>
 function New-Entry {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -293,9 +300,7 @@ function New-Entry {
     }
 }
 
-# Every tracked file. Versioned dev scripts are listed explicitly below, either
-# as -BlindCopy (curated whitelist, offered for a no-diff sync) or diff-only
-# (everything else that carries $ScriptVersion) -- see New-Entry above.
+# Every tracked file. Per-entry flags (see New-Entry) decide how each compares.
 $script:Manifest = @(
     # GitHub automation and templates.
     (New-Entry '.github/workflows/ci.yml')
@@ -322,65 +327,54 @@ $script:Manifest = @(
     (New-Entry 'CONTRIBUTING.md' -Gate 'ContributingMd')
     (New-Entry 'SECURITY.md' -Gate 'SecurityMd')
     (New-Entry 'README.md' -ExistenceOnly $true)
-    # Config-driven setup's own input file: content is this project's choices,
-    # never the template's. Compared by its declared ScriptVersion alone -- a
-    # version mismatch means the template changed the config's shape and is
-    # flagged for a manual diff; the contents are never copied.
+    # Holds the child's own config choices, not the template's; a version mismatch
+    # means the config's shape changed and needs reconciling.
     (New-Entry 'Scripts/setup.psd1' -VersionOnly $true)
-    # Module scaffolding that tracks the template (normalized for the name).
+    # ModuleBuilder build config.
     (New-Entry 'Source/Build.psd1')
     $DepsGate = @{ Gate = 'InstallDependenciesScript' }
-    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1' -BlindCopy $true @DepsGate)
-    # Has a '# FIXME: optionally mirror...' hand-edit block -- diff-only, lenient.
-    (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1' -Strict $false @DepsGate)
-    # Documentation site: mkdocs.yml plus the PlatyPS-driven Docs.ps1 above and
-    # the docs.yml workflow above. All three share the 'Docs' gate.
+    (New-Entry 'Source/ScriptsToProcess/Confirm-Dependency.ps1' -BlindCopy $true @DepsGate)
+    # Carries a hand-edit FIXME block.
+    (New-Entry 'Source/ScriptsToProcess/Install-Dependency.ps1' -Strict $false @DepsGate)
+    # Docs site config.
     (New-Entry 'mkdocs.yml' -Required $false -Strict $false -Gate 'Docs')
-    # Generic dev tooling, curated whitelist: nobody hand-edits these, so they
-    # get the low-friction version-based sync on top of the normal diff.
+    # Worktree, release, and docs helper scripts.
     (New-Entry 'Docs.ps1' -BlindCopy $true -Gate 'Docs')
     (New-Entry 'Scripts/Compare-Template.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Complete-WorkTree.ps1' -BlindCopy $true)
-    (New-Entry 'Scripts/Enable-Release.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/New-Worktree.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Push-NewTagToMain.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Remove-WorkTree.ps1' -BlindCopy $true)
-    # Other versioned dev scripts: tracked, but diff-only -- reviewed, never
-    # blindly overwritten. Tests.ps1 is a project-agnostic orchestrator: its
-    # project-specific parts live in the child-owned PreTests.ps1 / PostTests.ps1
-    # hooks, so the orchestrator itself tracks the template like Build.ps1.
+    # Tests.ps1 is a project-agnostic orchestrator; its project-specific parts
+    # live in the child-owned PreTests.ps1 / PostTests.ps1 hooks.
     (New-Entry 'Build.ps1')
     (New-Entry 'Tests.ps1')
-    # Used by nothing except the explicit-module-import check below; all three
-    # share the 'ExplicitModuleImport' gate.
+    # Helpers for the explicit-module-import check.
     (New-Entry 'Scripts/Find-ScriptCommand.ps1' -Gate 'ExplicitModuleImport')
     (New-Entry 'Scripts/Resolve-CommandModule.ps1' -Gate 'ExplicitModuleImport')
-    # One-time setup orchestrator and its step scripts; the whole
-    # Scripts\TemplateSetup\ folder is usually deleted after use, so each entry
-    # is -Required $false (a child that removed them is not flagged as drift).
+    # The Scripts\TemplateSetup\ folder is usually deleted after setup, so optional.
     (New-Entry 'Scripts/TemplateSetup/Setup-NewProject.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/_Common.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Set-GitHubUser.ps1' -Required $false)
-    (New-Entry 'Tests/Test-BacktickContinuation.ps1' -Gate 'BacktickContinuation')
-    (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -Gate 'ExplicitModuleImport')
-    # Its $UnwantedPatterns has no external override hook -- a genuine
-    # per-project hand-edit point, unlike this file's exclusions. Its child-side
-    # location depends on [Features].UnwantedStringsLocal rather than being
-    # simply present or absent, hence LocalOverride* instead of Gate.
+    # Code-style and hygiene checkers.
+    (New-Entry 'Tests/Test-BacktickContinuation.ps1' -BlindCopy $true -Gate 'BacktickContinuation')
+    (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -BlindCopy $true -Gate 'ExplicitModuleImport')
+    # $UnwantedPatterns is a per-project hand-edit point, so lenient and not
+    # blind-copied. UnwantedStringsLocal moves the child copy to .local\tests\.
     $UnwantedStringsParams = @{
         Strict            = $false
         LocalOverrideFlag = 'UnwantedStringsLocal'
         LocalOverridePath = '.local/tests/Test-FindUnwantedStrings.ps1'
     }
     (New-Entry 'Tests/Test-FindUnwantedStrings.ps1' @UnwantedStringsParams)
-    (New-Entry 'Tests/Test-FixmeComments.ps1')
-    (New-Entry 'Tests/Test-FormatOperator.ps1' -Gate 'FormatOperator')
-    (New-Entry 'Tests/Test-JoinPath.ps1')
-    (New-Entry 'Tests/Test-LineLength.ps1')
-    (New-Entry 'Tests/Test-ModuleSyntax.ps1')
-    (New-Entry 'Tests/Test-NonASCIICharacters.ps1' -Gate 'NonASCIICharacters')
-    (New-Entry 'Tests/Test-PSSA.ps1')
-    (New-Entry 'Tests/Test-WriteVerboseDebug.ps1' -Gate 'WriteVerboseDebug')
+    (New-Entry 'Tests/Test-FixmeComments.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Test-FormatOperator.ps1' -BlindCopy $true -Gate 'FormatOperator')
+    (New-Entry 'Tests/Test-JoinPath.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Test-LineLength.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Test-ModuleSyntax.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Test-NonASCIICharacters.ps1' -BlindCopy $true -Gate 'NonASCIICharacters')
+    (New-Entry 'Tests/Test-PSSA.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Test-WriteVerboseDebug.ps1' -BlindCopy $true -Gate 'WriteVerboseDebug')
 )
 
 # --- pure helpers -----------------------------------------------------------
@@ -425,7 +419,7 @@ function Get-ScriptVersion {
 }
 
 # Parse a GitHub owner from a remote URL (SSH or HTTPS forms). Non-GitHub
-# remotes yield $null, mirroring the Python github_user_from_url.
+# remotes yield $null.
 function Get-OwnerFromUrl {
     param([Parameter(Mandatory)][string]$Url)
     if ($Url -match 'github\.com[:/]([A-Za-z0-9-]+)/') {
@@ -434,8 +428,7 @@ function Get-OwnerFromUrl {
     return $null
 }
 
-# Decide what the pre-flight should do about the child's copy of a versioned
-# file. Ported from the Python self_check_action.
+# Decide what the pre-flight should do about the child's copy of a versioned file.
 function Get-VersionAction {
     param(
         [Parameter()][AllowNull()][string]$TemplateVersion,
@@ -453,9 +446,7 @@ function Get-VersionAction {
     return 'refresh'
 }
 
-# Describe how two versions of a file relate, for a diff-only manifest entry
-# that happens to declare $ScriptVersion on both sides (a -BlindCopy entry
-# never reaches this -- its version is already handled by the pre-flight).
+# Describe how two versions of a file relate, as a note on a diff-only entry.
 # Purely informational; never triggers a copy.
 function Get-VersionNote {
     param(
@@ -514,10 +505,8 @@ function ConvertTo-NormalizedChild {
 
 # --- versioned pre-flight ---------------------------------------------------
 #
-# The versioned pre-flight below runs only over $script:Manifest entries marked
-# -BlindCopy (see New-Entry) -- a short, curated whitelist of generic dev
-# tooling. Every other manifest entry, whitelisted or not, still goes through
-# the diff-based comparison further down (Compare-Entry).
+# The pre-flight runs over the -BlindCopy entries only; every entry still goes
+# through the diff comparison further down (Compare-Entry).
 
 # Write the template's copy into the child, substituting the identity tokens
 # first. Token-free files are copied byte-for-byte (preserving encoding and line
@@ -618,11 +607,9 @@ function Update-VersionedFile {
     return 'wrote'
 }
 
-# Compare every -BlindCopy entry in $Entries (the caller's already feature-filtered manifest)
-# and offer to update the child's copies. The running script itself is compared FIRST, ahead
-# of the rest: if the child's copy is outdated and the user opts to replace it, the run ends
-# immediately (before any other file is examined) so the user re-runs the new version -- with
-# its current manifest -- rather than continuing against a script that no longer matches memory.
+# Compare every -BlindCopy entry and offer to update the child's copies. This
+# running script is done FIRST: if its own copy is replaced, the run stops so the
+# user re-runs the new version rather than continuing against a stale script.
 function Invoke-VersionedPreflight {
     <#
     .OUTPUTS
@@ -720,10 +707,8 @@ function Compare-Entry {
         $result.Note = ' (exists; contents not compared)'
         return $result
     }
-    # Compared by declared version alone (setup.psd1): equal versions match with
-    # contents ignored (the child owns them); a mismatch is flagged for review and
-    # opened under -Diff, but never copied. A missing version on either side counts
-    # as a mismatch so the child gets prompted to reconcile.
+    # Equal versions match with contents ignored; a mismatch (including a missing
+    # version on either side) is flagged for review and opened under -Diff.
     if ($Entry.VersionOnly) {
         $templateRawText = Get-RawText $templatePath
         $childRawText = Get-RawText $childPath
@@ -911,13 +896,9 @@ function Get-ChildFeatureFlag {
     return $flags
 }
 
-# .pre-commit-config.yaml is edited in place -- one hook block removed -- by
-# Invoke-RemoveFormattingTest whenever any of these four checks is declined
-# (see Scripts\TemplateSetup\Setup-NewProject.ps1). Get-ApplicableManifest reports the
-# resulting difference for review instead of as strict drift, the same way
-# Python's remove_mkdocs.py-edited files (CONTRIBUTING.md, AGENTS.RELEASING.md
-# in that template) are compared leniently once the feature they describe is
-# actually gone.
+# Setup-NewProject.ps1 removes a hook block from .pre-commit-config.yaml when any
+# of these checks is declined, so Get-ApplicableManifest downgrades that file to
+# review (not strict drift) whenever one is off.
 $script:PreCommitFormattingGates = @(
     'NonASCIICharacters', 'FormatOperator', 'WriteVerboseDebug', 'BacktickContinuation'
 )

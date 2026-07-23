@@ -8,7 +8,7 @@
 # requests to bump outdated dependencies. PowerShell Gallery modules are not
 # a supported Dependabot ecosystem, so only GitHub Actions workflow pins are
 # covered here. Keep module versions in the manifest current by hand (or via
-# Install-Dependencies.ps1).
+# Install-Dependency.ps1).
 #
 # To customize:
 #   - Change interval to "monthly" if weekly PRs are too noisy.

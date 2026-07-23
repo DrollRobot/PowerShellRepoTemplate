@@ -22,11 +22,11 @@ git clone https://github.com/FIXME/FIXME.git
 ### Install Dependencies
 
 On the first import of the module (`Import-Module FIXME`),
-Confirm-Dependencies.ps1 verifies you have the required modules installed.
+Confirm-Dependency.ps1 verifies you have the required modules installed.
 If any are missing, it tells you to run a command similar to:
 
 ```powershell
-& "C:\Users\USER\Documents\PowerShell\Modules\FIXME\Install-Dependencies.ps1"
+& "C:\Users\USER\Documents\PowerShell\Modules\FIXME\Install-Dependency.ps1"
 ```
 
 The script installs every module listed in `RequiredModules` in the module

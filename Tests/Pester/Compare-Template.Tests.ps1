@@ -214,11 +214,20 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             'Docs.ps1'
             'Scripts/Compare-Template.ps1'
             'Scripts/Complete-WorkTree.ps1'
-            'Scripts/Enable-Release.ps1'
             'Scripts/New-Worktree.ps1'
             'Scripts/Push-NewTagToMain.ps1'
             'Scripts/Remove-WorkTree.ps1'
-            'Source/ScriptsToProcess/Confirm-Dependencies.ps1'
+            'Source/ScriptsToProcess/Confirm-Dependency.ps1'
+            'Tests/Test-BacktickContinuation.ps1'
+            'Tests/Test-ExplicitModuleImport.ps1'
+            'Tests/Test-FixmeComments.ps1'
+            'Tests/Test-FormatOperator.ps1'
+            'Tests/Test-JoinPath.ps1'
+            'Tests/Test-LineLength.ps1'
+            'Tests/Test-ModuleSyntax.ps1'
+            'Tests/Test-NonASCIICharacters.ps1'
+            'Tests/Test-PSSA.ps1'
+            'Tests/Test-WriteVerboseDebug.ps1'
         )
         foreach ($path in $whitelist) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
@@ -227,24 +236,16 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         }
     }
     It 'keeps other versioned dev scripts diff-only, never blind-copied' {
+        # Test-FindUnwantedStrings is the one Tests\Test-*.ps1 checker left diff-only
+        # (child-owned $UnwantedPatterns); every other checker is blind-copied above.
         $diffOnly = @(
             'Build.ps1'
             'Tests.ps1'
             'Scripts/TemplateSetup/Setup-NewProject.ps1'
             'Scripts/Find-ScriptCommand.ps1'
             'Scripts/Resolve-CommandModule.ps1'
-            'Source/ScriptsToProcess/Install-Dependencies.ps1'
-            'Tests/Test-LineLength.ps1'
-            'Tests/Test-PSSA.ps1'
-            'Tests/Test-FixmeComments.ps1'
+            'Source/ScriptsToProcess/Install-Dependency.ps1'
             'Tests/Test-FindUnwantedStrings.ps1'
-            'Tests/Test-WriteVerboseDebug.ps1'
-            'Tests/Test-NonASCIICharacters.ps1'
-            'Tests/Test-JoinPath.ps1'
-            'Tests/Test-FormatOperator.ps1'
-            'Tests/Test-BacktickContinuation.ps1'
-            'Tests/Test-ModuleSyntax.ps1'
-            'Tests/Test-ExplicitModuleImport.ps1'
         )
         foreach ($path in $diffOnly) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
@@ -254,7 +255,7 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
     }
     It 'treats the two known hand-edit points leniently' {
         $installDeps = $script:Manifest |
-            Where-Object Path -EQ 'Source/ScriptsToProcess/Install-Dependencies.ps1'
+            Where-Object Path -EQ 'Source/ScriptsToProcess/Install-Dependency.ps1'
         $installDeps.Strict | Should -BeFalse
         $unwantedStrings = $script:Manifest |
             Where-Object Path -EQ 'Tests/Test-FindUnwantedStrings.ps1'
@@ -291,8 +292,8 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
     }
     It 'gates the dependency-check pair on InstallDependenciesScript' {
         $pair = @(
-            'Source/ScriptsToProcess/Confirm-Dependencies.ps1'
-            'Source/ScriptsToProcess/Install-Dependencies.ps1'
+            'Source/ScriptsToProcess/Confirm-Dependency.ps1'
+            'Source/ScriptsToProcess/Install-Dependency.ps1'
         )
         foreach ($path in $pair) {
             $entry = $script:Manifest | Where-Object Path -EQ $path

@@ -55,19 +55,11 @@ with -DryRun):
 .\Scripts\TemplateSetup\Setup-NewProject.ps1
 ```
 
-It renames everything, stamps a fresh manifest GUID, fills in the GitHub
-owner/repo placeholders in URLs from `Project.GitHubUser` (leave it blank to
-skip and fill them in by hand), selects a license, removes any declined
-optional features, and lists the remaining FIXMEs to finish by hand. Set
-`[Git].Reinit = $true` in the config to start a fresh git history.
-
-The orchestrator lives in `Scripts\TemplateSetup\` alongside its individually
-runnable step scripts (e.g. `Set-GitHubUser.ps1`); `Scripts\setup.psd1` stays
-one level up so it survives once you delete `TemplateSetup\`.
-
-The release workflow (`.github\workflows\release.yml`) ships disarmed --
-`[Release].Enabled = $false` -- so tagging never publishes by accident. Run
-`Scripts\Enable-Release.ps1` once you are ready to cut real releases.
+It renames everything, strips educational comments, stamps a fresh manifest GUID,
+fills in the GitHub owner/repo placeholders in URLs from `Project.GitHubUser`
+(leave it blank to skip and fill them in by hand), selects a license, removes
+any declined optional features, and lists the remaining FIXMEs to finish by hand.
+Set `[Git].Reinit = $true` in the config to start a fresh git history.
 
 Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
 

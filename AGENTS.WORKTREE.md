@@ -41,7 +41,6 @@ Report that everything is committed and `PR.md` is written, then stop. The user
 takes it from there.
 
 ## Review
-
 - Never push, open a PR, run `Scripts/Complete-WorkTree.ps1`, merge, approve,
   enable auto-merge, force-push, or push to the base branch. Your job ends at
   "everything committed, `PR.md` written." Commit freely before then.

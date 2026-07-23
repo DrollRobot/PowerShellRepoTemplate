@@ -18,7 +18,7 @@
     Pass -Force to Install-Module, overwriting existing installations.
 
 .EXAMPLE
-    .\Install-Dependencies.ps1
+    .\Install-Dependency.ps1
 
 .PARAMETER Check
     Check whether all required modules are installed without installing anything.
@@ -30,16 +30,18 @@
     Useful for CI or wrapper scripts.
 
 .EXAMPLE
-    .\Install-Dependencies.ps1 -Scope AllUsers -WhatIf
+    .\Install-Dependency.ps1 -Scope AllUsers -WhatIf
 
 .EXAMPLE
-    .\Install-Dependencies.ps1 -Check
+    .\Install-Dependency.ps1 -Check
 
 .EXAMPLE
-    .\Install-Dependencies.ps1 -Check -Quiet
+    .\Install-Dependency.ps1 -Check -Quiet
 
 .NOTES
-Version 1.2.1
+Version 1.3.0
+1.3.0 - Renamed from Install-Dependencies.ps1 to Install-Dependency.ps1 (singular),
+        matching Invoke-RemoveDependency and Confirm-Dependency.ps1.
 1.2.1 - InstalledMax now coalesces to $null when nothing is installed, so
         $Plan.InstalledMax member access no longer throws PropertyNotFound
         under Set-StrictMode -Version Latest.
@@ -48,7 +50,7 @@ Version 1.2.1
         a version mismatch among them is reported with a recommendation to
         uninstall all Microsoft.Graph.* modules and re-run.
 1.1.0 - Added -Check and -Quiet parameters and hard coded module list for better integration
-        with Confirm-Dependencies.ps1.
+        with Confirm-Dependency.ps1.
 
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
@@ -66,7 +68,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.1'
+$ScriptVersion = '1.3.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

@@ -6,14 +6,12 @@ built artifacts in module root.
 
 
 ## Writing tests
-
 - All new code should have unit and integration tests, and e2e and/or live tests
     wherever possible/appropriate.
 - All tests should use the tag system described below. Tests MUST have at least
     one Scope tag (`unit`, `integration`, or `e2e`).
 
 ### Test Tags
-
 | Tag | Axis | Description |
 |------|------|-------------|
 | `unit` | Scope | Single function/class in isolation; all dependencies mocked or stubbed. |
@@ -36,7 +34,6 @@ Every `destructive` test MUST also carry exactly one of `local` or `remote`. A
 
 
 ## Running tests
-
 **First: Pester tests**
 ```powershell
 # run NotLive tests first, for rapid feedback
@@ -83,7 +80,6 @@ pre-commit run --all-files
 Add `-Quiet` to any formatting check for single line output.
 
 ## Destructive tests
-
 `.\Tests.ps1 Destructive` runs every test tagged `destructive`. Each such test
 must also carry exactly one of `local` or `remote` (see the tag table above);
 Tests.ps1 discovers the destructive tests first and refuses the entire category,
@@ -93,7 +89,6 @@ one subset exists (or is cleared), that subset still runs even though the other
 is refused or absent.
 
 ### Local destructive tests
-
 If the package contains `destructive`,`local` tests, check the
 `DISPOSABLE_ENVIRONMENT` environment variable.
 - `0` = User says this system is not disposable; never run destructive tests.
@@ -120,11 +115,9 @@ echo 'DISPOSABLE_ENVIRONMENT=0' | sudo tee -a /etc/environment
 MacOS:
 echo 'export DISPOSABLE_ENVIRONMENT=0' | sudo tee -a /etc/zprofile
 ```
-
 **Agents must NEVER set `DISPOSABLE_ENVIRONMENT` themselves.**
 
 ### Remote destructive tests
-
 If the package contains `destructive`,`remote` tests, `.\Tests.ps1 Destructive`
 runs `Tests\Confirm-RemoteDisposable.ps1` before them. That script decides
 whether the remote target this project is currently pointed at has been marked
@@ -136,11 +129,9 @@ stubs (they refuse until a project implements the FIXME in each); a project
 must wire the marker mechanism (a resource tag, a database row, a file on a
 reachable host, ...) to whatever kind of remote target its destructive tests
 touch.
-
 **Agents must NEVER run `Scripts\Set-RemoteDisposable.ps1` themselves.**
 
 ### Running destructive tests
-
 If the package contains destructive tests and the relevant gate(s) above are
 satisfied -- `DISPOSABLE_ENVIRONMENT` for the `local` subset, a confirmed
 target for the `remote` subset -- and the user has approved running destructive

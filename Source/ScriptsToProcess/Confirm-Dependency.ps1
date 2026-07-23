@@ -2,22 +2,24 @@
 .SYNOPSIS
     Pre-import dependency check. Should be added to ScriptsToProcess in the module manifest
     to run automatically when the module is imported.
-    Designed to be used in conjunction with Install-Dependencies.ps1.
+    Designed to be used in conjunction with Install-Dependency.ps1.
 
 .DESCRIPTION
     Dynamically locates the module root by walking up the directory tree from this script's
     location until a .psd1 manifest is found. Then recursively searches that root for
-    Install-Dependencies.ps1 and delegates to it with -Check -Quiet.
+    Install-Dependency.ps1 and delegates to it with -Check -Quiet.
 
     If all required modules are present, no output is produced. If any are missing,
-    Install-Dependencies.ps1 is called again without -Quiet to display remediation guidance,
+    Install-Dependency.ps1 is called again without -Quiet to display remediation guidance,
     then this script throws to abort the import cleanly. This prevents PowerShell's built-in
     "required module not found" error from appearing alongside the guidance already printed.
 
     No hardcoded paths are used -- this script can be placed anywhere within the module tree.
 
 .NOTES
-Version 1.2.0
+Version 1.3.0
+1.3.0 - Renamed from Confirm-Dependencies.ps1 to Confirm-Dependency.ps1 (singular),
+        matching Invoke-RemoveDependency and Install-Dependency.ps1.
 1.2.0 - The first successful check records the module root in the generic
         $Global:ModuleDependenciesChecked hashtable (keyed by module root path),
         and later imports of the same module skip the Get-Module scan. The table
@@ -31,7 +33,7 @@ param()
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.3.0'
 
 # Walk up from this script's directory to find the .psd1 manifest, which is the
 # canonical marker of the module root. This works regardless of where this script
@@ -63,8 +65,8 @@ $GvParams = @{
 $DepsChecked = Get-Variable @GvParams
 if ($DepsChecked -is [hashtable] -and $DepsChecked[$ModuleRoot]) { return }
 
-# Recursively search the module root for Install-Dependencies.ps1.
-$InstallScript = Get-ChildItem -Path $ModuleRoot -Filter 'Install-Dependencies.ps1' -Recurse -File |
+# Recursively search the module root for Install-Dependency.ps1.
+$InstallScript = Get-ChildItem -Path $ModuleRoot -Filter 'Install-Dependency.ps1' -Recurse -File |
     Select-Object -First 1 -ExpandProperty FullName
 
 if (-not $InstallScript) { return }

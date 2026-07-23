@@ -9,12 +9,12 @@
 #
 # Disarmed by default: the release job only runs when Scripts\setup.psd1's
 # Release.Enabled is true. A fresh clone -- including this template's own
-# repo -- can tag and push without publishing anything. Run
-# Scripts\Enable-Release.ps1 (or edit setup.psd1 by hand) once you are ready
-# to start cutting real releases.
+# repo -- can tag and push without publishing anything. Set Release.Enabled
+# to $true in Scripts\setup.psd1 by hand once you are ready to start cutting
+# real releases.
 #
 # To cut a release (see AGENTS.RELEASING.md for the full checklist):
-#   Scripts\Enable-Release.ps1   # once, when ready
+#   set Release.Enabled = $true in Scripts\setup.psd1   # once, when ready
 #   git tag v1.2.3
 #   git push origin v1.2.3
 #
@@ -54,7 +54,7 @@ jobs:
           "enabled=$($enabled.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           if (-not $enabled) {
               $message = 'Release.Enabled is false in Scripts\setup.psd1 -- ' +
-                  'skipping build and publish. Run Scripts\Enable-Release.ps1 to turn this on.'
+                  'skipping build and publish. Set it to $true to turn this on.'
               Write-Host "::warning::$message"
           }
 

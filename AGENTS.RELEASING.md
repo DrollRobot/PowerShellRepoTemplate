@@ -22,16 +22,12 @@ built artifacts in module root.
 - Commit any untracked files.
 
 ## Build
+Build the module/scripts:
 ```powershell
-# default: versioned build to Output\<ModuleName>\<version>\ (Gallery layout)
 .\Build.ps1
-
-# alternative: flat build to the repo root, for repos distributed by git clone
-.\Build.ps1 -BuildToRoot
 ```
-Test built module
-Run pester tests again on the built module (-Built prefers a root build,
-then falls back to the newest versioned build under Output\):
+
+Run pester tests again on the built module:
 ```powershell
 .\Tests.ps1 NotLive,Live -Built
 ```
@@ -79,5 +75,5 @@ current format rules. Do not rely on training data -- request a fresh copy every
 - The user will update manifest version, merge, tag, and push.
 - `.github\workflows\release.yml` only builds and publishes a GitHub release
   when `Scripts\setup.psd1`'s `Release.Enabled` is true (default `$false`).
-  Run `Scripts\Enable-Release.ps1` once, ahead of the first real tag, or the
-  push is a no-op.
+  Set it to `$true` by hand once, ahead of the first real tag, or the push
+  is a no-op.

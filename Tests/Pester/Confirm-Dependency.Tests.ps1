@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Pester tests for Source\ScriptsToProcess\Confirm-Dependencies.ps1.
+    Pester tests for Source\ScriptsToProcess\Confirm-Dependency.ps1.
 
 .DESCRIPTION
     The script walks up from its own $PSScriptRoot to find a module root
     (a directory containing a .psd1), then recursively finds
-    Install-Dependencies.ps1 under that root. A scratch copy of both scripts
+    Install-Dependency.ps1 under that root. A scratch copy of both scripts
     is placed under a fixture module tree so this is exercised in isolation.
     Uses `return`/`throw`, not `exit`, so it is safe to invoke in-process via
     the call operator. NotLive; no tag.
@@ -14,12 +14,12 @@
 BeforeAll {
     $RealConfirmParams = @{
         Path      = $PSScriptRoot
-        ChildPath = '..\..\Source\ScriptsToProcess\Confirm-Dependencies.ps1'
+        ChildPath = '..\..\Source\ScriptsToProcess\Confirm-Dependency.ps1'
     }
     $script:RealConfirm = (Resolve-Path (Join-Path @RealConfirmParams)).Path
     $RealInstallParams = @{
         Path      = $PSScriptRoot
-        ChildPath = '..\..\Source\ScriptsToProcess\Install-Dependencies.ps1'
+        ChildPath = '..\..\Source\ScriptsToProcess\Install-Dependency.ps1'
     }
     $script:RealInstall = (Resolve-Path (Join-Path @RealInstallParams)).Path
 
@@ -31,9 +31,9 @@ BeforeAll {
     New-Item -ItemType Directory -Path $script:ScratchDir -Force | Out-Null
 
     # Builds a fixture module tree: <root>\Fixture.psd1 (declaring the given
-    # RequiredModules), <root>\Install-Dependencies.ps1, and
-    # <root>\ScriptsToProcess\Confirm-Dependencies.ps1 -- so a walk-up from
-    # the nested Confirm-Dependencies.ps1 copy finds <root> as the module root.
+    # RequiredModules), <root>\Install-Dependency.ps1, and
+    # <root>\ScriptsToProcess\Confirm-Dependency.ps1 -- so a walk-up from
+    # the nested Confirm-Dependency.ps1 copy finds <root> as the module root.
     function script:New-ModuleFixture {
         param([string] $ManifestBody = '@{}')
         $RootParams = @{
@@ -48,9 +48,9 @@ BeforeAll {
             Value       = $ManifestBody
         }
         Set-Content @ManifestParams
-        $InstallCopy = Join-Path -Path $Root -ChildPath 'Install-Dependencies.ps1'
+        $InstallCopy = Join-Path -Path $Root -ChildPath 'Install-Dependency.ps1'
         Copy-Item -LiteralPath $script:RealInstall -Destination $InstallCopy
-        $ConfirmCopy = Join-Path -Path $ScriptsDir -ChildPath 'Confirm-Dependencies.ps1'
+        $ConfirmCopy = Join-Path -Path $ScriptsDir -ChildPath 'Confirm-Dependency.ps1'
         Copy-Item -LiteralPath $script:RealConfirm -Destination $ConfirmCopy
         return [pscustomobject]@{ Root = $Root; ConfirmScript = $ConfirmCopy }
     }
@@ -60,7 +60,7 @@ AfterAll {
     Remove-Item -LiteralPath $script:ScratchDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'Confirm-Dependencies' -Tag 'unit', 'functional' {
+Describe 'Confirm-Dependency' -Tag 'unit', 'functional' {
 
     AfterEach {
         # $Global:ModuleDependenciesChecked is keyed by module root path, so
@@ -87,7 +87,7 @@ Describe 'Confirm-Dependencies' -Tag 'unit', 'functional' {
     It 'skips re-checking once the module root is already recorded' {
         $Fixture = New-ModuleFixture
         $script:FixtureRoot = $Fixture.Root
-        # Pre-seed the cache, then delete Install-Dependencies.ps1 -- if the
+        # Pre-seed the cache, then delete Install-Dependency.ps1 -- if the
         # script re-scanned instead of trusting the cache, it would find
         # nothing to delegate to and simply `return`, which looks identical
         # to skipping from the outside. So additionally assert this via
@@ -97,7 +97,7 @@ Describe 'Confirm-Dependencies' -Tag 'unit', 'functional' {
             $Global:ModuleDependenciesChecked = @{}
         }
         $Global:ModuleDependenciesChecked[$Fixture.Root] = $true
-        $InstallScriptPath = Join-Path -Path $Fixture.Root -ChildPath 'Install-Dependencies.ps1'
+        $InstallScriptPath = Join-Path -Path $Fixture.Root -ChildPath 'Install-Dependency.ps1'
         Remove-Item -LiteralPath $InstallScriptPath
         { & $Fixture.ConfirmScript } | Should -Not -Throw
     }

@@ -17,7 +17,7 @@
     # It compares this against the template's copy: when the two disagree it flags
     # setup.psd1 for a manual diff so you can fold in new options -- it never copies
     # over your own choices. Bump only when the template changes the config's shape.
-    ScriptVersion = '1.2.0'
+    ScriptVersion = '2.5.1'
 
     Project = @{
         # New module name (PascalCase recommended), e.g. 'MyModule'. Used for
@@ -64,11 +64,9 @@
 
     Release = @{
         # Whether pushing a v* tag runs .github/workflows/release.yml's
-        # build-and-publish job. Starts false so a fresh clone -- including
-        # this template's own repo -- can tag and push without publishing
-        # anything. Flip on with Scripts\Enable-Release.ps1 (or set this to
-        # $true by hand) once ModuleBuilder packaging applies to your project
-        # and you are ready to start cutting real releases.
+        # build-and-publish job. Set this to $true by hand once ModuleBuilder
+        # packaging applies to your project and you are ready to start cutting real
+        # releases.
         Enabled = $false
     }
 
@@ -90,8 +88,8 @@
         # -- nothing else uses those helpers, so all three go together.
         ExplicitModuleImport = $true
 
-        # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependencies.ps1
-        # and Install-Dependencies.ps1, plus the ScriptsToProcess entry in the module
+        # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependency.ps1
+        # and Install-Dependency.ps1, plus the ScriptsToProcess entry in the module
         # manifest that wires the check in. false removes all three together.
         InstallDependenciesScript = $true
 

@@ -56,9 +56,9 @@
 
     # Modules that must be imported into the global environment prior to importing this module
     RequiredModules   = @(
-        # FIXME optionally use lazy loading with Confirm-Dependencies.ps1 and
-        # Install-Dependencies.ps1. If lazy loading, put modules in
-        # Install-Dependencies and here, but comment them out here.
+        # FIXME optionally use lazy loading with Confirm-Dependency.ps1 and
+        # Install-Dependency.ps1. If lazy loading, put modules in
+        # Install-Dependency and here, but comment them out here.
 
 
         # Dev/test dependencies -- not required for most users
@@ -74,7 +74,7 @@
     # Runs in caller scope (not module scope), so functions defined here are NOT tracked by
     # the module and survive Import-Module -Force reimports.
     ScriptsToProcess  = @(
-        'ScriptsToProcess\Confirm-Dependencies.ps1'
+        'ScriptsToProcess\Confirm-Dependency.ps1'
     )
 
     # Type files (.ps1xml) to be loaded when importing this module

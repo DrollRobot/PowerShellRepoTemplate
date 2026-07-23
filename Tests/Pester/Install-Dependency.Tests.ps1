@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Pester tests for Source\ScriptsToProcess\Install-Dependencies.ps1.
+    Pester tests for Source\ScriptsToProcess\Install-Dependency.ps1.
 
 .DESCRIPTION
     The script discovers its manifest via $PSScriptRoot (its own file
@@ -14,7 +14,7 @@
 BeforeAll {
     $RealScriptParams = @{
         Path      = $PSScriptRoot
-        ChildPath = '..\..\Source\ScriptsToProcess\Install-Dependencies.ps1'
+        ChildPath = '..\..\Source\ScriptsToProcess\Install-Dependency.ps1'
     }
     $script:RealScript = (Resolve-Path (Join-Path @RealScriptParams)).Path
 
@@ -35,7 +35,7 @@ BeforeAll {
         }
         $Dir = Join-Path @DirParams
         New-Item -ItemType Directory -Path $Dir -Force | Out-Null
-        $ScriptCopy = Join-Path -Path $Dir -ChildPath 'Install-Dependencies.ps1'
+        $ScriptCopy = Join-Path -Path $Dir -ChildPath 'Install-Dependency.ps1'
         Copy-Item -LiteralPath $script:RealScript -Destination $ScriptCopy
         $ManifestPath = Join-Path -Path $Dir -ChildPath 'Fixture.psd1'
         Set-Content -LiteralPath $ManifestPath -Value $ManifestBody
@@ -47,7 +47,7 @@ AfterAll {
     Remove-Item -LiteralPath $script:ScratchDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Describe 'Install-Dependencies -Check' -Tag 'unit', 'functional' {
+Describe 'Install-Dependency -Check' -Tag 'unit', 'functional' {
 
     It 'does not throw when the required module is already satisfied' {
         $ManifestBody = @'

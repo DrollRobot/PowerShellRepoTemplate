@@ -24,16 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Scripts\setup.psd1`: a `Release.Enabled` config item (default `$false`).
   `.github\workflows\release.yml`'s build-and-publish job now checks it before
   running, so a fresh clone -- including this template's own repo -- can tag
-  and push without publishing anything until you are ready.
-- `Scripts\Enable-Release.ps1`: flips `Release.Enabled` on (or off with
-  `-Disable`), editing only that line so the rest of `setup.psd1` is
-  untouched.
+  and push without publishing anything until you are ready. Set it to `$true`
+  by hand once you are ready to cut real releases.
 
 ### Changed
 
+- `Scripts\Compare-Template.ps1`: most of the `Tests\Test-*.ps1` code checkers
+  are now `-BlindCopy`. On top of the normal diff comparison, an outdated child
+  copy gets the low-friction, version-based pre-flight refresh from the template
+  (the same sync the worktree/release/docs tooling already uses).
+  `Test-FindUnwantedStrings.ps1` stays diff-only -- it holds child-owned lint
+  patterns -- as do `Build.ps1` and `Tests.ps1`.
 - `Scripts\setup.psd1`: renamed the `Features.Dependencies` toggle to
-  `Features.InstallDependenciesScript`, matching the `Install-Dependencies.ps1`
-  / `Confirm-Dependencies.ps1` scripts it controls.
+  `Features.InstallDependenciesScript`, matching the `Install-Dependency.ps1`
+  / `Confirm-Dependency.ps1` scripts it controls.
+- `Source\ScriptsToProcess\Install-Dependencies.ps1` and
+  `Confirm-Dependencies.ps1` renamed to `Install-Dependency.ps1` and
+  `Confirm-Dependency.ps1` (singular), matching `Invoke-RemoveDependency`.
 
 ### Fixed
 
@@ -41,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Features.InstallDependenciesScript` is declined: the feature-step
   dispatcher called `Invoke-RemoveDependencies`, but the function was defined
   as `Invoke-RemoveDependency` (singular).
+- `Setup-NewProject.ps1` no longer throws `PropertyNotFoundException` computing
+  `.Count` on the rename-preview lists in `Invoke-RenameProject`: a single
+  matched file unwraps to a scalar with no `.Count` property.
 
 ## [1.2.0] - 2026-07-22
 

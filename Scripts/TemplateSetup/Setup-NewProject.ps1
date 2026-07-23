@@ -81,7 +81,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.2.0'
+$ScriptVersion = '2.2.4'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -335,14 +335,14 @@ function Invoke-RenameProject {
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][bool]$DryRun
     )
-    $RenameTargets = Get-TemplateTextFile -RepoRoot $script:RepoRoot | Where-Object {
+    $RenameTargets = @(Get-TemplateTextFile -RepoRoot $script:RepoRoot | Where-Object {
         (Get-Content -Path $_.FullName -Raw) -match [regex]::Escape($script:TemplateName)
-    }
+    })
     $ExcludePattern = ($script:ExcludedFolders |
             ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
-    $FileRenames = Get-ChildItem -Path $script:RepoRoot -Recurse -File |
+    $FileRenames = @(Get-ChildItem -Path $script:RepoRoot -Recurse -File |
         Where-Object { $_.Name -match [regex]::Escape($script:TemplateName) } |
-        Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern }
+        Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern })
 
     Write-Info 'Rename project' "'$($script:TemplateName)' -> '$Name'"
     Write-Host "    Replace the template name in $($RenameTargets.Count) file(s)"
@@ -492,7 +492,7 @@ function Invoke-RemoveExplicitModuleImport {
 }
 
 # Removes the pre-import dependency-check feature: both ScriptsToProcess scripts, plus the
-# ScriptsToProcess entry that wires Confirm-Dependencies.ps1 into the (already renamed) module
+# ScriptsToProcess entry that wires Confirm-Dependency.ps1 into the (already renamed) module
 # manifest -- so a declined feature never leaves the manifest pointing at a deleted script.
 function Invoke-RemoveDependency {
     param(
@@ -500,8 +500,8 @@ function Invoke-RemoveDependency {
         [Parameter(Mandatory)][bool]$DryRun
     )
     $Targets = @(
-        'Source\ScriptsToProcess\Confirm-Dependencies.ps1'
-        'Source\ScriptsToProcess\Install-Dependencies.ps1'
+        'Source\ScriptsToProcess\Confirm-Dependency.ps1'
+        'Source\ScriptsToProcess\Install-Dependency.ps1'
     )
     Write-Info 'Remove dependency-check feature' ($Targets -join ', ')
     if ($DryRun) { return $true }
@@ -511,7 +511,7 @@ function Invoke-RemoveDependency {
     if (Test-Path -LiteralPath $ManifestPath) {
         $Content = Get-Content -Path $ManifestPath -Raw
         $Pattern = "(?ms)^    ScriptsToProcess  = @\(\r?\n" +
-        "        'ScriptsToProcess\\Confirm-Dependencies\.ps1'\r?\n    \)"
+        "        'ScriptsToProcess\\Confirm-Dependency\.ps1'\r?\n    \)"
         $Updated = $Content -replace $Pattern, '    ScriptsToProcess  = @()'
         if ($Updated -ne $Content) {
             Set-Content -Path $ManifestPath -Value $Updated -NoNewline
@@ -586,7 +586,7 @@ function Invoke-FeatureStep {
         'ContributingMd' { return Invoke-RemoveContributingMd -DryRun $DryRun }
         'ExplicitModuleImport' { return Invoke-RemoveExplicitModuleImport -DryRun $DryRun }
         'InstallDependenciesScript' {
-            return Invoke-RemoveDependencies -Name $Step.Name -DryRun $DryRun
+            return Invoke-RemoveDependency -Name $Step.Name -DryRun $DryRun
         }
         'FormattingTest' {
             $Params = @{ FileName = $Step.FileName; HookId = $Step.HookId; DryRun = $DryRun }
@@ -677,6 +677,9 @@ function Invoke-FixmeReport {
     $FixmeScript = Join-Path -Path $script:RepoRoot -ChildPath 'Tests\Test-FixmeComments.ps1'
     if (-not (Test-Path -LiteralPath $FixmeScript)) { return }
     Write-Section 'Remaining FIXMEs (finish these by hand)'
+    if (-not $Global:Dev_FormattingExclusions) {
+        $Global:Dev_FormattingExclusions = @{ ExcludeFiles = @(); ExcludeFolders = @() }
+    }
     & $FixmeScript -Path $script:RepoRoot -Recurse
 }
 
