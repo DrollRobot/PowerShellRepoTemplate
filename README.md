@@ -65,6 +65,10 @@ The orchestrator lives in `Scripts\TemplateSetup\` alongside its individually
 runnable step scripts (e.g. `Set-GitHubUser.ps1`); `Scripts\setup.psd1` stays
 one level up so it survives once you delete `TemplateSetup\`.
 
+The release workflow (`.github\workflows\release.yml`) ships disarmed --
+`[Release].Enabled = $false` -- so tagging never publishes by accident. Run
+`Scripts\Enable-Release.ps1` once you are ready to cut real releases.
+
 Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
 
 ```powershell

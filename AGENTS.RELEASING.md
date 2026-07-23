@@ -77,3 +77,7 @@ current format rules. Do not rely on training data -- request a fresh copy every
 
 ## Hand off to user
 - The user will update manifest version, merge, tag, and push.
+- `.github\workflows\release.yml` only builds and publishes a GitHub release
+  when `Scripts\setup.psd1`'s `Release.Enabled` is true (default `$false`).
+  Run `Scripts\Enable-Release.ps1` once, ahead of the first real tag, or the
+  push is a no-op.

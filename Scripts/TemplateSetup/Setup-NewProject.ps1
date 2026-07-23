@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Converts this template into a new PowerShell module project, driven by a config file.
 
@@ -81,7 +81,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.1.1'
+$ScriptVersion = '2.2.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -221,8 +221,8 @@ function Test-SetupConfig {
     $FeatureContributingMd = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.ExplicitModuleImport'; Problems = $Problems }
     $FeatureExplicitImport = Get-ConfigBool @Params
-    $Params = @{ Raw = $Raw; Path = 'Features.Dependencies'; Problems = $Problems }
-    $FeatureDependencies = Get-ConfigBool @Params
+    $Params = @{ Raw = $Raw; Path = 'Features.InstallDependenciesScript'; Problems = $Problems }
+    $FeatureInstallDependenciesScript = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.NonASCIICharacters'; Problems = $Problems }
     $FeatureNonASCII = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.FormatOperator'; Problems = $Problems }
@@ -282,25 +282,25 @@ function Test-SetupConfig {
     }
 
     return [pscustomobject]@{
-        Problems                 = $Problems
-        Name                     = $Name
-        GitHubUser               = $GitHubUser
-        LicenseKey               = $LicenseKey
-        LicenseYear              = $LicenseYear
-        LicenseName              = $LicenseName
-        LicenseCompany           = $LicenseCompany
-        GitBranch                = $GitBranch
-        GitReinit                = $GitReinit
-        FeatureDocs              = $FeatureDocs
-        FeatureSecurityMd        = $FeatureSecurityMd
-        FeatureContributingMd    = $FeatureContributingMd
-        FeatureExplicitImport    = $FeatureExplicitImport
-        FeatureDependencies      = $FeatureDependencies
-        FeatureNonASCII          = $FeatureNonASCII
-        FeatureFormatOperator    = $FeatureFormatOperator
-        FeatureWriteVerboseDebug = $FeatureWriteVerboseDebug
-        FeatureBacktick          = $FeatureBacktick
-        FeatureUnwantedLocal     = $FeatureUnwantedLocal
+        Problems                         = $Problems
+        Name                             = $Name
+        GitHubUser                       = $GitHubUser
+        LicenseKey                       = $LicenseKey
+        LicenseYear                      = $LicenseYear
+        LicenseName                      = $LicenseName
+        LicenseCompany                   = $LicenseCompany
+        GitBranch                        = $GitBranch
+        GitReinit                        = $GitReinit
+        FeatureDocs                      = $FeatureDocs
+        FeatureSecurityMd                = $FeatureSecurityMd
+        FeatureContributingMd            = $FeatureContributingMd
+        FeatureExplicitImport            = $FeatureExplicitImport
+        FeatureInstallDependenciesScript = $FeatureInstallDependenciesScript
+        FeatureNonASCII                  = $FeatureNonASCII
+        FeatureFormatOperator            = $FeatureFormatOperator
+        FeatureWriteVerboseDebug         = $FeatureWriteVerboseDebug
+        FeatureBacktick                  = $FeatureBacktick
+        FeatureUnwantedLocal             = $FeatureUnwantedLocal
     }
 }
 
@@ -310,7 +310,7 @@ function Invoke-StripHeader {
     param([Parameter(Mandatory)][bool]$DryRun)
     $MarkdownBlock = '(?ms)^<!--\s*\r?\n=+\r?\nTEMPLATE SETUP NOTES.*?-->\s*\r?\n'
     $HashBlock =
-        '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
+    '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
     $Changed = @()
     foreach ($File in (Get-TemplateTextFile -RepoRoot $script:RepoRoot)) {
         $Content = Get-Content -Path $File.FullName -Raw
@@ -585,7 +585,9 @@ function Invoke-FeatureStep {
         'SecurityMd' { return Invoke-RemoveSecurityMd -DryRun $DryRun }
         'ContributingMd' { return Invoke-RemoveContributingMd -DryRun $DryRun }
         'ExplicitModuleImport' { return Invoke-RemoveExplicitModuleImport -DryRun $DryRun }
-        'Dependencies' { return Invoke-RemoveDependencies -Name $Step.Name -DryRun $DryRun }
+        'InstallDependenciesScript' {
+            return Invoke-RemoveDependencies -Name $Step.Name -DryRun $DryRun
+        }
         'FormattingTest' {
             $Params = @{ FileName = $Step.FileName; HookId = $Step.HookId; DryRun = $DryRun }
             return Invoke-RemoveFormattingTest @Params
@@ -596,8 +598,9 @@ function Invoke-FeatureStep {
 
 # Build the list of feature steps this run needs, in a fixed order, from the validated config.
 # Declined keep-by-default features (Docs, SecurityMd, ContributingMd, ExplicitModuleImport,
-# Dependencies, the four formatting checks) are included as removals; UnwantedStringsLocal is the
-# opposite -- it is included when true (opted in), since false is the always-shipped default.
+# InstallDependenciesScript, the four formatting checks) are included as removals;
+# UnwantedStringsLocal is the opposite -- it is included when true (opted in), since false is the
+# always-shipped default.
 function Get-FeatureStep {
     param([Parameter(Mandatory)][pscustomobject]$Config)
 
@@ -617,10 +620,10 @@ function Get-FeatureStep {
                 Type = 'ExplicitModuleImport'
             })
     }
-    if (-not $Config.FeatureDependencies) {
+    if (-not $Config.FeatureInstallDependenciesScript) {
         $Steps.Add([pscustomobject]@{
                 Key  = 'remove_dependencies'
-                Type = 'Dependencies'
+                Type = 'InstallDependenciesScript'
                 Name = $Config.Name
             })
     }

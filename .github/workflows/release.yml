@@ -7,7 +7,14 @@
 # publishes a GitHub release with those zips attached. Triggers on push of a
 # 'v*' tag (e.g. v1.2.3). Uses the built-in github.token -- no PAT to set up.
 #
+# Disarmed by default: the release job only runs when Scripts\setup.psd1's
+# Release.Enabled is true. A fresh clone -- including this template's own
+# repo -- can tag and push without publishing anything. Run
+# Scripts\Enable-Release.ps1 (or edit setup.psd1 by hand) once you are ready
+# to start cutting real releases.
+#
 # To cut a release (see AGENTS.RELEASING.md for the full checklist):
+#   Scripts\Enable-Release.ps1   # once, when ready
 #   git tag v1.2.3
 #   git push origin v1.2.3
 #
@@ -29,7 +36,31 @@ permissions:
   contents: write
 
 jobs:
+  check:
+    runs-on: windows-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Check release feature is enabled
+        id: check
+        shell: pwsh
+        run: |
+          $config = Import-PowerShellDataFile -Path 'Scripts\setup.psd1'
+          $enabled = [bool]$config.Release.Enabled
+          "enabled=$($enabled.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if (-not $enabled) {
+              $message = 'Release.Enabled is false in Scripts\setup.psd1 -- ' +
+                  'skipping build and publish. Run Scripts\Enable-Release.ps1 to turn this on.'
+              Write-Host "::warning::$message"
+          }
+
   release:
+    needs: check
+    if: needs.check.outputs.enabled == 'true'
     runs-on: windows-latest
 
     steps:

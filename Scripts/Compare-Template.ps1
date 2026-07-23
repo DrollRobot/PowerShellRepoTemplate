@@ -133,7 +133,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.4.1'
+$ScriptVersion = '2.5.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -228,9 +228,9 @@ $script:OwnerToken = 'FIX' + 'ME'
 # whole notes body behind; the greedy run backtracks off the trailing blank line to
 # land on the real closing rule.
 $script:MarkdownBanner =
-    '(?ms)^<!--\s*\r?\n=+\r?\nTEMPLATE SETUP NOTES.*?-->\s*\r?\n'
+'(?ms)^<!--\s*\r?\n=+\r?\nTEMPLATE SETUP NOTES.*?-->\s*\r?\n'
 $script:HashBanner =
-    '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
+'(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
 
 # Extracts a script's own $ScriptVersion. Anchored to line start so the
 # SuppressMessageAttribute line above the declaration cannot match. The '$' is
@@ -300,6 +300,7 @@ $script:Manifest = @(
     # GitHub automation and templates.
     (New-Entry '.github/workflows/ci.yml')
     (New-Entry '.github/workflows/docs.yml' -Required $false -Gate 'Docs')
+    (New-Entry '.github/workflows/release.yml')
     (New-Entry '.github/dependabot.yml')
     (New-Entry '.github/pull_request_template.md')
     (New-Entry '.github/ISSUE_TEMPLATE/bug_report.yml')
@@ -328,7 +329,7 @@ $script:Manifest = @(
     (New-Entry 'Scripts/setup.psd1' -VersionOnly $true)
     # Module scaffolding that tracks the template (normalized for the name).
     (New-Entry 'Source/Build.psd1')
-    $DepsGate = @{ Gate = 'Dependencies' }
+    $DepsGate = @{ Gate = 'InstallDependenciesScript' }
     (New-Entry 'Source/ScriptsToProcess/Confirm-Dependencies.ps1' -BlindCopy $true @DepsGate)
     # Has a '# FIXME: optionally mirror...' hand-edit block -- diff-only, lenient.
     (New-Entry 'Source/ScriptsToProcess/Install-Dependencies.ps1' -Strict $false @DepsGate)
@@ -340,6 +341,7 @@ $script:Manifest = @(
     (New-Entry 'Docs.ps1' -BlindCopy $true -Gate 'Docs')
     (New-Entry 'Scripts/Compare-Template.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Complete-WorkTree.ps1' -BlindCopy $true)
+    (New-Entry 'Scripts/Enable-Release.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/New-Worktree.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Push-NewTagToMain.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Remove-WorkTree.ps1' -BlindCopy $true)
@@ -872,16 +874,16 @@ function Get-ChildOrigin {
 # each takes when the child's Scripts\setup.psd1 is missing, unreadable, or simply
 # does not mention that key -- matching what an unedited config means for it.
 $script:FeatureDefaults = @{
-    Docs                 = $true
-    SecurityMd           = $true
-    ContributingMd       = $true
-    ExplicitModuleImport = $true
-    Dependencies         = $true
-    NonASCIICharacters   = $true
-    FormatOperator       = $true
-    WriteVerboseDebug    = $true
-    BacktickContinuation = $true
-    UnwantedStringsLocal = $false
+    Docs                      = $true
+    SecurityMd                = $true
+    ContributingMd            = $true
+    ExplicitModuleImport      = $true
+    InstallDependenciesScript = $true
+    NonASCIICharacters        = $true
+    FormatOperator            = $true
+    WriteVerboseDebug         = $true
+    BacktickContinuation      = $true
+    UnwantedStringsLocal      = $false
 }
 
 # Resolve which config-driven features this child kept, from its own Scripts\setup.psd1. Falls

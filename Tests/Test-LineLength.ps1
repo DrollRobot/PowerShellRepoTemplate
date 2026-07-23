@@ -75,11 +75,11 @@ if (-not $AnyType) {
     $files = @($files | Where-Object Extension -in '.ps1', '.psm1', '.psd1')
 }
 $files = @($files |
-    Where-Object {
-        $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
-        (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
-    })
+        Where-Object {
+            $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
+            (-not ($ExcludedFiles -contains $Rel)) -and
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
+        })
 $hitCount = 0
 $totalLines = 0
 $hits = [System.Collections.Generic.List[PSCustomObject]]::new()

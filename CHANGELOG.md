@@ -19,6 +19,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Scripts\setup.psd1`: a `Release.Enabled` config item (default `$false`).
+  `.github\workflows\release.yml`'s build-and-publish job now checks it before
+  running, so a fresh clone -- including this template's own repo -- can tag
+  and push without publishing anything until you are ready.
+- `Scripts\Enable-Release.ps1`: flips `Release.Enabled` on (or off with
+  `-Disable`), editing only that line so the rest of `setup.psd1` is
+  untouched.
+
+### Changed
+
+- `Scripts\setup.psd1`: renamed the `Features.Dependencies` toggle to
+  `Features.InstallDependenciesScript`, matching the `Install-Dependencies.ps1`
+  / `Confirm-Dependencies.ps1` scripts it controls.
+
+### Fixed
+
+- `Setup-NewProject.ps1` no longer throws `CommandNotFoundException` when
+  `Features.InstallDependenciesScript` is declined: the feature-step
+  dispatcher called `Invoke-RemoveDependencies`, but the function was defined
+  as `Invoke-RemoveDependency` (singular).
+
 ## [1.2.0] - 2026-07-22
 
 ### Added

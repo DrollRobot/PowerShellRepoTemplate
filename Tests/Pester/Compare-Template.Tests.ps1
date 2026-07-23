@@ -99,7 +99,7 @@ Describe 'Remove-TemplateBanner' -Tag 'unit', 'functional' {
         # title, then the close. A lazy match stops at the divider and leaves
         # the notes body; assert the whole box (body included) is removed.
         $text = "# ======`n# TEMPLATE SETUP NOTES`n# ======`n# body one`n" +
-            "# body two`n# ======`nreal: content`n"
+        "# body two`n# ======`nreal: content`n"
         Remove-TemplateBanner $text | Should -Be "real: content`n"
     }
     It 'leaves text without a banner unchanged' {
@@ -202,11 +202,19 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         $entry.Required | Should -BeTrue
         $entry.Strict | Should -BeTrue
     }
+    It 'tracks the release workflow as a strict required entry, ungated' {
+        $entry = $script:Manifest | Where-Object Path -EQ '.github/workflows/release.yml'
+        $entry | Should -Not -BeNullOrEmpty
+        $entry.Required | Should -BeTrue
+        $entry.Strict | Should -BeTrue
+        $entry.Gate | Should -BeNullOrEmpty
+    }
     It 'tracks the curated whitelist as blind-copy eligible' {
         $whitelist = @(
             'Docs.ps1'
             'Scripts/Compare-Template.ps1'
             'Scripts/Complete-WorkTree.ps1'
+            'Scripts/Enable-Release.ps1'
             'Scripts/New-Worktree.ps1'
             'Scripts/Push-NewTagToMain.ps1'
             'Scripts/Remove-WorkTree.ps1'
@@ -281,14 +289,14 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             $entry.Gate | Should -Be 'ExplicitModuleImport' -Because "$path should be gated"
         }
     }
-    It 'gates the dependency-check pair on Dependencies' {
+    It 'gates the dependency-check pair on InstallDependenciesScript' {
         $pair = @(
             'Source/ScriptsToProcess/Confirm-Dependencies.ps1'
             'Source/ScriptsToProcess/Install-Dependencies.ps1'
         )
         foreach ($path in $pair) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
-            $entry.Gate | Should -Be 'Dependencies' -Because "$path should be gated"
+            $entry.Gate | Should -Be 'InstallDependenciesScript' -Because "$path should be gated"
         }
     }
     It 'gates each opinionated formatting check on its own feature' {
@@ -341,7 +349,7 @@ Describe 'Get-ChildFeatureFlag' -Tag 'integration', 'functional' {
         $flags = Get-ChildFeatureFlag -ChildRoot $script:FlagScratchDir
         $flags['Docs'] | Should -BeTrue
         $flags['SecurityMd'] | Should -BeTrue
-        $flags['Dependencies'] | Should -BeTrue
+        $flags['InstallDependenciesScript'] | Should -BeTrue
         $flags['UnwantedStringsLocal'] | Should -BeFalse
     }
     It 'reads a real [Features] table and leaves unmentioned keys at their default' {

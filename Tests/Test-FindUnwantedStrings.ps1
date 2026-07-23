@@ -104,12 +104,12 @@ $Files = foreach ($Item in $Path) {
     }
 }
 $Files = @($Files |
-    Where-Object { $_.Extension -notin $ExcludedExtensions } |
-    Where-Object {
-        $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
-        (-not ($ExcludedFiles -contains $Rel)) -and
-        (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
-    })
+        Where-Object { $_.Extension -notin $ExcludedExtensions } |
+        Where-Object {
+            $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
+            (-not ($ExcludedFiles -contains $Rel)) -and
+            (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
+        })
 
 $Hits = [System.Collections.Generic.List[PSCustomObject]]::new()
 $ExceptionCount = 0

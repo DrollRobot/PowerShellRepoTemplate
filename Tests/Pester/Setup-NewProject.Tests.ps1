@@ -93,16 +93,16 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
             License  = @{ Key = 'none'; Year = ''; Name = ''; Company = '' }
             Git      = @{ Branch = 'main'; Reinit = $false }
             Features = @{
-                Docs                 = $true
-                SecurityMd           = $true
-                ContributingMd       = $true
-                ExplicitModuleImport = $true
-                Dependencies         = $true
-                NonASCIICharacters   = $true
-                FormatOperator       = $true
-                WriteVerboseDebug    = $true
-                BacktickContinuation = $true
-                UnwantedStringsLocal = $false
+                Docs                      = $true
+                SecurityMd                = $true
+                ContributingMd            = $true
+                ExplicitModuleImport      = $true
+                InstallDependenciesScript = $true
+                NonASCIICharacters        = $true
+                FormatOperator            = $true
+                WriteVerboseDebug         = $true
+                BacktickContinuation      = $true
+                UnwantedStringsLocal      = $false
             }
         }
         foreach ($Key in $Overrides.Keys) { $Base[$Key] = $Overrides[$Key] }
@@ -206,7 +206,7 @@ Describe 'Setup-NewProject -DryRun' -Tag 'integration', 'functional' {
         SecurityMd = $true
         ContributingMd = $true
         ExplicitModuleImport = $true
-        Dependencies = $true
+        InstallDependenciesScript = $true
         NonASCIICharacters = $true
         FormatOperator = $true
         WriteVerboseDebug = $true
