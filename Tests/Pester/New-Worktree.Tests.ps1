@@ -147,7 +147,7 @@ Describe 'New-Worktree' -Tag 'integration', 'functional' {
             FilePath     = 'pwsh'
             ArgumentList = @(
                 '-NoProfile', '-NonInteractive', '-File', $script:Sut,
-                'fixture-slug', 'develop', '-NoBootstrap', '-Yes'
+                'fixture-slug', 'develop', '-NoBootstrap', '-NoOpenVSCode', '-Yes'
             )
             WorkingDirectory = $script:RepoPath
             NoNewWindow      = $true

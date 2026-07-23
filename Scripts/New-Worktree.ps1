@@ -32,6 +32,11 @@
 .PARAMETER NoBootstrap
     Skip the per-worktree setup (.vscode/.env links and dependency install).
 
+.PARAMETER NoOpenVSCode
+    Skip the final step that opens the generated workspace in VS Code. Useful
+    for non-interactive/automated runs (including this script's own tests) where
+    launching an editor window is unwanted.
+
 .PARAMETER Yes
     Assume 'yes' to every confirmation prompt (non-interactive). The prompt is
     still printed with the auto-answer so the transcript records each step.
@@ -44,6 +49,9 @@
 
 .EXAMPLE
     .\New-Worktree.ps1 issue-42 -NoBootstrap
+
+.EXAMPLE
+    .\New-Worktree.ps1 issue-42 -NoOpenVSCode
 
 .EXAMPLE
     .\New-Worktree.ps1 issue-42 -Yes
@@ -75,6 +83,8 @@ param(
     [string]$Base = 'develop',
 
     [switch]$NoBootstrap,
+
+    [switch]$NoOpenVSCode,
 
     [Alias('y')]
     [switch]$Yes
@@ -542,7 +552,10 @@ if (-not $NoBootstrap) {
 # --- step: open VS Code -----------------------------------------------------
 
 Write-Section 'Step: open VS Code'
-if (Get-Command code -ErrorAction SilentlyContinue) {
+if ($NoOpenVSCode) {
+    Write-Info 'Open' "skipped (-NoOpenVSCode); open manually: $wsFile"
+}
+elseif (Get-Command code -ErrorAction SilentlyContinue) {
     Confirm-Step "Open VS Code with '$wsName'?"
     Invoke-Run code $wsFile
 }
