@@ -7,25 +7,20 @@ PowerShell module repos. Scripts\TemplateSetup\Setup-NewProject.ps1 automates
 most of the conversion; see "Making a new repo from this template" below.
 =============================================================================
 -->
-
 # PowershellRepoTemplate
-
 <!-- FIXME: replace badges below with your own CI/Gallery/license links -->
 [![CI](https://github.com/FIXME/FIXME/actions/workflows/ci.yml/badge.svg)](https://github.com/FIXME/FIXME/actions/workflows/ci.yml)
 [![PowerShell](https://img.shields.io/badge/powershell-7.5%2B-blue)](https://learn.microsoft.com/en-us/powershell/)
 [![License](https://img.shields.io/badge/license-FIXME-green)](LICENSE)
 
 <!-- FIXME: one paragraph describing what this module does and who should use it -->
-
 A baseline for new PowerShell module repos with the most commonly used tools
 and community best practices, plus guardrails that work well with AI coding
 agents (AGENTS.md, formatting checks, FIXME tracking).
 
 # Tool choices
-
 Based on personal preference and what I understand are the most widely used
 tools in the PowerShell ecosystem.
-
 - **ModuleBuilder** to compile per-function source files into a single
   distributable .psm1 + manifest.
 - **Pester** for testing. The standard for Powershell.
@@ -33,15 +28,12 @@ tools in the PowerShell ecosystem.
   option for Powershell.
 - **PlatyPS** Official Microsoft tool for generating per-command markdown
   help from comment-based help.
-- **mkdocs-material** for the documentation site. Integrates easily with
-  GitHub Pages for hosting.
+- **mkdocs-material** for the documentation site. Integrates easily with Github pages.
 - **GitHub Actions** for CI and docs deployment.
 - **VSCode** for development. Workspace, launch configs included.
 
 ## Making a new repo from this template
-
 Clone the repo, naming the new folder after your module:
-
 ```powershell
 git clone https://github.com/FIXME/PowershellRepoTemplate.git YourModuleName
 ```
@@ -62,7 +54,6 @@ any declined optional features, and lists the remaining FIXMEs to finish by hand
 Set `[Git].Reinit = $true` in the config to start a fresh git history.
 
 Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
-
 ```powershell
 uv tool install pre-commit
 pre-commit install
@@ -72,7 +63,6 @@ uvx detect-secrets scan @(git ls-files) > .secrets.baseline
 ```
 
 ## Layout
-
 - `Source\` -- module source: `Public\` (exported functions, one per file),
   `Private\`, `Classes\`, `ScriptsToProcess\`, plus the manifest and the dev
   loader psm1. ModuleBuilder notes live in each folder.
