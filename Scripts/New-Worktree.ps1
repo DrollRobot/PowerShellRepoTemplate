@@ -95,7 +95,7 @@ $ErrorActionPreference = 'Stop'
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.3.3'
+$ScriptVersion = '1.3.4'
 
 # --- output helpers ---------------------------------------------------------
 
