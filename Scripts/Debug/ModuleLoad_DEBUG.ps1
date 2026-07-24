@@ -13,6 +13,8 @@ $ModuleName = Split-Path -Path $ModuleRoot -Leaf
 $InformationPreference = 'Continue'
 
 $Path = "$ModuleRoot\Source\$ModuleName.psd1" # source
-# $Path = "$ModuleRoot\$ModuleName.psd1" # built
+# $Path = "$ModuleRoot\$ModuleName.psd1" # buildtoroot
+# $Path = "$ModuleRoot\Output\$ModuleName\$ModuleName.psd1" # built
+# $Path = "$ModuleRoot\Output\$ModuleName\*\$ModuleName.psd1" # built w/version
 Write-Host "Importing from: $Path" -ForegroundColor Green
 Import-Module $Path -Force
