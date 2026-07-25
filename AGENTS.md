@@ -70,8 +70,10 @@ function Write-Trace {
 - Always use hashtable splatting (`@Params`) for cmdlets with more than 2 arguments.
 - String construction: Use inline subexpressions, ("...$($x.ToString())...") not format
    operator (-f).
-- Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named parameters.
-   (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`)
+- Building paths: Prefer Join-Path over [System.IO.Path]::Combine(). Always use named
+   parameters. (`Join-Path -Path $x -ChildPath $y` over `Join-Path $x $y`)
+- Do not fight automatic formatting. Always commit autoformatting changes, even if
+   they're out of scope for the current task.
 
 ## Commit Messages
 Review before writing commit messages: [AGENTS.COMMITTING.md](AGENTS.COMMITTING.md).
