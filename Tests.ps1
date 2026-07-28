@@ -581,21 +581,45 @@ try {
                     New-PesterContainer -Path $LintFile.FullName -Data $FileData
                 }
             )
+            # Pester's own per-test output is suppressed and the findings are
+            # rendered here instead: each lint test throws its findings as the
+            # exception message, one 'path:line: detail' per line, so the report
+            # is the same terse, greppable shape the standalone checks produce.
             $LintSplat = @{
                 Container = $LintContainers
                 TagFilter = 'lint'
                 PassThru  = $true
+                Output    = 'None'
             }
-            if ($Quiet) { $LintSplat['Output'] = 'None' }
             $LintResult = Invoke-Pester @LintSplat
-            if ($Quiet) {
-                $LintTotal = $LintResult.PassedCount + $LintResult.FailedCount
-                $LintSecs = [math]::Round($LintResult.Duration.TotalSeconds, 2)
-                $LintColor = if ($LintResult.FailedCount -gt 0) { 'Red' } else { 'Green' }
-                $LintMsg = "$($LintResult.FailedCount) lint failure(s) -- " +
-                "$LintTotal check(s). (${LintSecs}s)"
-                Write-Host $LintMsg -ForegroundColor $LintColor
+
+            $LintFindings = [System.Collections.Generic.List[string]]::new()
+            foreach ($FailedTest in $LintResult.Failed) {
+                $FailMessage = $FailedTest.ErrorRecord.Exception.Message
+                $LintFindings.AddRange([string[]] ($FailMessage -split '\r?\n'))
             }
+            if (-not $Quiet) {
+                foreach ($Finding in $LintFindings) {
+                    Write-Host $Finding -ForegroundColor Red
+                }
+            }
+            # A container that fails to load (syntax error, bad -Data key) never
+            # produces a test result, so report those separately or the run would
+            # look clean while nothing actually ran.
+            foreach ($LintContainer in $LintResult.Containers) {
+                if (-not $LintContainer.ErrorRecord) { continue }
+                foreach ($ContainerError in $LintContainer.ErrorRecord) {
+                    Write-Host "lint container error: $ContainerError" -ForegroundColor Red
+                    $FormattingFailedCount++
+                }
+            }
+
+            $LintChecks = $LintResult.PassedCount + $LintResult.FailedCount
+            $LintSecs = [math]::Round($LintResult.Duration.TotalSeconds, 2)
+            $LintColor = if ($LintFindings.Count -gt 0) { 'Red' } else { 'Green' }
+            $LintMsg = "$($LintFindings.Count) lint finding(s) -- " +
+            "$LintChecks check(s). (${LintSecs}s)"
+            Write-Host $LintMsg -ForegroundColor $LintColor
             $PesterFailedCount += $LintResult.FailedCount
         }
     }

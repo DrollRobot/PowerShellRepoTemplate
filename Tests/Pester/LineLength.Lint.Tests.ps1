@@ -11,7 +11,7 @@
     To suppress a finding on a specific line, append the inline exemption
     marker:
 
-        <code>  # noqa: Test-LineLength
+        <code>  # noqa: LineLength
 
     Parameterized via a Pester container. Tests.ps1's 'Lint' category builds
     the container, feeding static values from Tests\TestConfig.psd1 plus the
@@ -63,20 +63,20 @@ BeforeDiscovery {
     $script:LintCases = @(Build-TestFileList @CaseParams)
 }
 
-Describe 'LineLength lint' -Tag 'lint' {
+Describe 'LineLength' -Tag 'lint' {
 
-    It '<RelativePath> has no lines over <MaxLength> chars' -ForEach $script:LintCases {
+    It '<RelativePath>' -ForEach $script:LintCases {
         $Lines = @(Get-Content -LiteralPath $FullName)
         $Hits = for ($i = 0; $i -lt $Lines.Count; $i++) {
             if ($null -eq $Lines[$i]) { continue }
-            if ($Lines[$i] -match '#\s*noqa:\s*Test-LineLength') { continue }
+            if ($Lines[$i] -match '#\s*noqa:\s*LineLength') { continue }
             if ($Lines[$i].Length -gt $MaxLength) {
-                "line $($i + 1): $($Lines[$i].Length) chars"
+                "$($RelativePath) Line:$($i + 1) Length:$($Lines[$i].Length)"
             }
         }
-        $Because = "every line must be at most $MaxLength characters. " +
-        "Fix all findings, even ones unrelated to your changes; do not use " +
-        "backtick continuations. Findings:`n" + ($Hits -join "`n")
-        @($Hits).Count | Should -Be 0 -Because $Because
+        # throw, not Should: Tests.ps1 prints Exception.Message verbatim, and
+        # only a raw throw leaves it free of "Expected ... but got ..." wrapping.
+        # One finding per line, each already prefixed with its file path.
+        if ($Hits) { throw ($Hits -join [System.Environment]::NewLine) }
     }
 }
