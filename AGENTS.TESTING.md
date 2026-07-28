@@ -4,15 +4,7 @@ In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
 Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, Docs/Commands/, and any
 built artifacts in module root.
 
-
-## Writing tests
-- All new code should have unit and integration tests, and e2e and/or live tests
-    wherever possible/appropriate.
-- All tests should use the tag system described below. Every test MUST carry at
-    least one Scope tag: `unit`, `integration`, `e2e`, or `lint`. Add other tags
-    where appropriate.
-
-### Test Tags
+## Test Tags
 | Tag | Axis | Description |
 |------|------|-------------|
 | `unit` | Scope | Single function/class in isolation; all dependencies mocked or stubbed. |
@@ -29,11 +21,12 @@ built artifacts in module root.
 | `remote` | Destructive scope | Paired with `destructive`: mutates an external target. Gated on `Tests\Confirm-RemoteDisposable.ps1` confirming it (not throwing). |
 | `slow` | Performance | Long-running. |
 
-Every `destructive` test MUST also carry exactly one of `local` or `remote`. A
-`destructive` test tagged with neither, or with both, causes
-`.\Tests.ps1 Destructive` to refuse the entire category, fail-closed -- see
-"Destructive tests" below.
-
+## Writing tests
+- All new code should have unit and integration tests, and further tests
+    wherever possible/appropriate.
+- Every test MUST carry at least one Scope tag: `unit`, `integration`, `e2e`, or `lint`.
+- Tests that mutate an environment, either the local device or a remote system MUST
+    carry the `destructive` tag, and either `local` or `remote`.
 
 ## Running tests
 **First: Pester tests**
