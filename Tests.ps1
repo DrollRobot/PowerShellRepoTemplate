@@ -26,13 +26,20 @@
 .PARAMETER Test
     One or more test categories to run. Accepted values:
 
-      NotLive              -- Pester tests that are not tagged 'live' or
-                             'destructive'. No connectivity or external
-                             resources required.
+      NotLive              -- Pester tests that are not tagged 'live',
+                             'destructive', or 'lint'. No connectivity or
+                             external resources required.
       Live                 -- Pester tests tagged 'live', excluding any also
                              tagged 'destructive'. Connectivity/auth setup is
                              provided by the project's PreTests.ps1 hook;
                              without one, the live-tagged tests run as-is.
+      Lint                 -- Pester-based lint checks: every *.Lint.Tests.ps1
+                             in Tests\Pester (and .local\tests), tagged 'lint'.
+                             Each file runs via a Pester container whose -Data
+                             merges Tests\TestConfig.psd1's 'lint' table with
+                             the scan target (-Path) and computed build-artifact
+                             exclusions. Kept out of NotLive by tag so lint
+                             findings never mix into functional test runs.
       Destructive          -- Pester tests tagged 'destructive'. Each such test
                              must also carry exactly one scope tag, 'local' or
                              'remote'; a test tagged 'destructive' with neither
@@ -92,8 +99,10 @@
 .PARAMETER Quiet
     Forward -Quiet to the individual formatting checks so each prints only its
     one-line summary (files scanned + findings), suppressing detail tables and
-    finding notes. Intended for agents that just need a quick pass/fail. Applies
-    to individual checks, not the Formatting aggregate or Pester runs.
+    finding notes. For the Lint category, suppresses per-test Pester output and
+    prints a one-line summary instead. Intended for agents that just need a
+    quick pass/fail. Does not apply to the Formatting aggregate or the NotLive,
+    Live, and Destructive Pester runs.
 
 .EXAMPLE
     .\Tests.ps1 NotLive
@@ -110,6 +119,14 @@
 .EXAMPLE
     .\Tests.ps1 Formatting
     Runs all formatting checks and auto-fixes.
+
+.EXAMPLE
+    .\Tests.ps1 Lint
+    Runs the Pester-based lint checks with values from Tests\TestConfig.psd1.
+
+.EXAMPLE
+    .\Tests.ps1 Lint -Path .\Source\Public -Quiet
+    Lints just Source\Public and prints a one-line summary.
 
 .EXAMPLE
     .\Tests.ps1 LineLength JoinPath
@@ -150,7 +167,7 @@
 param(
     [Parameter(Position = 0, Mandatory, ValueFromRemainingArguments)]
     [ValidateSet(
-        'NotLive', 'Live', 'Destructive', 'Formatting',
+        'NotLive', 'Live', 'Destructive', 'Lint', 'Formatting',
         'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
         'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
         'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
@@ -183,7 +200,7 @@ if ($InteractiveAuth -and 'Live' -notin $Test) {
 
 # error when requesting formatting tests on built module
 $FormattingOnlyValues = @(
-    'Formatting', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
+    'Formatting', 'Lint', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
     'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
     'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
 )
@@ -286,6 +303,17 @@ $BuildConfig = Import-PowerShellDataFile -Path $BuildPsd1Path
 $CopyPaths = if ($BuildConfig.ContainsKey('CopyPaths')) { $BuildConfig.CopyPaths } else { @() }
 $CopiedFolderNames = @($CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
 
+# Optional per-project test configuration: a hashtable keyed by category
+# (lowercase), each value the -Data table for that category's Pester
+# containers. See Tests\TestConfig.psd1.
+$TestConfigPath = Join-Path -Path $TestsFolder -ChildPath 'TestConfig.psd1'
+$TestConfig = if (Test-Path $TestConfigPath) {
+    Import-PowerShellDataFile -Path $TestConfigPath
+}
+else {
+    @{}
+}
+
 # Exposed as a global (not just via $TestContext) because the formatting/lint
 # scripts run as separate invocations and can only see globals. Test-Explicit-
 # ModuleImport prefers this over folder-name detection, so the module name stays
@@ -373,7 +401,7 @@ try {
         Write-Host "`n=== Invoke-Pester (NotLive) ===" -ForegroundColor Cyan
         $NotLiveSplat = @{
             Path             = $PesterTarget
-            ExcludeTagFilter = 'live', 'destructive'
+            ExcludeTagFilter = 'live', 'destructive', 'lint'
             PassThru         = $true
         }
         $NotLiveResult = Invoke-Pester @NotLiveSplat
@@ -494,6 +522,81 @@ try {
         }
         catch {
             Write-Host $_.Exception.Message -ForegroundColor Red
+        }
+    }
+
+    # --- Lint ---
+    # Pester-based lint checks: every *.Lint.Tests.ps1 in Tests\Pester and
+    # .local\tests, run via containers. Static values come from
+    # Tests\TestConfig.psd1's 'lint' table; the scan target and the computed
+    # build-artifact exclusions are merged in here. Data is subset per file to
+    # the parameters it declares, so lint files may differ in signature.
+    if ('Lint' -in $Test) {
+        Write-Host "`n=== Invoke-Pester (Lint) ===" -ForegroundColor Cyan
+        $LintFiles = @(Get-ChildItem -Path $PesterTestsFolder -Filter '*.Lint.Tests.ps1')
+        if (Test-Path $LocalTestsFolder) {
+            $LintFiles += @(Get-ChildItem -Path $LocalTestsFolder -Filter '*.Lint.Tests.ps1')
+        }
+        if (-not $LintFiles) {
+            Write-Host 'No *.Lint.Tests.ps1 files found.' -ForegroundColor Yellow
+        }
+        else {
+            $LintData = if ($TestConfig.ContainsKey('lint')) {
+                $TestConfig['lint'].Clone()
+            }
+            else {
+                @{}
+            }
+            # Resolve config exclusions against the repo root and append the
+            # build-artifact exclusions (built module files at the repo root,
+            # CopyPaths folders from Build.psd1).
+            $ConfigExcludePaths = @(
+                if ($LintData.ContainsKey('ExcludePath')) { $LintData['ExcludePath'] }
+            )
+            $ComputedExcludePaths = @(
+                "$ModuleName.psd1"
+                "$ModuleName.psm1"
+            ) + $CopiedFolderNames
+            $LintData['ExcludePath'] = @(
+                $ConfigExcludePaths + $ComputedExcludePaths | ForEach-Object {
+                    if ([System.IO.Path]::IsPathRooted($_)) {
+                        $_
+                    }
+                    else {
+                        Join-Path -Path $PSScriptRoot -ChildPath $_
+                    }
+                }
+            )
+            $LintData['Path'] = $TargetPath
+            $LintContainers = @(
+                foreach ($LintFile in $LintFiles) {
+                    # Subset Data to this file's declared parameters: the config
+                    # table may hold keys (e.g. MaxLength) other lint files do
+                    # not take, and unknown Data keys are a binding error.
+                    $DeclaredParams = (Get-Command -Name $LintFile.FullName).Parameters.Keys
+                    $FileData = @{}
+                    foreach ($Key in $LintData.Keys) {
+                        if ($Key -in $DeclaredParams) { $FileData[$Key] = $LintData[$Key] }
+                    }
+                    New-PesterContainer -Path $LintFile.FullName -Data $FileData
+                }
+            )
+            $LintSplat = @{
+                Container = $LintContainers
+                TagFilter = 'lint'
+                PassThru  = $true
+            }
+            if ($Quiet) { $LintSplat['Output'] = 'None' }
+            $LintResult = Invoke-Pester @LintSplat
+            if ($Quiet) {
+                $LintTotal = $LintResult.PassedCount + $LintResult.FailedCount
+                $LintSecs = [math]::Round($LintResult.Duration.TotalSeconds, 2)
+                $LintColor = if ($LintResult.FailedCount -gt 0) { 'Red' } else { 'Green' }
+                $LintMsg = "$($LintResult.FailedCount) lint failure(s) -- " +
+                "$LintTotal check(s). (${LintSecs}s)"
+                Write-Host $LintMsg -ForegroundColor $LintColor
+            }
+            $PesterFailedCount += $LintResult.FailedCount
         }
     }
 

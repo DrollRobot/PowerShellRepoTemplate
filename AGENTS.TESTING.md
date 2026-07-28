@@ -8,8 +8,9 @@ built artifacts in module root.
 ## Writing tests
 - All new code should have unit and integration tests, and e2e and/or live tests
     wherever possible/appropriate.
-- All tests should use the tag system described below. Tests MUST have at least
-    one Scope tag (`unit`, `integration`, or `e2e`).
+- All tests should use the tag system described below. Every test MUST carry at
+    least one Scope tag: `unit`, `integration`, `e2e`, or `lint`. Add other tags
+    where appropriate.
 
 ### Test Tags
 | Tag | Axis | Description |
@@ -17,6 +18,7 @@ built artifacts in module root.
 | `unit` | Scope | Single function/class in isolation; all dependencies mocked or stubbed. |
 | `integration` | Scope | Multiple real components wired together across a boundary. |
 | `e2e` | Scope | Whole application end to end, driven like a real user. |
+| `lint` | Scope | Validates user's preferred code formatting. Run via `.\Tests.ps1 Lint`, excluded from NotLive. |
 | `smoke` | Purpose | Fast "is it fundamentally broken" check. |
 | `regression` | Purpose | Guards against reintroduction of a previously fixed bug. |
 | `acceptance` | Purpose | Verifies behavior against a requirement or user-facing spec. |
