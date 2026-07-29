@@ -13,8 +13,9 @@
     preview; -Yes skips the confirmation (the preview still runs first).
 
     Steps always run in this order, regardless of the config file's own table order: strip
-    TEMPLATE SETUP NOTES banners -> replace the template name, rename files that carry it, and
-    stamp a fresh manifest GUID -> fill in the GitHub owner/repo placeholders (Project.GitHubUser;
+    TEMPLATE SETUP NOTES banners -> delete the ModuleBuilderNotes.md scaffolding files under
+    Source\ -> replace the template name, rename files that carry it, and stamp a fresh manifest
+    GUID -> fill in the GitHub owner/repo placeholders (Project.GitHubUser;
     blank skips) -> select a license -> remove any declined [Features] (docs
     site, SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the pre-import
     dependency check, the opinionated formatting checks, each independently) and relocate the
@@ -30,7 +31,8 @@
 
     This orchestrator and its step scripts live in Scripts\TemplateSetup\. Shared console-output
     and file-walk helpers come from Scripts\TemplateSetup\_Common.ps1; individually runnable
-    steps are being split into their own scripts there (e.g. Set-GitHubUser.ps1). Scripts\setup.psd1
+    steps are being split into their own scripts there (e.g. Set-GitHubUser.ps1,
+    Remove-ModuleBuilderNote.ps1). Scripts\setup.psd1
     deliberately stays one level up in Scripts\ so it survives once TemplateSetup\ is removed and
     Scripts\Compare-Template.ps1 can keep reading it.
 
@@ -81,7 +83,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.2.4'
+$ScriptVersion = '2.3.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -105,6 +107,7 @@ $script:DryRunMode = [bool] $DryRun
 # Individually runnable step scripts, dot-sourced for their functions only; each guards its own
 # parameter-driven body against running under a dot-source.
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Set-GitHubUser.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Remove-ModuleBuilderNote.ps1')
 
 # Set AFTER the dot-sources: a step's -RepoRoot param defaults to empty, and dot-sourcing it here
 # would otherwise overwrite this. This script lives in Scripts\TemplateSetup\, so the repo root is
@@ -735,6 +738,7 @@ if ($Config.Problems.Count -gt 0) {
 
 Write-Section 'Preview'
 $null = Invoke-StripHeader -DryRun $true
+$null = Remove-ModuleBuilderNote -RepoRoot $script:RepoRoot -DryRun $true
 $null = Invoke-RenameProject -Name $Config.Name -DryRun $true
 $GitHubUserPreviewParams = @{
     RepoRoot   = $script:RepoRoot
@@ -777,6 +781,9 @@ $Failed = [System.Collections.Generic.List[string]]::new()
 
 Invoke-SetupStep -Key 'strip_headers' -Failed $Failed -Action {
     Invoke-StripHeader -DryRun $false
+}
+Invoke-SetupStep -Key 'remove_modulebuilder_notes' -Failed $Failed -Action {
+    Remove-ModuleBuilderNote -RepoRoot $script:RepoRoot -DryRun $false
 }
 Invoke-SetupStep -Key 'rename_project' -Failed $Failed -Action {
     Invoke-RenameProject -Name $Config.Name -DryRun $false

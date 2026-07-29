@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Scripts\TemplateSetup\Remove-ModuleBuilderNote.ps1`: a standalone setup step
+  that deletes every `ModuleBuilderNotes.md` scaffolding file under `Source\`.
+  `Setup-NewProject.ps1` runs it right after the header strip; it is always on
+  (no `[Features]` toggle) and runnable on its own.
 - `Scripts\setup.psd1`: a `Release.Enabled` config item (default `$false`).
   `.github\workflows\release.yml`'s build-and-publish job now checks it before
   running, so a fresh clone -- including this template's own repo -- can tag

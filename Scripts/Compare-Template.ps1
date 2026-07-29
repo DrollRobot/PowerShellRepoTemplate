@@ -356,6 +356,7 @@ $script:Manifest = @(
     (New-Entry 'Scripts/TemplateSetup/Setup-NewProject.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/_Common.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Set-GitHubUser.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/Remove-ModuleBuilderNote.ps1' -Required $false)
     # Code-style and hygiene checkers.
     (New-Entry 'Tests/Test-BacktickContinuation.ps1' -BlindCopy $true -Gate 'BacktickContinuation')
     (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -BlindCopy $true -Gate 'ExplicitModuleImport')

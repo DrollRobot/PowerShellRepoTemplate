@@ -47,7 +47,8 @@ with -DryRun):
 .\Scripts\TemplateSetup\Setup-NewProject.ps1
 ```
 
-It renames everything, strips educational comments, stamps a fresh manifest GUID,
+It renames everything, strips educational comments (including the
+`ModuleBuilderNotes.md` files under `Source\`), stamps a fresh manifest GUID,
 fills in the GitHub owner/repo placeholders in URLs from `Project.GitHubUser`
 (leave it blank to skip and fill them in by hand), selects a license, removes
 any declined optional features, and lists the remaining FIXMEs to finish by hand.
