@@ -8,7 +8,9 @@
     Install-Dependency.ps1 under that root. A scratch copy of both scripts
     is placed under a fixture module tree so this is exercised in isolation.
     Uses `return`/`throw`, not `exit`, so it is safe to invoke in-process via
-    the call operator. NotLive; no tag.
+    the call operator. It delegates to Install-Dependency.ps1, which banners
+    via Write-Host; Pester does not capture stream 6, so every invocation
+    redirects it to keep the run output clean. NotLive; no tag.
 #>
 
 BeforeAll {
@@ -73,13 +75,13 @@ Describe 'Confirm-Dependency' -Tag 'unit', 'functional' {
     It 'discovers the module root by walking up and succeeds when deps are satisfied' {
         $Fixture = New-ModuleFixture
         $script:FixtureRoot = $Fixture.Root
-        { & $Fixture.ConfirmScript } | Should -Not -Throw
+        { & $Fixture.ConfirmScript 6>$null } | Should -Not -Throw
     }
 
     It 'records the module root in $Global:ModuleDependenciesChecked on success' {
         $Fixture = New-ModuleFixture
         $script:FixtureRoot = $Fixture.Root
-        & $Fixture.ConfirmScript
+        & $Fixture.ConfirmScript 6>$null
         $Global:ModuleDependenciesChecked | Should -Not -BeNullOrEmpty
         $Global:ModuleDependenciesChecked[$Fixture.Root] | Should -BeTrue
     }
@@ -99,7 +101,7 @@ Describe 'Confirm-Dependency' -Tag 'unit', 'functional' {
         $Global:ModuleDependenciesChecked[$Fixture.Root] = $true
         $InstallScriptPath = Join-Path -Path $Fixture.Root -ChildPath 'Install-Dependency.ps1'
         Remove-Item -LiteralPath $InstallScriptPath
-        { & $Fixture.ConfirmScript } | Should -Not -Throw
+        { & $Fixture.ConfirmScript 6>$null } | Should -Not -Throw
     }
 
     It 'throws when a required module is missing and not yet cached' {
@@ -112,7 +114,7 @@ Describe 'Confirm-Dependency' -Tag 'unit', 'functional' {
 '@
         $Fixture = New-ModuleFixture -ManifestBody $ManifestBody
         $script:FixtureRoot = $Fixture.Root
-        { & $Fixture.ConfirmScript } | Should -Throw
+        { & $Fixture.ConfirmScript 6>$null } | Should -Throw
     }
 
     It 'does not record the module root when a required module is missing' {
@@ -125,7 +127,7 @@ Describe 'Confirm-Dependency' -Tag 'unit', 'functional' {
 '@
         $Fixture = New-ModuleFixture -ManifestBody $ManifestBody
         $script:FixtureRoot = $Fixture.Root
-        try { & $Fixture.ConfirmScript } catch { }
+        try { & $Fixture.ConfirmScript 6>$null } catch { }
         if ($Global:ModuleDependenciesChecked -is [hashtable]) {
             $Global:ModuleDependenciesChecked[$Fixture.Root] | Should -Not -Be $true
         }

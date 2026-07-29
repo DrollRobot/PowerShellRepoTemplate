@@ -164,19 +164,24 @@ Describe 'Remove-WorkTree' -Tag 'integration', 'functional' {
     }
 
     It 'removes the worktree and deletes its branch' {
+        $OutFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-out.txt'
+        $ErrFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-err.txt'
         $Params = @{
-            FilePath         = 'pwsh'
-            ArgumentList     = @(
+            FilePath               = 'pwsh'
+            ArgumentList           = @(
                 '-NoProfile', '-NonInteractive', '-File', $script:Sut,
                 'issue-1', 'develop', '-Yes'
             )
-            WorkingDirectory = $script:RepoPath
-            NoNewWindow      = $true
-            Wait             = $true
-            PassThru         = $true
+            WorkingDirectory       = $script:RepoPath
+            NoNewWindow            = $true
+            Wait                   = $true
+            PassThru               = $true
+            RedirectStandardOutput = $OutFile
+            RedirectStandardError  = $ErrFile
         }
         $Proc = Start-Process @Params
-        $Proc.ExitCode | Should -Be 0
+        $StdErr = Get-Content -LiteralPath $ErrFile -Raw
+        $Proc.ExitCode | Should -Be 0 -Because "the child wrote: $StdErr"
 
         $Worktrees = & git -C $script:RepoPath worktree list --porcelain
         ($Worktrees -join "`n") | Should -Not -Match 'issue-1'

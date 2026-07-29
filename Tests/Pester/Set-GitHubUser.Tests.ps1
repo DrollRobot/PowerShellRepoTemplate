@@ -8,7 +8,9 @@
     tree. The script guards its parameter-driven body with
     `if ($MyInvocation.InvocationName -eq '.') { return }`, so dot-sourcing it
     reaches the Set-GitHubUser function (and the shared helpers it dot-sources)
-    without running the standalone entrypoint.
+    without running the standalone entrypoint. The function reports progress via
+    Write-Host; Pester does not capture stream 6, so every call redirects it to
+    keep the run output clean.
 #>
 
 BeforeAll {
@@ -48,7 +50,8 @@ Describe 'Set-GitHubUser' -Tag 'unit', 'functional' {
             GitHubUser = 'octocat'
             DryRun     = $false
         }
-        Set-GitHubUser @Params | Should -BeTrue
+        $Applied = Set-GitHubUser @Params 6>$null
+        $Applied | Should -BeTrue
 
         $Result = Get-Content -LiteralPath $script:ReadmePath -Raw
         $Result | Should -Match 'github.com/octocat/MyModule'
@@ -64,7 +67,8 @@ Describe 'Set-GitHubUser' -Tag 'unit', 'functional' {
             GitHubUser = 'octocat'
             DryRun     = $true
         }
-        Set-GitHubUser @Params | Should -BeTrue
+        $Applied = Set-GitHubUser @Params 6>$null
+        $Applied | Should -BeTrue
 
         (Get-Content -LiteralPath $script:ReadmePath -Raw) | Should -Be $Before
     }
@@ -77,7 +81,8 @@ Describe 'Set-GitHubUser' -Tag 'unit', 'functional' {
             GitHubUser = ''
             DryRun     = $false
         }
-        Set-GitHubUser @Params | Should -BeTrue
+        $Applied = Set-GitHubUser @Params 6>$null
+        $Applied | Should -BeTrue
 
         (Get-Content -LiteralPath $script:ReadmePath -Raw) | Should -Be $Before
     }
@@ -89,9 +94,11 @@ Describe 'Set-GitHubUser' -Tag 'unit', 'functional' {
             GitHubUser = 'octocat'
             DryRun     = $false
         }
-        Set-GitHubUser @Params | Should -BeTrue
+        $FirstApplied = Set-GitHubUser @Params 6>$null
+        $FirstApplied | Should -BeTrue
         $AfterFirst = Get-Content -LiteralPath $script:ReadmePath -Raw
-        Set-GitHubUser @Params | Should -BeTrue
+        $SecondApplied = Set-GitHubUser @Params 6>$null
+        $SecondApplied | Should -BeTrue
 
         (Get-Content -LiteralPath $script:ReadmePath -Raw) | Should -Be $AfterFirst
     }

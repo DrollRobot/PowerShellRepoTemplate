@@ -143,19 +143,24 @@ Describe 'New-Worktree' -Tag 'integration', 'functional' {
     }
 
     It 'creates a worktree and branch from a fixture repo' {
+        $OutFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-out.txt'
+        $ErrFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-err.txt'
         $Params = @{
-            FilePath     = 'pwsh'
-            ArgumentList = @(
+            FilePath               = 'pwsh'
+            ArgumentList           = @(
                 '-NoProfile', '-NonInteractive', '-File', $script:Sut,
                 'fixture-slug', 'develop', '-NoBootstrap', '-NoOpenVSCode', '-Yes'
             )
-            WorkingDirectory = $script:RepoPath
-            NoNewWindow      = $true
-            Wait             = $true
-            PassThru         = $true
+            WorkingDirectory       = $script:RepoPath
+            NoNewWindow            = $true
+            Wait                   = $true
+            PassThru               = $true
+            RedirectStandardOutput = $OutFile
+            RedirectStandardError  = $ErrFile
         }
         $Proc = Start-Process @Params
-        $Proc.ExitCode | Should -Be 0
+        $StdErr = Get-Content -LiteralPath $ErrFile -Raw
+        $Proc.ExitCode | Should -Be 0 -Because "the child wrote: $StdErr"
 
         $Branches = & git -C $script:RepoPath branch --list 'wt/fixture-slug'
         $Branches | Should -Not -BeNullOrEmpty
