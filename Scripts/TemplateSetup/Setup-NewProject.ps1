@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Converts this template into a new PowerShell module project, driven by a config file.
 
@@ -336,13 +336,13 @@ function Invoke-RenameProject {
         [Parameter(Mandatory)][bool]$DryRun
     )
     $RenameTargets = @(Get-TemplateTextFile -RepoRoot $script:RepoRoot | Where-Object {
-        (Get-Content -Path $_.FullName -Raw) -match [regex]::Escape($script:TemplateName)
-    })
+            (Get-Content -Path $_.FullName -Raw) -match [regex]::Escape($script:TemplateName)
+        })
     $ExcludePattern = ($script:ExcludedFolders |
             ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
     $FileRenames = @(Get-ChildItem -Path $script:RepoRoot -Recurse -File |
-        Where-Object { $_.Name -match [regex]::Escape($script:TemplateName) } |
-        Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern })
+            Where-Object { $_.Name -match [regex]::Escape($script:TemplateName) } |
+            Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern })
 
     Write-Info 'Rename project' "'$($script:TemplateName)' -> '$Name'"
     Write-Host "    Replace the template name in $($RenameTargets.Count) file(s)"
@@ -677,10 +677,11 @@ function Invoke-FixmeReport {
     $FixmeScript = Join-Path -Path $script:RepoRoot -ChildPath 'Tests\Test-FixmeComments.ps1'
     if (-not (Test-Path -LiteralPath $FixmeScript)) { return }
     Write-Section 'Remaining FIXMEs (finish these by hand)'
-    if (-not $Global:Dev_FormattingExclusions) {
-        $Global:Dev_FormattingExclusions = @{ ExcludeFiles = @(); ExcludeFolders = @() }
-    }
-    & $FixmeScript -Path $script:RepoRoot -Recurse
+    # The script prints its table and summary, then throws when it finds any, so a test
+    # caller can gate on findings. Here the report is informational only: swallow the
+    # throw so a repo with open FIXMEs still reaches 'Setup complete'.
+    try { & $FixmeScript -Path $script:RepoRoot -Recurse }
+    catch { }
 }
 
 # Run one apply-phase step, recording its key in $Failed on a returned failure or a thrown
