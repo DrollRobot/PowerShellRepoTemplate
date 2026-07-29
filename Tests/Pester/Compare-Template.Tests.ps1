@@ -218,16 +218,18 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             'Scripts/Push-NewTagToMain.ps1'
             'Scripts/Remove-WorkTree.ps1'
             'Source/ScriptsToProcess/Confirm-Dependency.ps1'
-            'Tests/Test-BacktickContinuation.ps1'
             'Tests/Test-ExplicitModuleImport.ps1'
-            'Tests/Test-FixmeComments.ps1'
-            'Tests/Test-FormatOperator.ps1'
-            'Tests/Test-JoinPath.ps1'
-            'Tests/Test-LineLength.ps1'
             'Tests/Test-ModuleSyntax.ps1'
-            'Tests/Test-NonASCIICharacters.ps1'
             'Tests/Test-PSSA.ps1'
-            'Tests/Test-WriteVerboseDebug.ps1'
+            'Tests/Pester/Build-TestFileList.ps1'
+            'Tests/Pester/Read-LintFile.ps1'
+            'Tests/Pester/BacktickContinuation.Lint.Tests.ps1'
+            'Tests/Pester/FixmeComments.Lint.Tests.ps1'
+            'Tests/Pester/FormatOperator.Lint.Tests.ps1'
+            'Tests/Pester/JoinPath.Lint.Tests.ps1'
+            'Tests/Pester/LineLength.Lint.Tests.ps1'
+            'Tests/Pester/NonASCIICharacters.Lint.Tests.ps1'
+            'Tests/Pester/WriteVerboseDebug.Lint.Tests.ps1'
         )
         foreach ($path in $whitelist) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
@@ -236,8 +238,8 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         }
     }
     It 'keeps other versioned dev scripts diff-only, never blind-copied' {
-        # Test-FindUnwantedStrings is the one Tests\Test-*.ps1 checker left diff-only
-        # (child-owned $UnwantedPatterns); every other checker is blind-copied above.
+        # UnwantedStrings is the one lint check left diff-only (child-owned
+        # $UnwantedPattern); every other check is blind-copied above.
         $diffOnly = @(
             'Build.ps1'
             'Tests.ps1'
@@ -245,7 +247,8 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             'Scripts/Find-ScriptCommand.ps1'
             'Scripts/Resolve-CommandModule.ps1'
             'Source/ScriptsToProcess/Install-Dependency.ps1'
-            'Tests/Test-FindUnwantedStrings.ps1'
+            'Tests/TestConfig.psd1'
+            'Tests/Pester/UnwantedStrings.Lint.Tests.ps1'
         )
         foreach ($path in $diffOnly) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
@@ -253,13 +256,15 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             $entry.BlindCopy | Should -BeFalse -Because "$path should not be blind-copy eligible"
         }
     }
-    It 'treats the two known hand-edit points leniently' {
+    It 'treats the known hand-edit points leniently' {
         $installDeps = $script:Manifest |
             Where-Object Path -EQ 'Source/ScriptsToProcess/Install-Dependency.ps1'
         $installDeps.Strict | Should -BeFalse
         $unwantedStrings = $script:Manifest |
-            Where-Object Path -EQ 'Tests/Test-FindUnwantedStrings.ps1'
+            Where-Object Path -EQ 'Tests/Pester/UnwantedStrings.Lint.Tests.ps1'
         $unwantedStrings.Strict | Should -BeFalse
+        $testConfig = $script:Manifest | Where-Object Path -EQ 'Tests/TestConfig.psd1'
+        $testConfig.Strict | Should -BeFalse
     }
     It 'tracks the setup config file as version-only, never blind-copied' {
         $entry = $script:Manifest | Where-Object Path -EQ 'Scripts/setup.psd1'
@@ -302,10 +307,10 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
     }
     It 'gates each opinionated formatting check on its own feature' {
         $gateMap = @{
-            'Tests/Test-NonASCIICharacters.ps1'   = 'NonASCIICharacters'
-            'Tests/Test-FormatOperator.ps1'       = 'FormatOperator'
-            'Tests/Test-WriteVerboseDebug.ps1'    = 'WriteVerboseDebug'
-            'Tests/Test-BacktickContinuation.ps1' = 'BacktickContinuation'
+            'Tests/Pester/NonASCIICharacters.Lint.Tests.ps1'   = 'NonASCIICharacters'
+            'Tests/Pester/FormatOperator.Lint.Tests.ps1'       = 'FormatOperator'
+            'Tests/Pester/WriteVerboseDebug.Lint.Tests.ps1'    = 'WriteVerboseDebug'
+            'Tests/Pester/BacktickContinuation.Lint.Tests.ps1' = 'BacktickContinuation'
         }
         foreach ($path in $gateMap.Keys) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
@@ -319,10 +324,11 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         $contributing.Gate | Should -Be 'ContributingMd'
     }
     It 'points the unwanted-strings entry at a local override, not a gate' {
-        $entry = $script:Manifest | Where-Object Path -EQ 'Tests/Test-FindUnwantedStrings.ps1'
+        $entry = $script:Manifest |
+            Where-Object Path -EQ 'Tests/Pester/UnwantedStrings.Lint.Tests.ps1'
         $entry.Gate | Should -BeNullOrEmpty
         $entry.LocalOverrideFlag | Should -Be 'UnwantedStringsLocal'
-        $entry.LocalOverridePath | Should -Be '.local/tests/Test-FindUnwantedStrings.ps1'
+        $entry.LocalOverridePath | Should -Be '.local/tests/UnwantedStrings.Lint.Tests.ps1'
     }
 }
 

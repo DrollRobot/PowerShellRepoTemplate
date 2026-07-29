@@ -31,9 +31,10 @@
       9. Report any remaining FIXMEs. Read-only, always last, and not gated by -DryRun's
          early exit.
 
-    Removing a formatting-check feature also drops its .pre-commit-config.yaml hook entry, if
-    present, so a declined check never leaves a dangling commit-hook reference to a deleted
-    script. Scripts\Compare-Template.ps1 reads the same [Features] table afterward, so a declined
+    Removing a formatting-check feature deletes that check's Tests\Pester\*.Lint.Tests.ps1 file.
+    The pre-commit hook is shared by every lint check (Tests.ps1 runs whichever files
+    are present), so nothing is left dangling and the hook itself stays.
+    Scripts\Compare-Template.ps1 reads the same [Features] table afterward, so a declined
     feature is never reported as missing drift.
 
     This orchestrator and its step scripts live in Scripts\TemplateSetup\. Shared console-output
@@ -90,7 +91,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.4.0'
+$ScriptVersion = '2.5.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -570,53 +571,41 @@ function Invoke-RemoveDependency {
     return $true
 }
 
-# Remove the block for one hook (matched by its 'id:') from .pre-commit-config.yaml, if the file
-# and that hook are present. Each hook is 5 lines: the '- id:' line plus 4 indented property
-# lines, usually followed by one blank separator line before the next hook.
-function Invoke-RemovePreCommitHook {
-    param([Parameter(Mandatory)][string]$HookId)
-    $PreCommitPath = Join-Path -Path $script:RepoRoot -ChildPath '.pre-commit-config.yaml'
-    if (-not (Test-Path -LiteralPath $PreCommitPath)) { return }
-    $Text = Get-Content -Path $PreCommitPath -Raw
-    $Escaped = [regex]::Escape($HookId)
-    $Pattern = "(?ms)^      - id: $Escaped\r?\n(?:        .*\r?\n)*\r?\n?"
-    $Updated = $Text -replace $Pattern, ''
-    if ($Updated -ne $Text) {
-        Set-Content -Path $PreCommitPath -Value $Updated -NoNewline
-    }
-}
-
-# One opinionated formatting check: deletes Tests\<FileName> and, if present, that check's
-# pre-commit hook entry (so a declined check never leaves a dangling commit-hook reference to a
-# script that no longer exists).
+# One opinionated formatting check: deletes its lint file. The pre-commit hook is shared by
+# every lint check (Tests.ps1 runs whichever files exist), so declining one check
+# leaves no dangling hook reference and the hook itself stays.
 function Invoke-RemoveFormattingTest {
     param(
         [Parameter(Mandatory)][string]$FileName,
-        [Parameter(Mandatory)][string]$HookId,
         [Parameter(Mandatory)][bool]$DryRun
     )
-    Write-Info "Remove Tests\$FileName" "and its pre-commit hook ($HookId), if present"
+    Write-Info "Remove Tests\Pester\$FileName" 'lint check declined in setup.psd1'
     if ($DryRun) { return $true }
-    Invoke-RemoveRepoPath -RelativePath "Tests\$FileName"
-    Invoke-RemovePreCommitHook -HookId $HookId
+    Invoke-RemoveRepoPath -RelativePath "Tests\Pester\$FileName"
     return $true
 }
 
-# Relocates Tests\Test-FindUnwantedStrings.ps1 to .local\tests\, so its patterns stay personal
-# and untracked instead of shared and committed. Tests.ps1 already discovers and runs whichever
-# copy (or copies) exist under tests\ and .local\tests\, so no orchestrator change is needed.
+# Relocates the unwanted-strings lint check to .local\tests\, so its patterns stay personal
+# and untracked instead of shared and committed. Tests.ps1 already discovers and runs
+# whichever copy (or copies) exist under Tests\Pester\ and .local\tests\, so no orchestrator
+# change is needed.
 function Invoke-MoveUnwantedStringsTest {
     param([Parameter(Mandatory)][bool]$DryRun)
-    Write-Info 'Move unwanted-strings test' 'Tests\Test-FindUnwantedStrings.ps1 -> .local\tests\'
+    $FileName = 'UnwantedStrings.Lint.Tests.ps1'
+    Write-Info 'Move unwanted-strings test' "Tests\Pester\$FileName -> .local\tests\"
     if ($DryRun) { return $true }
 
-    $Source = Join-Path -Path $script:RepoRoot -ChildPath 'Tests\Test-FindUnwantedStrings.ps1'
+    $SourceParams = @{
+        Path      = $script:RepoRoot
+        ChildPath = "Tests\Pester\$FileName"
+    }
+    $Source = Join-Path @SourceParams
     if (-not (Test-Path -LiteralPath $Source)) { return $true }
     $DestDir = Join-Path -Path $script:RepoRoot -ChildPath '.local\tests'
     if (-not (Test-Path -LiteralPath $DestDir)) {
         New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
     }
-    $Dest = Join-Path -Path $DestDir -ChildPath 'Test-FindUnwantedStrings.ps1'
+    $Dest = Join-Path -Path $DestDir -ChildPath $FileName
     Move-Item -LiteralPath $Source -Destination $Dest -Force
     return $true
 }
@@ -639,7 +628,7 @@ function Invoke-FeatureStep {
             return Invoke-RemoveDependency -Name $Step.Name -DryRun $DryRun
         }
         'FormattingTest' {
-            $Params = @{ FileName = $Step.FileName; HookId = $Step.HookId; DryRun = $DryRun }
+            $Params = @{ FileName = $Step.FileName; DryRun = $DryRun }
             return Invoke-RemoveFormattingTest @Params
         }
         'UnwantedStringsLocal' { return Invoke-MoveUnwantedStringsTest -DryRun $DryRun }
@@ -682,26 +671,22 @@ function Get-FeatureStep {
         [pscustomobject]@{
             Enabled  = $Config.FeatureNonASCII
             Key      = 'remove_nonascii_test'
-            FileName = 'Test-NonASCIICharacters.ps1'
-            HookId   = 'ps-non-ascii'
+            FileName = 'NonASCIICharacters.Lint.Tests.ps1'
         }
         [pscustomobject]@{
             Enabled  = $Config.FeatureFormatOperator
             Key      = 'remove_format_operator_test'
-            FileName = 'Test-FormatOperator.ps1'
-            HookId   = 'ps-format-operator'
+            FileName = 'FormatOperator.Lint.Tests.ps1'
         }
         [pscustomobject]@{
             Enabled  = $Config.FeatureWriteVerboseDebug
             Key      = 'remove_write_verbose_debug_test'
-            FileName = 'Test-WriteVerboseDebug.ps1'
-            HookId   = 'ps-write-verbose-debug' # noqa: Test-WriteVerboseDebug
+            FileName = 'WriteVerboseDebug.Lint.Tests.ps1'
         }
         [pscustomobject]@{
             Enabled  = $Config.FeatureBacktick
             Key      = 'remove_backtick_continuation_test'
-            FileName = 'Test-BacktickContinuation.ps1'
-            HookId   = 'ps-backtick-continuation'
+            FileName = 'BacktickContinuation.Lint.Tests.ps1'
         }
     )
     foreach ($Formatting in $FormattingFeatures) {
@@ -710,7 +695,6 @@ function Get-FeatureStep {
                 Key      = $Formatting.Key
                 Type     = 'FormattingTest'
                 FileName = $Formatting.FileName
-                HookId   = $Formatting.HookId
             })
     }
 
@@ -724,13 +708,13 @@ function Get-FeatureStep {
 }
 
 function Invoke-FixmeReport {
-    $FixmeScript = Join-Path -Path $script:RepoRoot -ChildPath 'Tests\Test-FixmeComments.ps1'
-    if (-not (Test-Path -LiteralPath $FixmeScript)) { return }
+    $TestsScript = Join-Path -Path $script:RepoRoot -ChildPath 'Tests.ps1'
+    if (-not (Test-Path -LiteralPath $TestsScript)) { return }
     Write-Section 'Remaining FIXMEs (finish these by hand)'
-    # The script prints its table and summary, then throws when it finds any, so a test
-    # caller can gate on findings. Here the report is informational only: swallow the
-    # throw so a repo with open FIXMEs still reaches 'Setup complete'.
-    try { & $FixmeScript -Path $script:RepoRoot -Recurse }
+    # The check prints one line per FIXME. Whether it also fails is the project's
+    # setting (FailOnFixme in Tests\TestConfig.psd1); here the report is informational
+    # only, so swallow a throw and let a repo with open FIXMEs reach 'Setup complete'.
+    try { & $TestsScript FixmeComments -Path $script:RepoRoot }
     catch { }
 }
 

@@ -108,7 +108,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.5.4'
+$ScriptVersion = '2.6.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -357,25 +357,37 @@ $script:Manifest = @(
     (New-Entry 'Scripts/TemplateSetup/_Common.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Set-GitHubUser.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Remove-ModuleBuilderNote.ps1' -Required $false)
-    # Code-style and hygiene checkers.
-    (New-Entry 'Tests/Test-BacktickContinuation.ps1' -BlindCopy $true -Gate 'BacktickContinuation')
+    # Code-style and hygiene checkers that are standalone scripts.
     (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -BlindCopy $true -Gate 'ExplicitModuleImport')
-    # $UnwantedPatterns is a per-project hand-edit point, so lenient and not
+    (New-Entry 'Tests/Test-ModuleSyntax.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Test-PSSA.ps1' -BlindCopy $true)
+    # Helpers every lint check shares.
+    (New-Entry 'Tests/Pester/Build-TestFileList.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Pester/Read-LintFile.ps1' -BlindCopy $true)
+    # Holds the child's own lint settings (MaxLength, exclusions, ...), so
+    # differences are expected; a diff still flags a changed settings shape.
+    (New-Entry 'Tests/TestConfig.psd1' -Strict $false)
+    # One file per lint check. The opinionated ones stay gated on the same
+    # [Features] flags their standalone predecessors used.
+    $BacktickParams = @{ BlindCopy = $true; Gate = 'BacktickContinuation' }
+    (New-Entry 'Tests/Pester/BacktickContinuation.Lint.Tests.ps1' @BacktickParams)
+    (New-Entry 'Tests/Pester/FixmeComments.Lint.Tests.ps1' -BlindCopy $true)
+    $FormatOperatorParams = @{ BlindCopy = $true; Gate = 'FormatOperator' }
+    (New-Entry 'Tests/Pester/FormatOperator.Lint.Tests.ps1' @FormatOperatorParams)
+    (New-Entry 'Tests/Pester/JoinPath.Lint.Tests.ps1' -BlindCopy $true)
+    (New-Entry 'Tests/Pester/LineLength.Lint.Tests.ps1' -BlindCopy $true)
+    $NonAsciiParams = @{ BlindCopy = $true; Gate = 'NonASCIICharacters' }
+    (New-Entry 'Tests/Pester/NonASCIICharacters.Lint.Tests.ps1' @NonAsciiParams)
+    $WriteVerboseParams = @{ BlindCopy = $true; Gate = 'WriteVerboseDebug' }
+    (New-Entry 'Tests/Pester/WriteVerboseDebug.Lint.Tests.ps1' @WriteVerboseParams)
+    # UnwantedPattern is a per-project hand-edit point, so lenient and not
     # blind-copied. UnwantedStringsLocal moves the child copy to .local\tests\.
     $UnwantedStringsParams = @{
         Strict            = $false
         LocalOverrideFlag = 'UnwantedStringsLocal'
-        LocalOverridePath = '.local/tests/Test-FindUnwantedStrings.ps1'
+        LocalOverridePath = '.local/tests/UnwantedStrings.Lint.Tests.ps1'
     }
-    (New-Entry 'Tests/Test-FindUnwantedStrings.ps1' @UnwantedStringsParams)
-    (New-Entry 'Tests/Test-FixmeComments.ps1' -BlindCopy $true)
-    (New-Entry 'Tests/Test-FormatOperator.ps1' -BlindCopy $true -Gate 'FormatOperator')
-    (New-Entry 'Tests/Test-JoinPath.ps1' -BlindCopy $true)
-    (New-Entry 'Tests/Test-LineLength.ps1' -BlindCopy $true)
-    (New-Entry 'Tests/Test-ModuleSyntax.ps1' -BlindCopy $true)
-    (New-Entry 'Tests/Test-NonASCIICharacters.ps1' -BlindCopy $true -Gate 'NonASCIICharacters')
-    (New-Entry 'Tests/Test-PSSA.ps1' -BlindCopy $true)
-    (New-Entry 'Tests/Test-WriteVerboseDebug.ps1' -BlindCopy $true -Gate 'WriteVerboseDebug')
+    (New-Entry 'Tests/Pester/UnwantedStrings.Lint.Tests.ps1' @UnwantedStringsParams)
 )
 
 # --- pure helpers -----------------------------------------------------------

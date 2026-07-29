@@ -93,17 +93,19 @@
         # manifest that wires the check in. false removes all three together.
         InstallDependenciesScript = $true
 
-        # Opinionated formatting checks some teams don't want enforced.
-        # Removing one also drops its pre-commit hook entry, if present.
+        # Opinionated lint checks some teams don't want enforced. Removing one
+        # deletes its Tests\Pester\<Name>.Lint.Tests.ps1 file; the shared
+        # pre-commit lint hook stays and runs whichever checks remain.
         NonASCIICharacters   = $true
         FormatOperator       = $true
         WriteVerboseDebug    = $true
         BacktickContinuation = $true
 
-        # false (default): Tests\Test-FindUnwantedStrings.ps1 stays a shared,
-        # tracked test (patterns get committed and reviewed like any other file).
-        # true: moves it to .local\tests\ instead, so your patterns are personal
-        # and never committed. Tests.ps1 already runs whichever copy it finds.
+        # false (default): Tests\Pester\UnwantedStrings.Lint.Tests.ps1 stays a
+        # shared, tracked check (patterns get committed and reviewed like any
+        # other file). true: moves it to .local\tests\ instead, so your patterns
+        # are personal and never committed. Tests.ps1 already runs
+        # whichever copy it finds.
         UnwantedStringsLocal = $false
     }
 }
