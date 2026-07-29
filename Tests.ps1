@@ -9,9 +9,9 @@
     Selects and runs one or more test categories by name. Nothing runs by
     default -- you must pass at least one value.
 
-    Individual formatting checks (LineLength, PSSA, etc.) run in isolation,
-    with the same orchestrator setup (module load, exclusion globals) as a
-    full Formatting run.
+    Every category gets the same orchestrator setup -- module load, exclusion
+    globals, project hooks -- so a single check (LineLength, PSSA, ...) runs in
+    isolation but sees exactly what a full run would.
 
     This orchestrator is project-agnostic: the module name is taken from the
     source manifest (not the folder name, so it works in git worktrees), and
@@ -24,7 +24,14 @@
     generic Live Pester run.
 
 .PARAMETER Test
-    One or more test categories to run. Accepted values:
+    One or more test categories to run. Positional, so `.\Tests.ps1 NotLive`
+    works; several categories are a comma-separated list, `.\Tests.ps1
+    NotLive,PSSA`, because the space-separated arguments after the category
+    belong to -Path (which a commit hook fills with its staged file names).
+    Passing a category name where a path is expected is an error naming this
+    rule rather than a confusing missing-path one.
+
+    Accepted values:
 
       NotLive              -- Pester tests that are not tagged 'live',
                              'destructive', or 'lint'. No connectivity or
@@ -33,11 +40,12 @@
                              tagged 'destructive'. Connectivity/auth setup is
                              provided by the project's PreTests.ps1 hook;
                              without one, the live-tagged tests run as-is.
-      Lint                 -- Pester-based lint checks: every *.Lint.Tests.ps1
-                             in Tests\Pester (and .local\tests), tagged 'lint'.
-                             Each file runs via a Pester container whose -Data
-                             merges Tests\TestConfig.psd1's 'lint' table with
-                             the scan target (-Path) and computed build-artifact
+      Lint                 -- All Pester-based lint checks: every
+                             *.Lint.Tests.ps1 in Tests\Pester (and
+                             .local\tests), tagged 'lint'. Each file runs via a
+                             Pester container whose -Data merges
+                             Tests\TestConfig.psd1's 'lint' table with the scan
+                             target (-Path) and computed build-artifact
                              exclusions. Kept out of NotLive by tag so lint
                              findings never mix into functional test runs.
       Destructive          -- Pester tests tagged 'destructive'. Each such test
@@ -49,37 +57,48 @@
                              the 'remote' subset runs only when
                              Tests\Confirm-RemoteDisposable.ps1 exits 0. See
                              AGENTS.TESTING.md.
-      AutoFormat           -- Trailing-whitespace fix followed by PSScriptAnalyzer
-                             auto-fix and format; suppresses lint findings output.
+      PSSAAutoFormat       -- PSScriptAnalyzer auto-fix and format, applied in
+                             place; suppresses findings output. The only
+                             file-mutating category.
+
+                             One lint check at a time -- same run as Lint, held
+                             to a single *.Lint.Tests.ps1 file:
       LineLength           -- Check lines exceeding 100 characters.
       BacktickContinuation -- Check for backtick line-continuation escapes.
-      FormatOperator       -- Check for -f string format operator usage.
+      FormatOperator       -- Check for string format operator usage.
       JoinPath             -- Check for path-building anti-patterns.
-      ModuleSyntax         -- Parse all files for syntax errors.
       NonASCIICharacters   -- Check for non-ASCII characters.
-      FindUnwantedStrings  -- Scan for user-defined unwanted patterns.
+      UnwantedStrings      -- Scan for project-defined unwanted patterns.
       FixmeComments        -- Report FIXME comments.
-      WriteVerboseDebug    -- Check for Write-Verbose and Write-Debug calls.
+      WriteVerboseDebug    -- Check for leftover verbose/debug output calls.
+
+      ModuleSyntax         -- Parse all files for syntax errors.
       ExplicitModuleImport -- Check that each source file names every external module
                              it uses, so module imports are explicit.
       PSSA                 -- PSScriptAnalyzer detection only; reports issues without
                              modifying any files.
 
-      Formatting           -- All formatting checks in order: auto-fixers,
-                             linters, then PSSA. Equivalent to passing every
-                             individual formatting value at once. Intended for
-                             Human use. Agents should run individual checks.
-      TrailingWhitespace   -- Remove trailing whitespace (auto-fixes in place).
-                             Included in AutoFormat.
-
-
 .PARAMETER Path
-    Scope the run to a single file or folder instead of the whole repo. The
-    formatting/lint checks run against this path (a file checks just that file;
-    a folder checks everything matching under it, recursively). For NotLive,
-    Live, and Destructive, this path is what Invoke-Pester scans -- e.g. point
-    it at a single *.Tests.ps1 file. Defaults to the repo root, so omitting it
-    is unchanged.
+    Scope the run to given files/folders instead of the whole repo. The checks
+    run against these paths (a file checks just that file; a folder checks
+    everything matching under it, recursively). For NotLive, Live, and
+    Destructive, this is what Invoke-Pester scans -- e.g. point it at a single
+    *.Tests.ps1 file. Defaults to the repo root, so omitting it is unchanged.
+
+    A list is accepted, so a commit hook can pass its staged files. The lint
+    checks take the whole list at once; the script-based checks (ModuleSyntax,
+    ExplicitModuleImport, PSSA) take one path each, so they run once per entry.
+
+    This is the remaining-arguments parameter, so the bare arguments after the
+    category bind here -- `Tests.ps1 Lint a.ps1 b.ps1` is the same as
+    `Tests.ps1 Lint -Path a.ps1, b.ps1`. That is what lets pre-commit append its
+    staged file names to the hook's command line with no wrapper script.
+
+.PARAMETER ConfigPath
+    Read per-category settings from this file instead of Tests\TestConfig.psd1
+    -- e.g. a stricter profile for CI, or a fixture's own settings when testing
+    a check. Same shape as Tests\TestConfig.psd1 (a hashtable keyed by category).
+    A path that does not exist is an error.
 
 .PARAMETER InteractiveAuth
     Passed through to the project's PreTests.ps1 hook via $TestContext for use
@@ -97,12 +116,11 @@
     under Output\. Only valid with NotLive, Live, and Destructive.
 
 .PARAMETER Quiet
-    Forward -Quiet to the individual formatting checks so each prints only its
-    one-line summary (files scanned + findings), suppressing detail tables and
-    finding notes. For the Lint category, suppresses per-test Pester output and
-    prints a one-line summary instead. Intended for agents that just need a
-    quick pass/fail. Does not apply to the Formatting aggregate or the NotLive,
-    Live, and Destructive Pester runs.
+    Forward -Quiet to the script-based checks so each prints only its one-line
+    summary (files scanned + findings), suppressing detail tables and finding
+    notes. For the lint categories, suppresses per-finding output and prints a
+    one-line summary instead. Intended for agents that just need a quick
+    pass/fail. Does not apply to the NotLive, Live, and Destructive Pester runs.
 
 .EXAMPLE
     .\Tests.ps1 NotLive
@@ -113,12 +131,9 @@
     Runs the line-length check and prints only its one-line summary.
 
 .EXAMPLE
-    .\Tests.ps1 NotLive Live
-    Runs all non-destructive Pester tests (NotLive and Live).
-
-.EXAMPLE
-    .\Tests.ps1 Formatting
-    Runs all formatting checks and auto-fixes.
+    .\Tests.ps1 NotLive,Live
+    Runs all non-destructive Pester tests (NotLive and Live). Several categories
+    are comma-separated -- space-separated arguments bind to -Path.
 
 .EXAMPLE
     .\Tests.ps1 Lint
@@ -129,7 +144,11 @@
     Lints just Source\Public and prints a one-line summary.
 
 .EXAMPLE
-    .\Tests.ps1 LineLength JoinPath
+    .\Tests.ps1 Lint -ConfigPath .\Tests\TestConfig.CI.psd1
+    Runs the lint checks with a different settings file.
+
+.EXAMPLE
+    .\Tests.ps1 LineLength,JoinPath
     Runs only the line-length and path-building checks.
 
 .EXAMPLE
@@ -145,8 +164,13 @@
     Runs one NotLive Pester test file.
 
 .EXAMPLE
-    .\Tests.ps1 AutoFormat
-    Fixes trailing whitespace then runs PSSA auto-fix and formatting; suppresses lint findings.
+    .\Tests.ps1 PSSAAutoFormat
+    Applies PSScriptAnalyzer's auto-fixes and formatting in place.
+
+.EXAMPLE
+    .\Tests.ps1 Lint -Quiet .\Source\Public\Get-Script.ps1 .\Build.ps1
+    Lints two files. -Path takes the remaining arguments, so a commit hook can
+    append its staged file names directly; `-Path a.ps1, b.ps1` is equivalent.
 
 .EXAMPLE
     .\Tests.ps1 Live -InteractiveAuth
@@ -158,24 +182,32 @@
     the 'remote' subset requires Tests\Confirm-RemoteDisposable.ps1 to confirm it.
 
 .EXAMPLE
-    .\Tests.ps1 NotLive Live -Built
+    .\Tests.ps1 NotLive,Live -Built
     Runs Pester tests against the compiled module artifact.
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
 param(
-    [Parameter(Position = 0, Mandatory, ValueFromRemainingArguments)]
+    [Parameter(Position = 0, Mandatory)]
     [ValidateSet(
-        'NotLive', 'Live', 'Destructive', 'Lint', 'Formatting',
+        'NotLive', 'Live', 'Destructive', 'Lint',
         'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
-        'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
-        'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
+        'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug',
+        'UnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA',
+        'PSSAAutoFormat'
     )]
     [string[]] $Test,
 
+    # Remaining arguments, not just -Path: pre-commit appends its staged file
+    # names to the hook's command line as separate arguments, and this is where
+    # they have to land. Only one parameter can claim them, which is why -Test
+    # takes a comma-separated list rather than space-separated words.
+    [Parameter(Position = 1, ValueFromRemainingArguments)]
+    [string[]] $Path,
+
     [Parameter()]
-    [string] $Path,
+    [string] $ConfigPath,
 
     [Parameter()]
     [switch] $InteractiveAuth,
@@ -189,7 +221,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.3.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -200,27 +232,55 @@ if ($InteractiveAuth -and 'Live' -notin $Test) {
 
 # error when requesting formatting tests on built module
 $FormattingOnlyValues = @(
-    'Formatting', 'Lint', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
-    'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug', 'TrailingWhitespace',
-    'FindUnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA', 'AutoFormat'
+    'Lint', 'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
+    'ModuleSyntax', 'NonASCIICharacters', 'WriteVerboseDebug',
+    'UnwantedStrings', 'FixmeComments', 'ExplicitModuleImport', 'PSSA',
+    'PSSAAutoFormat'
 )
 if ($Built -and ($Test | Where-Object { $_ -in $FormattingOnlyValues })) {
     $BadList = ($Test | Where-Object { $_ -in $FormattingOnlyValues }) -join ', '
     throw "-Built cannot be used with: $BadList"
 }
 
-# Optional: scope the run to a single file or folder instead of the whole repo.
-# $TargetPath feeds the formatting checks' -Path; defaults to the repo root so
-# behavior is unchanged when -Path is omitted.
+# Optional: scope the run to files/folders instead of the whole repo.
+# $TargetPath feeds the checks' -Path; defaults to the repo root so behavior is
+# unchanged when -Path is omitted. A list is accepted so a commit hook can pass
+# its staged files; every entry must exist, and all of them are reported at once
+# rather than failing on the first.
 if ($PSBoundParameters.ContainsKey('Path')) {
-    $ResolvedTarget = Resolve-Path -Path $Path -ErrorAction SilentlyContinue
-    if (-not $ResolvedTarget) {
-        throw "Path not found: $Path"
+    # -Path holds the remaining arguments, so a space-separated category list
+    # ('.\Tests.ps1 NotLive Live') silently lands here. Catch it by name and say
+    # what to do instead, rather than reporting 'Live' as a missing path.
+    $SetAttribute = $MyInvocation.MyCommand.Parameters['Test'].Attributes |
+        Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+        Select-Object -First 1
+    $CategoryNames = @($SetAttribute.ValidValues)
+    $CategoryInPath = @($Path | Where-Object { $_ -in $CategoryNames })
+    if ($CategoryInPath.Count -gt 0) {
+        $CategoryList = (@($Test) + $CategoryInPath) -join ','
+        throw (
+            "'$($CategoryInPath -join ', ')' is a test category, not a path. " +
+            "Pass several categories as a comma-separated list: " +
+            ".\Tests.ps1 $CategoryList"
+        )
     }
-    $TargetPath = $ResolvedTarget.Path
+    $MissingPaths = [System.Collections.Generic.List[string]]::new()
+    $ResolvedPaths = [System.Collections.Generic.List[string]]::new()
+    foreach ($Entry in $Path) {
+        $Resolved = Resolve-Path -Path $Entry -ErrorAction SilentlyContinue
+        if (-not $Resolved) {
+            $MissingPaths.Add($Entry)
+            continue
+        }
+        foreach ($Item in $Resolved) { $ResolvedPaths.Add($Item.Path) }
+    }
+    if ($MissingPaths.Count -gt 0) {
+        throw "Path not found: $($MissingPaths -join ', ')"
+    }
+    $TargetPath = @($ResolvedPaths)
 }
 else {
-    $TargetPath = $PSScriptRoot
+    $TargetPath = @($PSScriptRoot)
 }
 
 # Import the module under test so Pester tests and PSScriptAnalyzer both have
@@ -305,8 +365,18 @@ $CopiedFolderNames = @($CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf }
 
 # Optional per-project test configuration: a hashtable keyed by category
 # (lowercase), each value the -Data table for that category's Pester
-# containers. See Tests\TestConfig.psd1.
-$TestConfigPath = Join-Path -Path $TestsFolder -ChildPath 'TestConfig.psd1'
+# containers. See Tests\TestConfig.psd1. -ConfigPath swaps in a different
+# settings file (a stricter CI profile, or a test's own fixture settings); an
+# explicit path that does not exist is an error rather than a silent default.
+$TestConfigPath = if ($PSBoundParameters.ContainsKey('ConfigPath')) {
+    if (-not (Test-Path -LiteralPath $ConfigPath)) {
+        throw "Config file not found: $ConfigPath"
+    }
+    (Resolve-Path -LiteralPath $ConfigPath).Path
+}
+else {
+    Join-Path -Path $TestsFolder -ChildPath 'TestConfig.psd1'
+}
 $TestConfig = if (Test-Path $TestConfigPath) {
     Import-PowerShellDataFile -Path $TestConfigPath
 }
@@ -330,24 +400,26 @@ $Global:Dev_FormattingExclusions = @{
     ExcludeFolders = $CopiedFolderNames + @('Output', '.staging')
 }
 
-# Map each individual formatting test name to its script file.
+# Map each script-based check name to its script file. The line-based code-style
+# checks are Pester lint files instead; see $LintCheckValues below.
 $FormattingScriptMap = @{
-    'TrailingWhitespace'   = 'Format-TrailingWhitespace.ps1'
-    'BacktickContinuation' = 'Test-BacktickContinuation.ps1'
     'ExplicitModuleImport' = 'Test-ExplicitModuleImport.ps1'
-    'FindUnwantedStrings'  = 'Test-FindUnwantedStrings.ps1'
-    'FixmeComments'        = 'Test-FixmeComments.ps1'
-    'FormatOperator'       = 'Test-FormatOperator.ps1'
-    'JoinPath'             = 'Test-JoinPath.ps1'
-    'LineLength'           = 'Test-LineLength.ps1'
     'ModuleSyntax'         = 'Test-ModuleSyntax.ps1'
-    'NonASCIICharacters'   = 'Test-NonASCIICharacters.ps1'
-    'WriteVerboseDebug'    = 'Test-WriteVerboseDebug.ps1'
     'PSSA'                 = 'Test-PSSA.ps1'
-    'AutoFormat'           = 'Test-PSSA.ps1'
+    'PSSAAutoFormat'       = 'Test-PSSA.ps1'
 }
 
 $IndividualTests = @($Test | Where-Object { $FormattingScriptMap.ContainsKey($_) })
+
+# Categories naming a single lint check. Each matches a Tests\Pester\
+# <Name>.Lint.Tests.ps1 file, which the Lint block resolves by name; passing
+# Lint instead runs every check found.
+$LintCheckValues = @(
+    'LineLength', 'BacktickContinuation', 'FormatOperator', 'JoinPath',
+    'NonASCIICharacters', 'WriteVerboseDebug', 'UnwantedStrings', 'FixmeComments'
+)
+$RequestedLintChecks = @($Test | Where-Object { $_ -in $LintCheckValues })
+$RunAllLintChecks = 'Lint' -in $Test
 
 # --- Project hooks: optional per-project setup/teardown ----------------------
 # PreTests.ps1 runs after module load, before the test sections; PostTests.ps1
@@ -408,7 +480,7 @@ try {
         $PesterFailedCount += $NotLiveResult.FailedCount
     }
 
-    # --- Individual formatting tests ---
+    # --- Script-based checks ---
     foreach ($IndividualTest in $IndividualTests) {
         foreach ($ScriptsDir in @($TestsFolder, $LocalTestsFolder)) {
             $ScriptFile = $FormattingScriptMap[$IndividualTest]
@@ -419,109 +491,37 @@ try {
             # Forward -Quiet only to scripts that declare it (auto-fixers may not).
             $SupportsQuiet = (Get-Command $ScriptPath).Parameters.ContainsKey('Quiet')
             $QuietSplat = if ($Quiet -and $SupportsQuiet) { @{ Quiet = $true } } else { @{} }
-            # Test-PSSA also takes -RepoRoot so repo-anchored suppressions resolve
-            # when -Path targets a subfolder/file.
-            $PssaSplat = @{ Path = $TargetPath; RepoRoot = $PSScriptRoot; Recurse = $true }
             # Each check throws (not `exit`s) when it finds something to report,
             # so a check that fails still lets the rest of a multi-check run
             # continue and report -- catch it locally rather than letting it
             # unwind the whole script (which `throw` deliberately would do if
             # left uncaught, per AGENTS.TESTING.md's exit-safety note above).
             $CheckFailed = $false
-            try {
-                switch ($IndividualTest) {
-                    'PSSA' { & $ScriptPath @PssaSplat @QuietSplat }
-                    'AutoFormat' {
-                        $TwsFile = 'Format-TrailingWhitespace.ps1'
-                        $TwsPath = Join-Path -Path $ScriptsDir -ChildPath $TwsFile
-                        if (Test-Path $TwsPath) {
-                            $TwsRel = [System.IO.Path]::GetRelativePath($PSScriptRoot, $TwsPath)
-                            Write-Host "`n=== $TwsRel ===" -ForegroundColor Cyan
-                            & $TwsPath -Path $TargetPath -Recurse
-                        }
-                        & $ScriptPath @PssaSplat -AutoFormat -Quiet
+            # One invocation per target path: these scripts take a single -Path
+            # (only the lint checks accept a list), so a multi-path run -- e.g. a
+            # commit hook's staged files -- calls each check once per path.
+            foreach ($CheckPath in $TargetPath) {
+                # Test-PSSA also takes -RepoRoot so repo-anchored suppressions
+                # resolve when -Path targets a subfolder/file.
+                $PssaSplat = @{ Path = $CheckPath; RepoRoot = $PSScriptRoot; Recurse = $true }
+                try {
+                    switch ($IndividualTest) {
+                        'PSSA' { & $ScriptPath @PssaSplat @QuietSplat }
+                        'PSSAAutoFormat' { & $ScriptPath @PssaSplat -AutoFormat -Quiet }
+                        default { & $ScriptPath -Path $CheckPath -Recurse @QuietSplat }
                     }
-                    default { & $ScriptPath -Path $TargetPath -Recurse @QuietSplat }
+                }
+                catch {
+                    Write-Host $_.Exception.Message -ForegroundColor Red
+                    $CheckFailed = $true
                 }
             }
-            catch {
-                Write-Host $_.Exception.Message -ForegroundColor Red
-                $CheckFailed = $true
-            }
-            # Tally detection-check failures for the final exit code. The fixers
-            # (AutoFormat, TrailingWhitespace) mutate files rather than report, so
-            # a failure from them does not gate the run.
-            if ($IndividualTest -notin @('AutoFormat', 'TrailingWhitespace') -and $CheckFailed) {
+            # Tally detection-check failures for the final exit code.
+            # PSSAAutoFormat mutates files rather than reporting, so a failure
+            # from it does not gate the run.
+            if ($IndividualTest -ne 'PSSAAutoFormat' -and $CheckFailed) {
                 $FormattingFailedCount++
             }
-        }
-    }
-
-    # --- Formatting ---
-    if ('Formatting' -in $Test) {
-
-        # collect all Format-*.ps1 scripts from tests/ and .local/tests/
-        $FormatScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
-            Get-ChildItem -Path $TestsFolder -Filter 'Format-*.ps1' |
-                Where-Object { $_.Name -notlike '*.Tests.ps1' }
-        )
-        if (Test-Path $LocalTestsFolder) {
-            Get-ChildItem -Path $LocalTestsFolder -Filter 'Format-*.ps1' |
-                Where-Object { $_.Name -notlike '*.Tests.ps1' } |
-                ForEach-Object { $FormatScripts.Add($_) }
-        }
-        $FormatScripts = $FormatScripts | Sort-Object Name
-
-        # run each Format-*.ps1 script first, before any of the Test-*.ps1 scripts.
-        # Each check throws (not `exit`s) when it finds something to report --
-        # catch locally so one finding doesn't cut this human-facing aggregate
-        # short; it was never gated on individual results (see -Test LineLength
-        # etc. for that), only run start-to-finish for a full report.
-        foreach ($Script in $FormatScripts) {
-            $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
-            Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
-            try {
-                & $Script.FullName -Path $TargetPath -Recurse
-            }
-            catch {
-                Write-Host $_.Exception.Message -ForegroundColor Red
-            }
-        }
-
-        # collect all Test-*.ps1 scripts from tests/ and .local/tests/, exempting Test-PSSA
-        $TestScripts = [System.Collections.Generic.List[System.IO.FileInfo]](
-            Get-ChildItem -Path $TestsFolder -Filter 'Test-*.ps1' |
-                Where-Object {
-                    $_.BaseName -ne 'Test-PSSA' -and
-                    $_.Name -notlike '*.Tests.ps1'
-                }
-        )
-        if (Test-Path $LocalTestsFolder) {
-            Get-ChildItem -Path $LocalTestsFolder -Filter 'Test-*.ps1' |
-                Where-Object { $_.Name -notlike '*.Tests.ps1' } |
-                ForEach-Object { $TestScripts.Add($_) }
-        }
-        $TestScripts = $TestScripts | Sort-Object Name
-
-        # run each Test-*.ps1 script
-        foreach ($Script in $TestScripts) {
-            $RelPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $Script.FullName)
-            Write-Host "`n=== $RelPath ===" -ForegroundColor Cyan
-            try {
-                & $Script.FullName -Path $TargetPath -Recurse
-            }
-            catch {
-                Write-Host $_.Exception.Message -ForegroundColor Red
-            }
-        }
-
-        Write-Host "`n=== Test-PSSA ===" -ForegroundColor Cyan
-        $AnalyzerScript = Join-Path -Path $TestsFolder -ChildPath 'Test-PSSA.ps1'
-        try {
-            & $AnalyzerScript -Path $TargetPath -RepoRoot $PSScriptRoot -Recurse -AutoFormat
-        }
-        catch {
-            Write-Host $_.Exception.Message -ForegroundColor Red
         }
     }
 
@@ -531,11 +531,19 @@ try {
     # Tests\TestConfig.psd1's 'lint' table; the scan target and the computed
     # build-artifact exclusions are merged in here. Data is subset per file to
     # the parameters it declares, so lint files may differ in signature.
-    if ('Lint' -in $Test) {
+    # An individual check category (LineLength, JoinPath, ...) runs the same
+    # way, narrowed to that check's own file.
+    if ($RunAllLintChecks -or $RequestedLintChecks.Count -gt 0) {
         Write-Host "`n=== Invoke-Pester (Lint) ===" -ForegroundColor Cyan
         $LintFiles = @(Get-ChildItem -Path $PesterTestsFolder -Filter '*.Lint.Tests.ps1')
         if (Test-Path $LocalTestsFolder) {
             $LintFiles += @(Get-ChildItem -Path $LocalTestsFolder -Filter '*.Lint.Tests.ps1')
+        }
+        if (-not $RunAllLintChecks) {
+            $WantedLintFiles = @(
+                $RequestedLintChecks | ForEach-Object { "$($_).Lint.Tests.ps1" }
+            )
+            $LintFiles = @($LintFiles | Where-Object { $_.Name -in $WantedLintFiles })
         }
         if (-not $LintFiles) {
             Write-Host 'No *.Lint.Tests.ps1 files found.' -ForegroundColor Yellow
@@ -568,6 +576,10 @@ try {
                 }
             )
             $LintData['Path'] = $TargetPath
+            # A check that reports without failing (FixmeComments) has no
+            # failure message to carry its findings, so it writes them itself
+            # and needs to know whether output was asked for.
+            $LintData['Quiet'] = [bool] $Quiet
             $LintContainers = @(
                 foreach ($LintFile in $LintFiles) {
                     # Subset Data to this file's declared parameters: the config
@@ -583,7 +595,7 @@ try {
             )
             # Pester's own per-test output is suppressed and the findings are
             # rendered here instead: each lint test throws its findings as the
-            # exception message, one 'path:line: detail' per line, so the report
+            # exception message, one 'path Line:N detail' per line, so the report
             # is the same terse, greppable shape the standalone checks produce.
             $LintSplat = @{
                 Container = $LintContainers

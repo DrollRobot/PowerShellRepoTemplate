@@ -33,32 +33,30 @@ built artifacts in module root.
 ```powershell
 # run NotLive tests first, for rapid feedback
 .\Tests.ps1 NotLive # runs all non-live, non-destructive tests
-# then run tests with dependencies (where applicable)
+# then slower Live tests
 .\Tests.ps1 Live # run all live, non-destructive tests
 ```
-Do not move on to formatting until all Pester tests are passing.
 
-**Second: Autoformatting and Formatting tests**
-**Always fix every formatting finding immediately. Do not ask the user.**
+**Second: Autoformatting and Linting**
 ```powershell
-# run AutoFormat first to apply automatic fixes
-.\Tests.ps1 AutoFormat
+# run PSSAAutoFormat first to apply automatic fixes
+.\Tests.ps1 PSSAAutoFormat
 
 # verify the precommit tests pass
 pre-commit run --all-files
 
-# if any of the precommit lint tests fail, run the equivalent test to see the full output
-.\Tests.ps1 ModuleSyntax
-.\Tests.ps1 ExplicitModuleImport
+# if lint tests fail during pre-commit, run individually to see results
+.\Tests.ps1 LineLength
+.\Tests.ps1 BacktickContinuation
 .\Tests.ps1 FormatOperator
 .\Tests.ps1 JoinPath
 .\Tests.ps1 NonASCIICharacters
 .\Tests.ps1 WriteVerboseDebug
-.\Tests.ps1 LineLength
-.\Tests.ps1 BacktickContinuation
 
-# run the following tests one by one, fixing any findings before moving on to the next
-.\Tests.ps1 FindUnwantedStrings
+# the remaining standalone checks
+.\Tests.ps1 ModuleSyntax
+.\Tests.ps1 ExplicitModuleImport
+.\Tests.ps1 UnwantedStrings
 .\Tests.ps1 PSSA
 ```
 
@@ -67,11 +65,12 @@ pre-commit run --all-files
 
 **Checking a single file or folder**
 - `.\Tests.ps1 <Category>` scans all in-scope files. To check just one file or folder,
-    add `-Path`.
+    add `-Path` (or just list the paths -- `-Path` takes the remaining arguments).
     .\Tests.ps1 LineLength -Path .\Scripts\Invoke-RandomEmailTraffic.ps1
     .\Tests.ps1 PSSA -Path .\Source\Public
+    .\Tests.ps1 Lint .\Build.ps1 .\Tests.ps1
 
-**Quick pass/fail for agents**
+**Quick pass/fail**
 Add `-Quiet` to any formatting check for single line output.
 
 ## Destructive tests

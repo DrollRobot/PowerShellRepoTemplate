@@ -23,15 +23,8 @@
 #                        large file guard, merge conflict markers
 #   detect-secrets    -- prevents secrets from being committed; requires the
 #                        .secrets.baseline file created above
-#   local (pwsh)      -- the fast Tests\Test-*.ps1 formatting/lint checks, run
-#                        against staged .ps1/.psm1/.psd1 files. Requires
-#                        PowerShell 7+ (pwsh) on PATH.
-#
-# PSScriptAnalyzer (Tests.ps1 PSSA) is intentionally NOT run here -- it is too
-# slow for a commit hook. CI covers it. The auto-fixers (AutoFormat /
-# Format-TrailingWhitespace) are also excluded: trailing whitespace is already
-# handled by the trailing-whitespace hook above, and a commit hook should
-# report, not rewrite, your staged files.
+#   local             -- the syntax check and the Pester lint checks, both
+#                        against staged files only.
 # =============================================================================
 
 # .pre-commit-config.yaml
@@ -79,48 +72,26 @@ repos:
         language: system
         files: \.(ps1|psm1|psd1)$
 
-      - id: ps-line-length
-        name: PowerShell line length
-        entry: pwsh -NoProfile -File Tests/Test-LineLength.ps1 -Quiet
-        language: system
-        files: \.(ps1|psm1|psd1)$
-
-      - id: ps-backtick-continuation
-        name: PowerShell backtick continuation
-        entry: pwsh -NoProfile -File Tests/Test-BacktickContinuation.ps1 -Quiet
-        language: system
-        files: \.(ps1|psm1|psd1)$
-
-      - id: ps-format-operator
-        name: PowerShell -f format operator
-        entry: pwsh -NoProfile -File Tests/Test-FormatOperator.ps1 -Quiet
-        language: system
-        files: \.(ps1|psm1|psd1)$
-
-      - id: ps-join-path
-        name: PowerShell path-building
-        entry: pwsh -NoProfile -File Tests/Test-JoinPath.ps1 -Quiet
-        language: system
-        files: \.(ps1|psm1|psd1)$
-
-      - id: ps-non-ascii
-        name: PowerShell non-ASCII characters
-        entry: pwsh -NoProfile -File Tests/Test-NonASCIICharacters.ps1 -Quiet
-        language: system
-        files: \.(ps1|psm1|psd1)$
-
-      - id: ps-write-verbose-debug
-        name: PowerShell Write-Verbose/Write-Debug
-        entry: pwsh -NoProfile -File Tests/Test-WriteVerboseDebug.ps1 -Quiet
+      # Every Tests/Pester/*.Lint.Tests.ps1 check, in one Pester run, against the
+      # staged files only: pre-commit appends them to the entry below, and
+      # Tests.ps1's -Path takes the remaining arguments. Run `.\Tests.ps1 Lint`
+      # yourself to check the whole repo.
+      - id: ps-lint
+        name: PowerShell lint
+        entry: pwsh -NoProfile -File Tests.ps1 Lint
         language: system
         files: \.(ps1|psm1|psd1)$
 
   # Pre-push checks
   - repo: local
     hooks:
+      # -Command, not -File: two categories are one comma-separated argument, and
+      # -File hands its arguments over as literal strings with no parser, so
+      # 'NotLive,PSSA' would arrive as a single unsplit value and fail
+      # -Test's ValidateSet.
       - id: pester-prepush
         name: pester (prepush)
-        entry: pwsh -NoProfile -File Tests.ps1 NotLive PSSA -Quiet
+        entry: pwsh -NoProfile -Command '& ./Tests.ps1 NotLive,PSSA -Quiet'
         language: system
         stages: [pre-push]
         pass_filenames: false

@@ -8,6 +8,10 @@
     *.Tests.ps1 glob never picks it up.
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.1.0'
+
 function Build-TestFileList {
     <#
     .SYNOPSIS
@@ -33,14 +37,21 @@ function Build-TestFileList {
         current directory; pass absolute paths for predictable results.
 
     .PARAMETER Extension
-        File extensions to keep. Defaults to .ps1, .psm1, and .psd1.
+        File extensions to keep. Defaults to .ps1, .psm1, and .psd1. Pass '*'
+        to keep every extension and narrow with -ExcludeExtension instead.
+
+    .PARAMETER ExcludeExtension
+        File extensions to drop, applied after -Extension. Pair it with
+        -Extension '*' to scan everything except (say) binary formats.
     #>
     [CmdletBinding()]
+    [OutputType([System.Array])]
     param(
         [Parameter(Mandatory)]
         [string[]] $Path,
         [string[]] $ExcludePath = @(),
-        [string[]] $Extension = @('.ps1', '.psm1', '.psd1')
+        [string[]] $Extension = @('.ps1', '.psm1', '.psd1'),
+        [string[]] $ExcludeExtension = @()
     )
 
     # Normalize exclusions to absolute paths. An entry that exists as a file
@@ -78,8 +89,12 @@ function Build-TestFileList {
         }
     }
 
+    $KeepEveryExtension = $Extension -contains '*'
+
     @(
-        foreach ($File in ($Files | Where-Object Extension -in $Extension)) {
+        foreach ($File in $Files) {
+            if (-not $KeepEveryExtension -and $File.Extension -notin $Extension) { continue }
+            if ($File.Extension -in $ExcludeExtension) { continue }
             $Full = $File.FullName
             if ($ExcludeFiles -contains $Full) { continue }
             $InExcludedDir = $ExcludeDirs | Where-Object {

@@ -1,18 +1,20 @@
 <#
 .SYNOPSIS
-    Pester lint check: flags lines exceeding a maximum length.
+    Pester lint check: flags use of the string format operator.
 
 .DESCRIPTION
     One It per scanned file, generated during Discovery. A failing file is
     identified by its test name; the failure message lists every offending
-    line number and its length.
+    line number and the line itself.
 
-    Every line is measured, comments included.
+    Inline subexpressions ("Hello $($Name)") are used instead of format
+    strings. The finding is the parser's own Format token, so the operator is
+    never confused with similar text inside a string or a comment.
 
     To suppress a finding on a specific line, append the inline exemption
     marker:
 
-        <code>  # noqa: LineLength
+        <code>  # noqa: FormatOperator
 
     Parameterized via a Pester container. Tests.ps1's 'Lint' category builds the
     container, feeding static values from Tests\TestConfig.psd1 plus the scan
@@ -28,30 +30,26 @@
     entry excludes its whole subtree. Relative entries resolve against the
     current directory; Tests.ps1 passes absolute paths.
 
-.PARAMETER MaxLength
-    Maximum allowed line length in characters. Defaults to 100.
-
 .EXAMPLE
-    .\Tests.ps1 LineLength
+    .\Tests.ps1 FormatOperator
 
-    Scans the repository root for lines over 100 characters.
+    Scans the repository root for format-operator usage.
 
 .OUTPUTS
     None. Findings are thrown as the failing test's exception message, one
-    'path Line:N Length:N' finding per line.
+    'path Line:N text' finding per line.
 #>
 # Settings arrive as script parameters and are consumed inside Discovery/It
 # scriptblocks, which PSScriptAnalyzer does not connect to the param block.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
 param(
     [string[]] $Path,
-    [string[]] $ExcludePath = @(),
-    [int] $MaxLength = 100
+    [string[]] $ExcludePath = @()
 )
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.0.0'
 
 BeforeDiscovery {
     . (Join-Path -Path $PSScriptRoot -ChildPath 'Build-TestFileList.ps1')
@@ -71,7 +69,7 @@ BeforeDiscovery {
     $script:LintCases = @(Build-TestFileList @CaseParams)
 }
 
-Describe 'LineLength' -Tag 'lint' {
+Describe 'FormatOperator' -Tag 'lint' {
 
     BeforeAll {
         . (Join-Path -Path $PSScriptRoot -ChildPath 'Read-LintFile.ps1')
@@ -81,16 +79,15 @@ Describe 'LineLength' -Tag 'lint' {
         $LintFile = Read-LintFile -Path $FullName
         $ExemptParams = @{
             LintFile = $LintFile
-            Rule     = 'LineLength'
+            Rule     = 'FormatOperator'
             Line     = 0
         }
-        $Hits = for ($Index = 0; $Index -lt $LintFile.Line.Count; $Index++) {
-            $Text = $LintFile.Line[$Index]
-            if ($null -eq $Text -or $Text.Length -le $MaxLength) { continue }
-            $Number = $Index + 1
+        $Hits = foreach ($Token in $LintFile.Token) {
+            if ($Token.Kind -ne 'Format') { continue }
+            $Number = $Token.Extent.StartLineNumber
             $ExemptParams.Line = $Number
             if (Test-LintExempt @ExemptParams) { continue }
-            "$($RelativePath) Line:$($Number) Length:$($Text.Length)"
+            "$($RelativePath) Line:$($Number) $($LintFile.Line[$Number - 1].Trim())"
         }
         # throw, not Should: Tests.ps1 prints Exception.Message verbatim,
         # and only a raw throw leaves it free of "Expected ... but got ..."
