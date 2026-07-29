@@ -3,10 +3,8 @@
 *.env*
 !*.env.ps1.example
 
-# local-only overrides and personal test files (see AGENTS.TESTING.md); this is
-# also where Setup-NewProject.ps1 relocates Test-FindUnwantedStrings.ps1 when
-# [Features].UnwantedStringsLocal is true, so its patterns are never committed
-/.local/
+# local-only overrides and personal test files
+*.local*
 
 # mkdocs documentation
 /site
@@ -15,9 +13,5 @@
 /Output/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
-#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer,
-#  you could uncomment the following to ignore the entire vscode folder
 .vscode/
 *.code-workspace
