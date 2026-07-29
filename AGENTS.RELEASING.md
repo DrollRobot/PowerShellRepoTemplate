@@ -12,6 +12,9 @@ block.
 
 # Releasing
 
+- If the user asked you to read this file, treat that as them asking you to
+  perform the prodedure described below.
+
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
 Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, Docs/Commands/, and any
 built artifacts in module root.
