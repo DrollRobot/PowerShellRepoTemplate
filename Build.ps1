@@ -9,13 +9,20 @@
     module using ModuleBuilder. The output is always cleaned before building so a stale
     artifact can never survive a build.
 
-    By default it produces a versioned build under .\output (output\<ModuleName>\<version>\),
-    which is the layout Publish-Module expects for the PowerShell Gallery.
+    Where the build lands is declared in Source\Build.psd1, not passed as a parameter, so
+    a bare .\build.ps1 always does the right thing for the repo:
 
-    Alternatively, with -BuildToRoot, it instead emits a manifest and .psm1 to the repo
-    root, so a fresh clone placed is immediately importable by name with no build step.
-    Built artifacts are generated files that must never be hand-edited - only .\source is
-    edited, and only this script writes the root.
+      BuildToRoot = $false (default) - a versioned build under .\output
+        (output\<ModuleName>\<version>\), the layout Publish-Module expects for the
+        PowerShell Gallery.
+      BuildToRoot = $true - a flat manifest and .psm1 emitted to the repo root, so a
+        fresh clone on $env:PSModulePath is immediately importable by name with no
+        build step.
+
+    BuildToRoot is a Build.ps1-only key: ModuleBuilder reads Build.psd1 for Build-Module
+    parameter defaults and ignores keys that match no parameter. Built artifacts are
+    generated files that must never be hand-edited - only .\source is edited, and only
+    this script writes the root.
 
     The source manifest under .\source is always the metadata source of truth. The module
     name is derived from it, so the script is portable across modules without modification.
@@ -44,29 +51,21 @@
     Optional override for the build output location. When omitted, the
     OutputDirectory value in Source\Build.psd1 is used (resolved relative to
     Source\), falling back to the 'Output' folder next to this script.
-    Ignored when -BuildToRoot is specified.
+    Ignored when Build.psd1 sets BuildToRoot to $true.
 
 .PARAMETER Version
     Optional version to stamp into the built manifest, overriding the source manifest's
     ModuleVersion. Intended for CI to pass a computed version.
 
-.PARAMETER BuildToRoot
-    Emit a flat, unversioned build to the repo root instead of a versioned build to
-    .\output. Use this for repos distributed by git clone rather than the Gallery.
-
 .EXAMPLE
     .\build.ps1
-    Cleans and produces a versioned build in .\output using the source manifest version.
+    Cleans and builds using the source manifest version, to wherever Build.psd1's
+    BuildToRoot key points: .\output by default, or the repo root when it is $true.
 
 .EXAMPLE
     .\build.ps1 -Version 1.2.0
-    Cleans and builds into .\output stamped with version 1.2.0, ready for Publish-Module.
-    The form typically called from CI.
-
-.EXAMPLE
-    .\build.ps1 -BuildToRoot
-    Cleans and compiles the module to the repo root so a clone on $env:PSModulePath works
-    immediately.
+    Cleans and builds stamped with version 1.2.0, ready for Publish-Module. The form
+    typically called from CI.
 
 .NOTES
     Build artifacts are staged in .\.staging (gitignored) and removed after a successful
@@ -78,14 +77,12 @@
 param(
     [string] $SourcePath = (Join-Path -Path $PSScriptRoot -ChildPath 'Source'),
     [string] $OutputDirectory,
-    [string] $Version,
-
-    [switch] $BuildToRoot
+    [string] $Version
 )
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '2.0.0'
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
@@ -104,6 +101,17 @@ $buildPsd1Path = Join-Path -Path $SourcePath -ChildPath 'Build.psd1'
 $buildConfig = @{}
 if (Test-Path $buildPsd1Path) {
     $buildConfig = Import-PowerShellDataFile -Path $buildPsd1Path
+}
+
+# BuildToRoot is a Build.ps1-only key in Build.psd1: ModuleBuilder reads that
+# file for Build-Module parameter defaults and ignores keys matching none.
+$BuildToRoot = $false
+if ($buildConfig.ContainsKey('BuildToRoot')) {
+    if ($buildConfig.BuildToRoot -isnot [bool]) {
+        $BadValue = $buildConfig.BuildToRoot
+        throw "Build.psd1 'BuildToRoot' must be `$true or `$false, not '$BadValue'."
+    }
+    $BuildToRoot = $buildConfig.BuildToRoot
 }
 
 # Resolve the output directory: explicit -OutputDirectory wins, then

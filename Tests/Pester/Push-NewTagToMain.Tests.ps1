@@ -38,9 +38,9 @@ BeforeAll {
     $script:ScratchDir = Join-Path @ScratchParams
     New-Item -ItemType Directory -Path $script:ScratchDir -Force | Out-Null
 
-    # Dot-source with -NoVersion -Build none (both harmless, satisfy the
-    # mandatory parameter sets): the guard returns before either is used.
-    . $script:Sut -NoVersion -Build none
+    # Dot-source with -NoVersion (harmless, satisfies the mandatory parameter
+    # sets): the guard returns before it is used.
+    . $script:Sut -NoVersion
 }
 
 AfterAll {
@@ -177,7 +177,7 @@ Describe 'Get-SyncStatus' -Tag 'integration', 'functional' {
     It 'reports ahead/behind counts against a remote-tracking ref' {
         Push-Location -LiteralPath $script:SyncRepo
         try {
-            $Result = Get-SyncStatus -Local 'main' -Remote 'origin/main'
+            $Result = Get-SyncStatus -Local 'main' -Remote 'origin/main' 6>$null
             $Result.Ahead | Should -Be 1
             $Result.Behind | Should -Be 0
         }
@@ -189,7 +189,8 @@ Describe 'Get-SyncStatus' -Tag 'integration', 'functional' {
     It 'returns null when the remote ref does not exist' {
         Push-Location -LiteralPath $script:SyncRepo
         try {
-            Get-SyncStatus -Local 'main' -Remote 'origin/does-not-exist' | Should -BeNullOrEmpty
+            $Result = Get-SyncStatus -Local 'main' -Remote 'origin/does-not-exist' 6>$null
+            $Result | Should -BeNullOrEmpty
         }
         finally {
             Pop-Location
@@ -210,7 +211,7 @@ Describe 'Get-SyncStatus' -Tag 'integration', 'functional' {
             & git commit -m 'side commit' *> $null
             & git update-ref refs/remotes/origin/diverged HEAD
             & git checkout main *> $null
-            { Get-SyncStatus -Local 'side' -Remote 'origin/diverged' } | Should -Not -Throw
+            { Get-SyncStatus -Local 'side' -Remote 'origin/diverged' 6>$null } | Should -Not -Throw
         }
         finally {
             Pop-Location
@@ -274,19 +275,24 @@ Describe 'Push-NewTagToMain' -Tag 'integration', 'functional' {
     }
 
     It 'merges, bumps, tags, and pushes' {
+        $OutFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-out.txt'
+        $ErrFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-err.txt'
         $Params = @{
-            FilePath         = 'pwsh'
-            ArgumentList     = @(
+            FilePath               = 'pwsh'
+            ArgumentList           = @(
                 '-NoProfile', '-NonInteractive', '-File', $script:Sut,
-                '-Bump', 'patch', '-Build', 'none', '-Yes'
+                '-Bump', 'patch', '-Yes'
             )
-            WorkingDirectory = $script:RepoPath
-            NoNewWindow      = $true
-            Wait             = $true
-            PassThru         = $true
+            WorkingDirectory       = $script:RepoPath
+            NoNewWindow            = $true
+            Wait                   = $true
+            PassThru               = $true
+            RedirectStandardOutput = $OutFile
+            RedirectStandardError  = $ErrFile
         }
         $Proc = Start-Process @Params
-        $Proc.ExitCode | Should -Be 0
+        $StdErr = Get-Content -LiteralPath $ErrFile -Raw
+        $Proc.ExitCode | Should -Be 0 -Because "the child wrote: $StdErr"
 
         $Tags = & git -C $script:RepoPath tag --list 'v1.0.1'
         $Tags | Should -Not -BeNullOrEmpty
@@ -352,19 +358,24 @@ Describe 'Push-NewTagToMain -NoManifest' -Tag 'integration', 'functional' {
     }
 
     It 'tags a manifest-less repo from -Version alone' {
+        $OutFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-out.txt'
+        $ErrFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-err.txt'
         $Params = @{
-            FilePath         = 'pwsh'
-            ArgumentList     = @(
+            FilePath               = 'pwsh'
+            ArgumentList           = @(
                 '-NoProfile', '-NonInteractive', '-File', $script:Sut,
-                '-NoManifest', '-Version', '1.2.0', '-Build', 'none', '-Yes'
+                '-NoManifest', '-Version', '1.2.0', '-Yes'
             )
-            WorkingDirectory = $script:RepoPath
-            NoNewWindow      = $true
-            Wait             = $true
-            PassThru         = $true
+            WorkingDirectory       = $script:RepoPath
+            NoNewWindow            = $true
+            Wait                   = $true
+            PassThru               = $true
+            RedirectStandardOutput = $OutFile
+            RedirectStandardError  = $ErrFile
         }
         $Proc = Start-Process @Params
-        $Proc.ExitCode | Should -Be 0
+        $StdErr = Get-Content -LiteralPath $ErrFile -Raw
+        $Proc.ExitCode | Should -Be 0 -Because "the child wrote: $StdErr"
 
         # The tag is created and annotated ('tag' object, not 'commit').
         $Tags = & git -C $script:RepoPath tag --list 'v1.2.0'
@@ -440,19 +451,28 @@ Describe 'Push-NewTagToMain duplicate-tag guard' -Tag 'integration', 'functional
 
     It 'aborts before any mutation when the target tag already exists' {
         # -NoVersion targets the current version (1.0.0), whose tag exists.
+        $OutFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-out.txt'
+        $ErrFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-err.txt'
         $Params = @{
-            FilePath         = 'pwsh'
-            ArgumentList     = @(
+            FilePath               = 'pwsh'
+            ArgumentList           = @(
                 '-NoProfile', '-NonInteractive', '-File', $script:Sut,
-                '-NoVersion', '-Build', 'none', '-Yes'
+                '-NoVersion', '-Yes'
             )
-            WorkingDirectory = $script:RepoPath
-            NoNewWindow      = $true
-            Wait             = $true
-            PassThru         = $true
+            WorkingDirectory       = $script:RepoPath
+            NoNewWindow            = $true
+            Wait                   = $true
+            PassThru               = $true
+            RedirectStandardOutput = $OutFile
+            RedirectStandardError  = $ErrFile
         }
         $Proc = Start-Process @Params
         $Proc.ExitCode | Should -Not -Be 0
+
+        # Assert on the guard's own message, so an unrelated failure that also
+        # exits nonzero cannot masquerade as the duplicate-tag refusal.
+        $StdErr = Get-Content -LiteralPath $ErrFile -Raw
+        $StdErr | Should -Match "Tag 'v1\.0\.0' already exists"
 
         # The guard fires before 'switch to main', so the repo is untouched:
         # still on feature, main still at its initial commit (feature unmerged).

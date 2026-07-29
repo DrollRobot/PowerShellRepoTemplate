@@ -26,6 +26,12 @@
     not changed, the manifest update and the release commit are skipped, but the
     current version is still tagged and pushed.
 
+    After the version bump it offers to build the module with Build.ps1 in the
+    repo root, which is skipped when the repo has no Build.ps1. The build takes
+    no parameters: where it lands is declared by Build.psd1's BuildToRoot key.
+    A root build regenerates committed artifacts, which the release commit picks
+    up automatically; an output build only touches gitignored Output\.
+
 .PARAMETER Bump
     Semantic version bump level. One of:
       patch - bug fixes only           (1.4.2 -> 1.4.3)
@@ -52,17 +58,6 @@
     'git rev-parse --show-toplevel' and its Source\ folder is searched for a
     single .psd1 (excluding ModuleBuilder's Build.psd1).
 
-.PARAMETER Build
-    Whether to build the module after updating the version, using Build.ps1 in
-    the repo root. One of:
-      none   - do not build (default); leave building to CI or a separate step
-      root   - flat build to the repo root (Build.ps1 -BuildToRoot), for repos
-               distributed by git clone; regenerated artifacts are committed
-      output - versioned build to Output\ (Build.ps1), for Gallery publishing;
-               Output\ is gitignored so nothing extra is committed
-    The build runs even when the version is unchanged, since merged code
-    changes still need rebuilding.
-
 .PARAMETER Yes
     Assume 'yes' to every confirmation prompt (non-interactive). The prompt is
     still printed with the auto-answer so the transcript records each step.
@@ -77,13 +72,10 @@
     .\Push-NewTagToMain.ps1 -NoVersion
 
 .EXAMPLE
-    .\Push-NewTagToMain.ps1 -NoManifest -Version 1.2.0 -Build none
+    .\Push-NewTagToMain.ps1 -NoManifest -Version 1.2.0
 
 .EXAMPLE
     .\Push-NewTagToMain.ps1 -Bump patch -Yes
-
-.EXAMPLE
-    .\Push-NewTagToMain.ps1 -Bump patch -Build root
 
 .NOTES
     Requirements:
@@ -117,10 +109,6 @@ param(
 
     [string]$ManifestPath,
 
-    [Parameter(Mandatory)]
-    [ValidateSet('none', 'root', 'output')]
-    [string]$Build,
-
     [Alias('y')]
     [switch]$Yes
 )
@@ -130,7 +118,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '2.0.0'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
@@ -338,22 +326,22 @@ elseif ($useBump) {
 else {
     Write-Info "Version change" "set to '$Version'"
 }
-Write-Info "Build" $Build
-
-# Resolve and validate the build script up front so a missing Build.ps1 fails
-# during setup rather than after the merge has already happened.
+# Resolve the build script up front so its presence is reported during setup
+# rather than discovered after the merge has already happened. A repo without
+# a Build.ps1 (a bare script repo) simply skips the build step.
 $buildScript = $null
-if ($Build -ne 'none') {
-    $repoRoot = Get-RepoRoot
-    if (-not $repoRoot) {
-        throw "-Build '$Build' requires a git repository, but the repo root could not be found."
+$repoRoot = Get-RepoRoot
+if ($repoRoot) {
+    $candidate = Join-Path -Path $repoRoot -ChildPath 'Build.ps1'
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        $buildScript = $candidate
     }
-    $buildScript = Join-Path -Path $repoRoot -ChildPath 'Build.ps1'
-    if (-not (Test-Path -LiteralPath $buildScript -PathType Leaf)) {
-        $NoBuildMsg = "-Build '$Build' requires Build.ps1 in the repo root, but none " +
-        "was found at '$buildScript'."
-        throw $NoBuildMsg
-    }
+}
+if ($buildScript) {
+    Write-Info "Build" $buildScript
+}
+else {
+    Write-Info "Build" "skipped (no Build.ps1 in the repo root)"
 }
 
 # --- working tree status ---------------------------------------------------
@@ -533,20 +521,12 @@ else {
 
 # Build after the version bump so root builds stamp the new version into the
 # regenerated artifacts. Runs even when the version is unchanged, since merged
-# code still needs rebuilding.
-if ($Build -ne 'none') {
-    Write-Section "Step: build ($Build)"
-    if ($Build -eq 'root') {
-        Invoke-Step "Build the module to the repo root (Build.ps1 -BuildToRoot)?" {
-            Write-Run "& `"$buildScript`" -BuildToRoot"
-            & $buildScript -BuildToRoot
-        }
-    }
-    else {
-        Invoke-Step "Build the module to Output\ (Build.ps1)?" {
-            Write-Run "& `"$buildScript`""
-            & $buildScript
-        }
+# code still needs rebuilding. Build.psd1 decides where the output lands.
+if ($buildScript) {
+    Write-Section "Step: build"
+    Invoke-Step "Build the module (Build.ps1)?" {
+        Write-Run "& `"$buildScript`""
+        & $buildScript
     }
 }
 

@@ -94,6 +94,9 @@ jobs:
           $v = '${{ github.ref_name }}'.TrimStart('v')
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      # Packaging below assumes an Output\ build, i.e. Source\Build.psd1 keeps
+      # BuildToRoot = $false. A repo that builds to the root has its artifacts
+      # committed already and needs a different packaging step.
       - name: Build
         shell: pwsh
         run: .\Build.ps1 -Version ${{ steps.ver.outputs.version }}

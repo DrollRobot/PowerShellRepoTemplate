@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `Build.ps1`: where the build lands is now declared by a `BuildToRoot` key in
+  `Source\Build.psd1` instead of the `-BuildToRoot` switch, so a bare
+  `.\Build.ps1` always builds the way the repo wants. ModuleBuilder ignores the
+  key; `Build.ps1` reads it and rejects a non-boolean value.
 - `Scripts\Compare-Template.ps1`: most of the `Tests\Test-*.ps1` code checkers
   are now `-BlindCopy`. On top of the normal diff comparison, an outdated child
   copy gets the low-friction, version-based pre-flight refresh from the template
@@ -45,6 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Source\ScriptsToProcess\Install-Dependencies.ps1` and
   `Confirm-Dependencies.ps1` renamed to `Install-Dependency.ps1` and
   `Confirm-Dependency.ps1` (singular), matching `Invoke-RemoveDependency`.
+
+### Removed
+
+- `Build.ps1`: the `-BuildToRoot` switch. Set `BuildToRoot = $true` in
+  `Source\Build.psd1` instead.
+- `Push-NewTagToMain.ps1`: the `-Build` parameter. The release step now runs
+  `Build.ps1` with no arguments (still behind its own prompt) and skips the
+  build entirely when the repo has no `Build.ps1`.
 
 ### Fixed
 

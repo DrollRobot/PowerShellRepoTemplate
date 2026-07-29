@@ -92,7 +92,7 @@
 
 .PARAMETER Built
     Load the module from the built artifact instead of the source manifest.
-    Looks for a root build first (Build.ps1 -BuildToRoot), then a flat build
+    Looks for a root build first (Build.psd1 BuildToRoot), then a flat build
     at Output\<ModuleName>\, then falls back to the newest versioned build
     under Output\. Only valid with NotLive, Live, and Destructive.
 
@@ -244,7 +244,7 @@ $ModuleName = if ($SrcManifest) {
     Split-Path -Path $PSScriptRoot -Leaf
 }
 $ManifestPath = if ($Built) {
-    # Prefer a flat root build (Build.ps1 -BuildToRoot) when one exists.
+    # Prefer a flat root build (Build.psd1 BuildToRoot) when one exists.
     $RootManifest = Join-Path -Path $PSScriptRoot -ChildPath "$ModuleName.psd1"
     if (Test-Path $RootManifest) {
         $RootManifest
@@ -294,7 +294,7 @@ $PesterTarget = if ($PSBoundParameters.ContainsKey('Path')) {
 
 # Compute build-artifact exclusions once; formatting scripts merge these at runtime.
 # CopyPaths in Build.psd1 (e.g. ScriptsToProcess, Data) are copied to the repo root
-# by a -BuildToRoot build alongside the built psm1/psd1; versioned builds land under
+# by a BuildToRoot build alongside the built psm1/psd1; versioned builds land under
 # Output\. The checks match these names ROOT-ANCHORED, so excluding the built copies
 # at the root never also hides the authoritative source under Source\ (which shares
 # those folder names).

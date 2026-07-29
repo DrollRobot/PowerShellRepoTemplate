@@ -28,11 +28,18 @@
         './Data'
     )
 
-    # Output location for default (non -BuildToRoot) builds. Relative paths
-    # are resolved against this Source/ folder. Build.ps1 reads these values
-    # too (for its clean step); -BuildToRoot overrides them.
+    # Output location for versioned builds. Relative paths are resolved
+    # against this Source/ folder. Build.ps1 reads these values too (for its
+    # clean step). Both are ignored when BuildToRoot is $true.
     OutputDirectory          = '../Output'
     VersionedOutputDirectory = $true
+
+    # CUSTOM PROPERTY -- read only by Build.ps1, not by ModuleBuilder, which
+    # ignores keys that do not match a Build-Module parameter.
+    # $true  = flat, unversioned build to the repo root, for repos distributed
+    #          by git clone; the artifacts are committed.
+    # $false = versioned build to OutputDirectory above, for Gallery publishing.
+    BuildToRoot              = $false
 
     # Optional: text injected at the very top / bottom of the generated .psm1.
     Prefix = 'Prefix.ps1'
