@@ -12,17 +12,24 @@
     yet), asks for a single confirmation, and applies everything. -DryRun stops after the
     preview; -Yes skips the confirmation (the preview still runs first).
 
-    Steps always run in this order, regardless of the config file's own table order: strip
-    TEMPLATE SETUP NOTES banners -> delete the ModuleBuilderNotes.md scaffolding files under
-    Source\ -> replace the template name, rename files that carry it, and stamp a fresh manifest
-    GUID -> fill in the GitHub owner/repo placeholders (Project.GitHubUser;
-    blank skips) -> select a license -> remove any declined [Features] (docs
-    site, SECURITY.md, CONTRIBUTING.md, the explicit-module-import check, the pre-import
-    dependency check, the opinionated formatting checks, each independently) and relocate the
-    unwanted-strings check to .local\tests\ if [Features].UnwantedStringsLocal is true ->
-    reinitialize git (only if
-    [Git].Reinit is true; destructive, has its own extra confirmation) -> report any remaining
-    FIXMEs (read-only, always last, not gated by -DryRun's early exit).
+    Steps always run in this order, regardless of the config file's own table order:
+
+      1. Strip the TEMPLATE SETUP NOTES banners.
+      2. Delete the ModuleBuilderNotes.md scaffolding files under Source\.
+      3. Delete the sample Get-Greeting function and everything that exists only to support
+         it: its Pester test, its generated docs page, and its mkdocs nav entry.
+      4. Replace the template name, rename files that carry it, and stamp a fresh manifest
+         GUID.
+      5. Fill in the GitHub owner/repo placeholders from [Project].GitHubUser (blank skips).
+      6. Select a license.
+      7. Remove any declined [Features]: the docs site, SECURITY.md, CONTRIBUTING.md, the
+         explicit-module-import check, the pre-import dependency check, and the opinionated
+         formatting checks -- each independently. Also relocates the unwanted-strings check
+         to .local\tests\ when [Features].UnwantedStringsLocal is true.
+      8. Reinitialize git -- only when [Git].Reinit is true. Destructive, and has its own
+         extra confirmation.
+      9. Report any remaining FIXMEs. Read-only, always last, and not gated by -DryRun's
+         early exit.
 
     Removing a formatting-check feature also drops its .pre-commit-config.yaml hook entry, if
     present, so a declined check never leaves a dangling commit-hook reference to a deleted
@@ -83,7 +90,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.3.0'
+$ScriptVersion = '2.4.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -460,6 +467,46 @@ function Invoke-RemoveRepoPath {
     }
 }
 
+# Drop Get-Greeting's mkdocs nav entry along with the 'Command Reference:' parent it is the only
+# child of -- mkdocs fails on a nav parent with no children. No-op when mkdocs.yml is absent (docs
+# feature declined, or setup already ran) or when the nav has been edited away from the shape the
+# template ships.
+function Remove-SampleFunctionNavEntry {
+    # This whole setup framework previews with its own -DryRun flag instead of the
+    # PSScriptAnalyzer-expected -WhatIf/-Confirm (ShouldProcess), matching every sibling step.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '')]
+    param()
+    $MkDocsPath = Join-Path -Path $script:RepoRoot -ChildPath 'mkdocs.yml'
+    if (-not (Test-Path -LiteralPath $MkDocsPath)) { return }
+    $Text = Get-Content -Path $MkDocsPath -Raw
+    $Pattern = '(?m)^  - Command Reference:\r?\n' +
+    '    - Get-Greeting: commands/Get-Greeting\.md\r?\n?'
+    $Updated = $Text -replace $Pattern, ''
+    if ($Updated -ne $Text) {
+        Set-Content -Path $MkDocsPath -Value $Updated -NoNewline
+    }
+}
+
+# Delete the sample public function the template ships to demonstrate its conventions, plus
+# everything that exists only to support it: its Pester test, its PlatyPS-generated docs page, and
+# its mkdocs nav entry. Always on (no [Features] toggle) -- like the ModuleBuilderNotes.md files,
+# it is scaffolding rather than content once a real project starts.
+function Invoke-RemoveSampleFunction {
+    param([Parameter(Mandatory)][bool]$DryRun)
+    $Targets = @(
+        'Source\Public\Get-Greeting.ps1'
+        'Tests\Pester\Get-Greeting.Tests.ps1'
+        'Docs\Commands\Get-Greeting.md'
+    )
+    Write-Info 'Remove sample function' ($Targets -join ', ')
+    Write-Host '    Drop its mkdocs nav entry, if mkdocs.yml is present'
+    if ($DryRun) { return $true }
+    Invoke-RemoveRepoPath -RelativePath $Targets
+    Remove-SampleFunctionNavEntry
+    return $true
+}
+
 function Invoke-RemoveDocsFeature {
     param([Parameter(Mandatory)][bool]$DryRun)
     $Targets = @('mkdocs.yml', 'Docs.ps1', 'Docs', '.github\workflows\docs.yml')
@@ -739,6 +786,7 @@ if ($Config.Problems.Count -gt 0) {
 Write-Section 'Preview'
 $null = Invoke-StripHeader -DryRun $true
 $null = Remove-ModuleBuilderNote -RepoRoot $script:RepoRoot -DryRun $true
+$null = Invoke-RemoveSampleFunction -DryRun $true
 $null = Invoke-RenameProject -Name $Config.Name -DryRun $true
 $GitHubUserPreviewParams = @{
     RepoRoot   = $script:RepoRoot
@@ -784,6 +832,9 @@ Invoke-SetupStep -Key 'strip_headers' -Failed $Failed -Action {
 }
 Invoke-SetupStep -Key 'remove_modulebuilder_notes' -Failed $Failed -Action {
     Remove-ModuleBuilderNote -RepoRoot $script:RepoRoot -DryRun $false
+}
+Invoke-SetupStep -Key 'remove_sample_function' -Failed $Failed -Action {
+    Invoke-RemoveSampleFunction -DryRun $false
 }
 Invoke-SetupStep -Key 'rename_project' -Failed $Failed -Action {
     Invoke-RenameProject -Name $Config.Name -DryRun $false

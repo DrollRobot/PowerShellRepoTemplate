@@ -181,6 +181,91 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
     }
 }
 
+Describe 'Invoke-RemoveSampleFunction' -Tag 'unit', 'functional' {
+    BeforeEach {
+        # Both the step and its nav helper read $script:RepoRoot, which the SUT points at THIS
+        # repo. Redirect it at a scratch tree for the duration of each test so the real repo is
+        # never touched, and restore it afterward.
+        $script:SavedRepoRoot = $script:RepoRoot
+        $TreeParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = [System.IO.Path]::GetRandomFileName()
+        }
+        $script:FakeRepo = Join-Path @TreeParams
+        foreach ($Rel in @('Source\Public', 'Tests\Pester', 'Docs\Commands')) {
+            $Dir = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            New-Item -ItemType Directory -Path $Dir -Force | Out-Null
+        }
+        $SampleFiles = @(
+            'Source\Public\Get-Greeting.ps1'
+            'Tests\Pester\Get-Greeting.Tests.ps1'
+            'Docs\Commands\Get-Greeting.md'
+        )
+        foreach ($Rel in $SampleFiles) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Set-Content -LiteralPath $Full -Value 'sample'
+        }
+        $MkDocs = @'
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Command Reference:
+    - Get-Greeting: commands/Get-Greeting.md
+'@
+        $script:FakeMkDocs = Join-Path -Path $script:FakeRepo -ChildPath 'mkdocs.yml'
+        Set-Content -LiteralPath $script:FakeMkDocs -Value $MkDocs
+        $script:RepoRoot = $script:FakeRepo
+    }
+
+    AfterEach {
+        $script:RepoRoot = $script:SavedRepoRoot
+        Remove-Item -LiteralPath $script:FakeRepo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'deletes the sample function, its test, and its docs page' {
+        Invoke-RemoveSampleFunction -DryRun $false | Should -BeTrue
+        $Deleted = @(
+            'Source\Public\Get-Greeting.ps1'
+            'Tests\Pester\Get-Greeting.Tests.ps1'
+            'Docs\Commands\Get-Greeting.md'
+        )
+        foreach ($Rel in $Deleted) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Test-Path -LiteralPath $Full | Should -BeFalse -Because "$Rel should be gone"
+        }
+    }
+
+    It 'drops the whole Command Reference nav block, leaving the other nav entries' {
+        Invoke-RemoveSampleFunction -DryRun $false | Should -BeTrue
+        $Nav = Get-Content -LiteralPath $script:FakeMkDocs -Raw
+        $Nav | Should -Not -Match 'Get-Greeting'
+        # A childless nav parent breaks the mkdocs build, so it must go too.
+        $Nav | Should -Not -Match 'Command Reference'
+        $Nav | Should -Match 'Home: index\.md'
+        $Nav | Should -Match 'Getting Started: getting-started\.md'
+    }
+
+    It 'writes nothing under -DryRun' {
+        Invoke-RemoveSampleFunction -DryRun $true | Should -BeTrue
+        $Kept = @(
+            'Source\Public\Get-Greeting.ps1'
+            'Tests\Pester\Get-Greeting.Tests.ps1'
+            'Docs\Commands\Get-Greeting.md'
+        )
+        foreach ($Rel in $Kept) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Test-Path -LiteralPath $Full | Should -BeTrue -Because "$Rel should still exist"
+        }
+        (Get-Content -LiteralPath $script:FakeMkDocs -Raw) | Should -Match 'Get-Greeting'
+    }
+
+    It 'is idempotent, and skips the nav edit when mkdocs.yml is absent' {
+        Remove-Item -LiteralPath $script:FakeMkDocs -Force
+        Invoke-RemoveSampleFunction -DryRun $false | Should -BeTrue
+        { Invoke-RemoveSampleFunction -DryRun $false } | Should -Not -Throw
+    }
+}
+
 Describe 'Test-PristineTemplateClone' -Tag 'integration', 'functional' {
     It 'returns a boolean when run against this real repository' {
         # Read-only (`git rev-list`); $script:RepoRoot always resolves to this

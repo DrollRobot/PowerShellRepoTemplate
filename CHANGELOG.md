@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that deletes every `ModuleBuilderNotes.md` scaffolding file under `Source\`.
   `Setup-NewProject.ps1` runs it right after the header strip; it is always on
   (no `[Features]` toggle) and runnable on its own.
+- `Scripts\TemplateSetup\Setup-NewProject.ps1`: a `remove_sample_function` step
+  that deletes the sample `Get-Greeting` function along with everything that
+  exists only to support it -- `Source\Public\Get-Greeting.ps1`,
+  `Tests\Pester\Get-Greeting.Tests.ps1`, `Docs\Commands\Get-Greeting.md`, and
+  its `mkdocs.yml` nav entry (the whole `Command Reference:` block, since a
+  childless nav parent breaks the mkdocs build). Always on, no `[Features]`
+  toggle.
 - `Scripts\setup.psd1`: a `Release.Enabled` config item (default `$false`).
   `.github\workflows\release.yml`'s build-and-publish job now checks it before
   running, so a fresh clone -- including this template's own repo -- can tag
