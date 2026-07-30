@@ -3,11 +3,11 @@
 
 <#
 .SYNOPSIS
-    Generates and updates PlatyPS markdown help for all exported functions.
+    Regenerates the PlatyPS markdown help for all exported functions.
 
 .DESCRIPTION
-    Creates a markdown help file for any exported function that does not have one,
-    updates all existing help files, and warns about (or deletes) orphaned doc files
+    Regenerates every markdown help file from the module's comment-based help,
+    overwriting whatever was there, and warns about (or deletes) orphaned doc files
     whose corresponding function no longer exists in the module.
 
     Must be run from the repo root in a pwsh session where the module is not yet
@@ -28,17 +28,11 @@
     .\Docs.ps1 -DeleteOrphaned
 
 .NOTES
-    1.1.1 - Write docs to 'Docs\Commands' (matching the repo's casing) instead of
-        'docs\commands'. On a case-sensitive filesystem (e.g. the Linux CI that
-        publishes the site) the lowercase path was a different folder from the
-        committed one.
-    1.1.0 - Import the module from Source\ (the source manifest, found by excluding
-        Build.psd1) instead of a built manifest in the repo root. The comment-based
-        help is identical either way, so docs no longer depend on a prior build or on
-        locating one. Module name is now derived from the source manifest.
-    1.0.0 - Capture and restore any existing 'Log' alias around the run (it was
-        previously removed and never restored), reading the alias target from the
-        session instead of hard-coding it.
+    1.1.1 - Write docs to 'Docs\Commands' instead of 'docs\commands' for *nix
+        compatibility.
+    1.1.0 - Import the module from Source\ instead of built module.
+    1.0.0 - Found PlaytPS 'Log' alias was conflicting with local alias. Script
+        now captures, removes, then restores local alises to prevent conflict.
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
@@ -49,7 +43,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.1'
+$ScriptVersion = '1.2.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -81,13 +75,17 @@ if ($OriginalLogAlias) {
 }
 
 try {
-    # Create a doc file for any exported function that does not have one yet
-    (Get-Module $ModuleName).ExportedFunctions.Keys |
-        Where-Object { -not (Test-Path (Join-Path -Path $DocsPath -ChildPath "$_.md")) } |
-        ForEach-Object { New-MarkdownHelp -Command $_ -OutputFolder $DocsPath }
-
-    # Update all existing doc files (including any just created)
-    Update-MarkdownHelp -Path $DocsPath
+    # Rewrite every doc file from the comment-based help in Source\. -Force
+    # overwrites existing files; see .DESCRIPTION for why nothing is merged.
+    $HelpParams = @{
+        Module       = $ModuleName
+        OutputFolder = $DocsPath
+        Force        = $true
+    }
+    # Array subexpression: Set-StrictMode -Version Latest rejects .Count on the
+    # bare FileInfo returned when the module exports exactly one function.
+    $Generated = @(New-MarkdownHelp @HelpParams)
+    Write-Host "Generated $($Generated.Count) doc file(s)."
 
     # Warn about (or delete) orphaned doc files whose function no longer exists
     $ExportedFunctions = (Get-Module $ModuleName).ExportedFunctions.Keys
