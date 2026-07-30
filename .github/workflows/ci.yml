@@ -62,14 +62,12 @@ jobs:
 
       - name: Install PowerShell modules
         shell: pwsh
-        run: Install-Module Pester, PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
+        run: Install-Module Pester, PSScriptAnalyzer, ModuleBuilder -Force -Scope CurrentUser -SkipPublisherCheck
 
-      - name: Formatting and lint checks
+      - name: Lint checks
         shell: pwsh
         run: >
-          .\Tests.ps1
-          ModuleSyntax LineLength BacktickContinuation FormatOperator JoinPath
-          NonASCIICharacters WriteVerboseDebug -Quiet
+          .\Tests.ps1 ModuleSyntax,Lint -Quiet
 
       - name: PSScriptAnalyzer
         shell: pwsh
