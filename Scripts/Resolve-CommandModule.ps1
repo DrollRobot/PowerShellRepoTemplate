@@ -53,12 +53,12 @@ function Resolve-CommandModule {
         Resolves a single command and reports its module, path, and source.
 
     .EXAMPLE
-        Find-ScriptCommand -Path .\Get-Greeting.ps1 | Resolve-CommandModule
+        Find-ScriptCommand -Path .\Get-Stuff.ps1 | Resolve-CommandModule
 
         Resolves every command found in a file, classifying each by source.
 
     .EXAMPLE
-        Find-ScriptCommand -Path .\Get-Greeting.ps1 |
+        Find-ScriptCommand -Path .\Get-Stuff.ps1 |
             Resolve-CommandModule -HostModuleName 'PowershellRepoTemplate'
 
         Resolves every command, distinguishing the host module's own public and

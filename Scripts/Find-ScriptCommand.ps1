@@ -33,7 +33,7 @@ function Find-ScriptCommand {
         names are found or skipped.
 
     .EXAMPLE
-        Find-ScriptCommand -Path .\Get-Greeting.ps1
+        Find-ScriptCommand -Path .\Get-Stuff.ps1
 
         Returns the unique command names invoked in the specified file.
 
