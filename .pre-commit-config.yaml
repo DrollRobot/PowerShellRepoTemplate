@@ -63,35 +63,35 @@ repos:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
 
-  # PowerShell formatting / lint checks
+  # PowerShell lint checks
   - repo: local
     hooks:
       - id: ps-module-syntax
         name: PowerShell syntax
-        entry: pwsh -NoProfile -File Tests/Test-ModuleSyntax.ps1 -Quiet
+        entry: pwsh -NoProfile -File Tests.ps1 -Test ModuleSyntax -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
 
-      # Every Tests/Pester/*.Lint.Tests.ps1 check, in one Pester run, against the
-      # staged files only: pre-commit appends them to the entry below, and
-      # Tests.ps1's -Path takes the remaining arguments. Run `.\Tests.ps1 Lint`
-      # yourself to check the whole repo.
       - id: ps-lint
         name: PowerShell lint
-        entry: pwsh -NoProfile -File Tests.ps1 Lint
+        entry: pwsh -NoProfile -File Tests.ps1 -Test Lint -Quiet
         language: system
         files: \.(ps1|psm1|psd1)$
 
   # Pre-push checks
   - repo: local
     hooks:
-      # -Command, not -File: two categories are one comma-separated argument, and
-      # -File hands its arguments over as literal strings with no parser, so
-      # 'NotLive,PSSA' would arrive as a single unsplit value and fail
-      # -Test's ValidateSet.
       - id: pester-prepush
         name: pester (prepush)
-        entry: pwsh -NoProfile -Command '& ./Tests.ps1 NotLive,PSSA -Quiet'
+        entry: pwsh -NoProfile -File Tests.ps1 -Test NotLive -Quiet
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+
+      - id: pssa-prepush
+        name: PSScriptAnalyzer (prepush)
+        entry: pwsh -NoProfile -File Tests.ps1 -Test PSSA -Quiet
         language: system
         stages: [pre-push]
         pass_filenames: false
