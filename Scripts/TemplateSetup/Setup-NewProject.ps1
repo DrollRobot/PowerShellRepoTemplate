@@ -91,7 +91,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.5.0'
+$ScriptVersion = '2.6.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -542,9 +542,10 @@ function Invoke-RemoveExplicitModuleImport {
     return $true
 }
 
-# Removes the pre-import dependency-check feature: both ScriptsToProcess scripts, plus the
-# ScriptsToProcess entry that wires Confirm-Dependency.ps1 into the (already renamed) module
-# manifest -- so a declined feature never leaves the manifest pointing at a deleted script.
+# Removes the pre-import dependency-check feature: both ScriptsToProcess scripts, the
+# RequiredModules.psd1 they read, its Pester test, plus the ScriptsToProcess entry that
+# wires Confirm-Dependency.ps1 into the (already renamed) module manifest -- so a declined
+# feature never leaves the manifest pointing at a deleted script.
 function Invoke-RemoveDependency {
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -553,6 +554,8 @@ function Invoke-RemoveDependency {
     $Targets = @(
         'Source\ScriptsToProcess\Confirm-Dependency.ps1'
         'Source\ScriptsToProcess\Install-Dependency.ps1'
+        'Source\ScriptsToProcess\RequiredModules.psd1'
+        'Tests\Pester\Confirm-Dependency.Tests.ps1'
     )
     Write-Info 'Remove dependency-check feature' ($Targets -join ', ')
     if ($DryRun) { return $true }

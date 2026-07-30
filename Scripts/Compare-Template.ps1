@@ -108,7 +108,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.6.0'
+$ScriptVersion = '2.7.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -334,8 +334,10 @@ $script:Manifest = @(
     (New-Entry 'Source/Build.psd1')
     $DepsGate = @{ Gate = 'InstallDependenciesScript' }
     (New-Entry 'Source/ScriptsToProcess/Confirm-Dependency.ps1' -BlindCopy $true @DepsGate)
-    # Carries a hand-edit FIXME block.
-    (New-Entry 'Source/ScriptsToProcess/Install-Dependency.ps1' -Strict $false @DepsGate)
+    (New-Entry 'Source/ScriptsToProcess/Install-Dependency.ps1' -BlindCopy $true @DepsGate)
+    # Holds the child's own dependency list, not the template's -- existence only.
+    (New-Entry 'Source/ScriptsToProcess/RequiredModules.psd1' -ExistenceOnly $true @DepsGate)
+    (New-Entry 'Tests/Pester/Confirm-Dependency.Tests.ps1' -BlindCopy $true @DepsGate)
     # Docs site config.
     (New-Entry 'mkdocs.yml' -Required $false -Strict $false -Gate 'Docs')
     # Worktree, release, and docs helper scripts.

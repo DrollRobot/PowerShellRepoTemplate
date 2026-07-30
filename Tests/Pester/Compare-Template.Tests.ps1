@@ -218,6 +218,8 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             'Scripts/Push-NewTagToMain.ps1'
             'Scripts/Remove-WorkTree.ps1'
             'Source/ScriptsToProcess/Confirm-Dependency.ps1'
+            'Source/ScriptsToProcess/Install-Dependency.ps1'
+            'Tests/Pester/Confirm-Dependency.Tests.ps1'
             'Tests/Test-ExplicitModuleImport.ps1'
             'Tests/Test-ModuleSyntax.ps1'
             'Tests/Test-PSSA.ps1'
@@ -246,7 +248,6 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             'Scripts/TemplateSetup/Setup-NewProject.ps1'
             'Scripts/Find-ScriptCommand.ps1'
             'Scripts/Resolve-CommandModule.ps1'
-            'Source/ScriptsToProcess/Install-Dependency.ps1'
             'Tests/TestConfig.psd1'
             'Tests/Pester/UnwantedStrings.Lint.Tests.ps1'
         )
@@ -257,9 +258,6 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         }
     }
     It 'treats the known hand-edit points leniently' {
-        $installDeps = $script:Manifest |
-            Where-Object Path -EQ 'Source/ScriptsToProcess/Install-Dependency.ps1'
-        $installDeps.Strict | Should -BeFalse
         $unwantedStrings = $script:Manifest |
             Where-Object Path -EQ 'Tests/Pester/UnwantedStrings.Lint.Tests.ps1'
         $unwantedStrings.Strict | Should -BeFalse

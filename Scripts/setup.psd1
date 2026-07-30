@@ -88,9 +88,10 @@
         # -- nothing else uses those helpers, so all three go together.
         ExplicitModuleImport = $true
 
-        # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependency.ps1
-        # and Install-Dependency.ps1, plus the ScriptsToProcess entry in the module
-        # manifest that wires the check in. false removes all three together.
+        # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependency.ps1,
+        # Install-Dependency.ps1 and the RequiredModules.psd1 they both read, plus that
+        # check's Pester test and the ScriptsToProcess entry in the module manifest that
+        # wires the check in. false removes all of them together.
         InstallDependenciesScript = $true
 
         # Opinionated lint checks some teams don't want enforced. Removing one
