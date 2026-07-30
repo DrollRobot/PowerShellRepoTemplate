@@ -88,8 +88,15 @@ Describe 'Build.ps1' -Tag 'integration', 'functional', 'slow' {
 
         $ExitCode | Should -Be 0
 
-        $BuiltManifest = @(Get-ChildItem -Path $ScratchOutput -Filter '*.psd1' -Recurse)
-        $BuiltManifest.Count | Should -Be 1
+        # Target the manifest by name: the built module also carries data files
+        # with a .psd1 extension that are not manifests.
+        $GciBuilt = @{
+            Path    = $ScratchOutput
+            Filter  = "$script:ModuleName.psd1"
+            Recurse = $true
+        }
+        $BuiltManifest = @(Get-ChildItem @GciBuilt)
+        $BuiltManifest | Should -Not -BeNullOrEmpty
         $BuiltPsm1 = @(Get-ChildItem -Path $ScratchOutput -Filter '*.psm1' -Recurse)
         $BuiltPsm1.Count | Should -Be 1
         $BuiltPsm1[0].BaseName | Should -Be $BuiltManifest[0].BaseName

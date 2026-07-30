@@ -1,10 +1,3 @@
-#
-# Module manifest for module 'PowershellRepoTemplate'
-#
-# FIXME: rename this file and the strings below to your module name, then set
-# Author, Copyright, Description, and a fresh GUID (New-Guid).
-#
-
 @{
 
     # Script module or binary module file associated with this manifest.
@@ -54,18 +47,8 @@
     # Processor architecture (None, X86, Amd64) required by this module
     # ProcessorArchitecture = ''
 
-    # Modules that must be imported into the global environment prior to importing this module
-    RequiredModules   = @(
-        # FIXME optionally use lazy loading with Confirm-Dependency.ps1 and
-        # Install-Dependency.ps1. If lazy loading, put modules in
-        # Install-Dependency and here, but comment them out here.
-
-
-        # Dev/test dependencies -- not required for most users
-        @{ModuleName = 'Pester'; ModuleVersion = '6.0.0' }
-        @{ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0' }
-        @{ModuleName = 'ModuleBuilder'; ModuleVersion = '3.2.16' }
-    )
+    # Modules that must be imported into the global environment prior to importing this module.
+    # RequiredModules   = @()
 
     # Assemblies that must be loaded prior to importing this module
     # RequiredAssemblies = @()

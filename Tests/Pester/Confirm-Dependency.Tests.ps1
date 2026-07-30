@@ -3,14 +3,15 @@
     Pester tests for Source\ScriptsToProcess\Confirm-Dependency.ps1.
 
 .DESCRIPTION
-    The script walks up from its own $PSScriptRoot to find a module root
-    (a directory containing a .psd1), then recursively finds
-    Install-Dependency.ps1 under that root. A scratch copy of both scripts
-    is placed under a fixture module tree so this is exercised in isolation.
-    Uses `return`/`throw`, not `exit`, so it is safe to invoke in-process via
-    the call operator. It delegates to Install-Dependency.ps1, which banners
-    via Write-Host; Pester does not capture stream 6, so every invocation
-    redirects it to keep the run output clean. NotLive; no tag.
+    The script reads RequiredModules.psd1 from its own directory and checks each declared
+    module against what is installed. A scratch copy of the script plus a generated
+    RequiredModules.psd1 is placed in a fixture folder so this is exercised in isolation.
+    Uses `return`/`throw`, not `exit`, so it is safe to invoke in-process via the call
+    operator. It banners via Write-Host; Pester does not capture stream 6, so every
+    invocation redirects it to keep the run output clean. NotLive; no tag.
+
+    'Pester' is used as the stand-in for an installed module -- it is by definition
+    present whenever these tests run.
 #>
 
 BeforeAll {
@@ -19,11 +20,6 @@ BeforeAll {
         ChildPath = '..\..\Source\ScriptsToProcess\Confirm-Dependency.ps1'
     }
     $script:RealConfirm = (Resolve-Path (Join-Path @RealConfirmParams)).Path
-    $RealInstallParams = @{
-        Path      = $PSScriptRoot
-        ChildPath = '..\..\Source\ScriptsToProcess\Install-Dependency.ps1'
-    }
-    $script:RealInstall = (Resolve-Path (Join-Path @RealInstallParams)).Path
 
     $ScratchParams = @{
         Path      = [System.IO.Path]::GetTempPath()
@@ -32,30 +28,39 @@ BeforeAll {
     $script:ScratchDir = Join-Path @ScratchParams
     New-Item -ItemType Directory -Path $script:ScratchDir -Force | Out-Null
 
-    # Builds a fixture module tree: <root>\Fixture.psd1 (declaring the given
-    # RequiredModules), <root>\Install-Dependency.ps1, and
-    # <root>\ScriptsToProcess\Confirm-Dependency.ps1 -- so a walk-up from
-    # the nested Confirm-Dependency.ps1 copy finds <root> as the module root.
-    function script:New-ModuleFixture {
-        param([string] $ManifestBody = '@{}')
+    # Builds a fixture folder holding a copy of Confirm-Dependency.ps1 and, unless
+    # -NoDataFile is passed, a RequiredModules.psd1 with the given body beside it --
+    # the sibling layout the script expects in the built module.
+    function script:New-DependencyFixture {
+        param(
+            [string] $DataBody = '@{ RequiredModules = @() }',
+            [switch] $NoDataFile
+        )
         $RootParams = @{
             Path      = $script:ScratchDir
             ChildPath = "mod-$([guid]::NewGuid().ToString('N'))"
         }
         $Root = Join-Path @RootParams
-        $ScriptsDir = Join-Path -Path $Root -ChildPath 'ScriptsToProcess'
-        New-Item -ItemType Directory -Path $ScriptsDir -Force | Out-Null
-        $ManifestParams = @{
-            LiteralPath = Join-Path -Path $Root -ChildPath 'Fixture.psd1'
-            Value       = $ManifestBody
+        New-Item -ItemType Directory -Path $Root -Force | Out-Null
+        if (-not $NoDataFile) {
+            $DataParams = @{
+                LiteralPath = Join-Path -Path $Root -ChildPath 'RequiredModules.psd1'
+                Value       = $DataBody
+            }
+            Set-Content @DataParams
         }
-        Set-Content @ManifestParams
-        $InstallCopy = Join-Path -Path $Root -ChildPath 'Install-Dependency.ps1'
-        Copy-Item -LiteralPath $script:RealInstall -Destination $InstallCopy
-        $ConfirmCopy = Join-Path -Path $ScriptsDir -ChildPath 'Confirm-Dependency.ps1'
+        $ConfirmCopy = Join-Path -Path $Root -ChildPath 'Confirm-Dependency.ps1'
         Copy-Item -LiteralPath $script:RealConfirm -Destination $ConfirmCopy
         return [pscustomobject]@{ Root = $Root; ConfirmScript = $ConfirmCopy }
     }
+
+    $script:MissingModuleData = @'
+@{
+    RequiredModules = @(
+        @{ ModuleName = 'DefinitelyNotARealModule12345'; ModuleVersion = '1.0.0' }
+    )
+}
+'@
 }
 
 AfterAll {
@@ -65,71 +70,95 @@ AfterAll {
 Describe 'Confirm-Dependency' -Tag 'unit', 'functional' {
 
     AfterEach {
-        # $Global:ModuleDependenciesChecked is keyed by module root path, so
+        # $Global:ModuleDependenciesChecked is keyed by the script's own directory, so
         # this only ever clears entries this test file itself created.
         if ($Global:ModuleDependenciesChecked -is [hashtable] -and $script:FixtureRoot) {
             $Global:ModuleDependenciesChecked.Remove($script:FixtureRoot)
         }
     }
 
-    It 'discovers the module root by walking up and succeeds when deps are satisfied' {
-        $Fixture = New-ModuleFixture
+    It 'succeeds when RequiredModules.psd1 declares nothing' {
+        $Fixture = New-DependencyFixture
         $script:FixtureRoot = $Fixture.Root
         { & $Fixture.ConfirmScript 6>$null } | Should -Not -Throw
     }
 
-    It 'records the module root in $Global:ModuleDependenciesChecked on success' {
-        $Fixture = New-ModuleFixture
+    It 'returns quietly when RequiredModules.psd1 is absent' {
+        $Fixture = New-DependencyFixture -NoDataFile
+        $script:FixtureRoot = $Fixture.Root
+        { & $Fixture.ConfirmScript 6>$null } | Should -Not -Throw
+    }
+
+    It 'succeeds when a declared module is installed at a satisfying version' {
+        $DataBody = @'
+@{
+    RequiredModules = @(
+        @{ ModuleName = 'Pester'; ModuleVersion = '0.0.1' }
+    )
+}
+'@
+        $Fixture = New-DependencyFixture -DataBody $DataBody
+        $script:FixtureRoot = $Fixture.Root
+        { & $Fixture.ConfirmScript 6>$null } | Should -Not -Throw
+    }
+
+    It 'records the script directory in $Global:ModuleDependenciesChecked on success' {
+        $Fixture = New-DependencyFixture
         $script:FixtureRoot = $Fixture.Root
         & $Fixture.ConfirmScript 6>$null
         $Global:ModuleDependenciesChecked | Should -Not -BeNullOrEmpty
         $Global:ModuleDependenciesChecked[$Fixture.Root] | Should -BeTrue
     }
 
-    It 'skips re-checking once the module root is already recorded' {
-        $Fixture = New-ModuleFixture
+    It 'skips re-checking once the script directory is already recorded' {
+        # Pre-seed the cache against a fixture whose dependency can never be
+        # satisfied. Not throwing proves the cache short-circuited the scan.
+        $Fixture = New-DependencyFixture -DataBody $script:MissingModuleData
         $script:FixtureRoot = $Fixture.Root
-        # Pre-seed the cache, then delete Install-Dependency.ps1 -- if the
-        # script re-scanned instead of trusting the cache, it would find
-        # nothing to delegate to and simply `return`, which looks identical
-        # to skipping from the outside. So additionally assert this via
-        # timing is unreliable; instead assert the documented contract
-        # directly: the cache entry alone is sufficient to short-circuit.
         if ($Global:ModuleDependenciesChecked -isnot [hashtable]) {
             $Global:ModuleDependenciesChecked = @{}
         }
         $Global:ModuleDependenciesChecked[$Fixture.Root] = $true
-        $InstallScriptPath = Join-Path -Path $Fixture.Root -ChildPath 'Install-Dependency.ps1'
-        Remove-Item -LiteralPath $InstallScriptPath
         { & $Fixture.ConfirmScript 6>$null } | Should -Not -Throw
     }
 
     It 'throws when a required module is missing and not yet cached' {
-        $ManifestBody = @'
-@{
-    RequiredModules = @(
-        @{ ModuleName = 'DefinitelyNotARealModule12345'; ModuleVersion = '1.0.0' }
-    )
-}
-'@
-        $Fixture = New-ModuleFixture -ManifestBody $ManifestBody
+        $Fixture = New-DependencyFixture -DataBody $script:MissingModuleData
         $script:FixtureRoot = $Fixture.Root
         { & $Fixture.ConfirmScript 6>$null } | Should -Throw
     }
 
-    It 'does not record the module root when a required module is missing' {
-        $ManifestBody = @'
+    It 'throws when a required module is installed but below the declared minimum' {
+        $DataBody = @'
 @{
     RequiredModules = @(
-        @{ ModuleName = 'DefinitelyNotARealModule12345'; ModuleVersion = '1.0.0' }
+        @{ ModuleName = 'Pester'; ModuleVersion = '9999.0.0' }
     )
 }
 '@
-        $Fixture = New-ModuleFixture -ManifestBody $ManifestBody
+        $Fixture = New-DependencyFixture -DataBody $DataBody
+        $script:FixtureRoot = $Fixture.Root
+        { & $Fixture.ConfirmScript 6>$null } | Should -Throw
+    }
+
+    It 'does not record the script directory when a required module is missing' {
+        $Fixture = New-DependencyFixture -DataBody $script:MissingModuleData
         $script:FixtureRoot = $Fixture.Root
         try { & $Fixture.ConfirmScript 6>$null } catch { }
         if ($Global:ModuleDependenciesChecked -is [hashtable]) {
             $Global:ModuleDependenciesChecked[$Fixture.Root] | Should -Not -Be $true
+        }
+    }
+
+    It 'does not leak its working variables into the calling scope' {
+        # Dot-sourced, because that is how ScriptsToProcess runs it: in the caller's
+        # scope, where anything the script assigns would land in the user's session.
+        $Fixture = New-DependencyFixture
+        $script:FixtureRoot = $Fixture.Root
+        . $Fixture.ConfirmScript 6>$null
+        $LeakParams = @{ Scope = 'Local'; ErrorAction = 'Ignore' }
+        foreach ($Leak in 'DataPath', 'DepsChecked', 'RequiredModules', 'Unsatisfied') {
+            Get-Variable @LeakParams -Name $Leak | Should -BeNullOrEmpty -Because $Leak
         }
     }
 }

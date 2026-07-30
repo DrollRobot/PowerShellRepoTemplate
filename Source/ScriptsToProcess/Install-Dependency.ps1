@@ -1,15 +1,17 @@
 <#
 .SYNOPSIS
-    Installs required modules for a PowerShell module.
+    Installs the modules declared in RequiredModules.psd1.
 
 .DESCRIPTION
-    Discovers the .psd1 manifest in the same directory as this script, reads
-    RequiredModules, and installs each one.  Version constraints
-    (ModuleVersion, RequiredVersion, MaximumVersion) are read directly from
-    the manifest and passed through to Install-Module.
+    Reads RequiredModules.psd1 from this script's own directory and installs every module
+    it declares. Version constraints (ModuleVersion, RequiredVersion, MaximumVersion) are
+    read from that file and passed through to Install-Module.
 
-    The script must be placed in the root folder of a PowerShell module
-    (i.e. alongside the .psd1 file).
+    This script only installs. The pre-import check lives in Confirm-Dependency.ps1, which
+    reads the same RequiredModules.psd1; neither script calls the other.
+
+    RequiredModules.psd1 must sit beside this script. Both files travel together into the
+    built module, so no path configuration is needed.
 
 .PARAMETER Scope
     Installation scope: CurrentUser (default) or AllUsers.
@@ -20,26 +22,23 @@
 .EXAMPLE
     .\Install-Dependency.ps1
 
-.PARAMETER Check
-    Check whether all required modules are installed without installing anything.
-    If any are missing, prints the exact command to run to install them.
-
-.PARAMETER Quiet
-    Suppress all informational output. When combined with -Check, produces no output
-    if all modules are satisfied; prints only the missing-modules summary if any are missing.
-    Useful for CI or wrapper scripts.
+    Installs or repairs every module declared in RequiredModules.psd1.
 
 .EXAMPLE
     .\Install-Dependency.ps1 -Scope AllUsers -WhatIf
 
-.EXAMPLE
-    .\Install-Dependency.ps1 -Check
+    Reports what would be installed machine-wide without changing anything.
 
-.EXAMPLE
-    .\Install-Dependency.ps1 -Check -Quiet
+.OUTPUTS
+    None. Progress and a per-module status line are written to the host.
 
 .NOTES
-Version 1.3.0
+Version 2.0.0
+2.0.0 - BREAKING: -Check and -Quiet removed, along with the hard-coded fallback module
+        list. The module list now comes from the sibling RequiredModules.psd1 instead of
+        a .psd1 discovered in $PSScriptRoot -- which never resolved once the script was
+        deployed under ScriptsToProcess\, silently leaving the list empty. Checking is
+        now solely Confirm-Dependency.ps1's job. The final throw carries a message.
 1.3.0 - Renamed from Install-Dependencies.ps1 to Install-Dependency.ps1 (singular),
         matching Invoke-RemoveDependency and Confirm-Dependency.ps1.
 1.2.1 - InstalledMax now coalesces to $null when nothing is installed, so
@@ -59,16 +58,12 @@ param(
     [ValidateSet('CurrentUser', 'AllUsers')]
     [string]$Scope = 'CurrentUser',
 
-    [switch]$Force,
-
-    [switch]$Check,
-
-    [switch]$Quiet
+    [switch]$Force
 )
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '2.0.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -76,54 +71,30 @@ $DarkCyan = @{ForegroundColor = 'DarkCyan' }
 $Yellow = @{ForegroundColor = 'Yellow' }
 $Red = @{ForegroundColor = 'Red' }
 
-# Hard-coded fallback module list
-# Used only when the manifest's RequiredModules cannot be read (missing,
-# empty, or the manifest itself can't be found).
-# FIXME: optionally mirror your manifest's RequiredModules here, e.g.:
-#   @{ModuleName = 'PSFramework'; ModuleVersion = '1.13.0' }
-$HardCodedRequiredModules = @()
+# Single source of truth, shared with Confirm-Dependency.ps1.
+$DataPath = Join-Path -Path $PSScriptRoot -ChildPath 'RequiredModules.psd1'
 
-# Discover manifest
-$ManifestFiles = @(Get-ChildItem -Path $PSScriptRoot -Filter '*.psd1' -File)
-
-$RequiredModules = $null
-$FromManifest = $false
-
-if (($ManifestFiles | Measure-Object).Count -eq 0) {
-    # No manifest present -- silently fall back to the hard-coded list below.
-}
-elseif (($ManifestFiles | Measure-Object).Count -gt 1) {
-    $names = $ManifestFiles.Name -join ', '
-    $WarnMsg = "Multiple .psd1 manifests found in $PSScriptRoot ($names). " +
-    'Cannot determine which to use.'
-    Write-Warning $WarnMsg
-}
-else {
-    $ManifestPath = $ManifestFiles[0].FullName
-    $Manifest = Import-PowerShellDataFile -Path $ManifestPath
-    $RequiredModules = $Manifest['RequiredModules']
-    if ($RequiredModules) {
-        $FromManifest = $true
-    }
+if (-not (Test-Path -LiteralPath $DataPath)) {
+    throw "RequiredModules.psd1 not found beside this script (expected at $DataPath)."
 }
 
-# if modules found in manifest, use hard coded list
-if (-not $RequiredModules) {
-    $RequiredModules = $HardCodedRequiredModules
+$Data = Import-PowerShellDataFile -Path $DataPath
+
+# Assigned in two steps, not from an `if` expression: a branch returning @() emits
+# nothing to the pipeline, so the variable would land as AutomationNull and .Count
+# would throw PropertyNotFound under Set-StrictMode -Version Latest.
+$RequiredModules = @()
+if ($Data -is [hashtable] -and $Data.ContainsKey('RequiredModules')) {
+    $RequiredModules = @($Data['RequiredModules'])
 }
 
-# if modules not found in either, return
-if (-not $RequiredModules) {
-    if (-not $Quiet) { Write-Host @DarkCyan 'No required modules declared. Nothing to do.' }
+if ($RequiredModules.Count -eq 0) {
+    Write-Host @DarkCyan 'No required modules declared. Nothing to do.'
     return
 }
 
-$SourcePath = if ($FromManifest) { $ManifestPath } else { $PSCommandPath }
-
-if (-not $Quiet) {
-    Write-Host @DarkCyan "Using source: $SourcePath"
-    Write-Host @DarkCyan "Found $($RequiredModules.Count) required module(s)."
-}
+Write-Host @DarkCyan "Using source: $DataPath"
+Write-Host @DarkCyan "Found $($RequiredModules.Count) required module(s)."
 
 function Test-VersionSatisfied {
     param([version[]]$Installed, [version]$Min, [version]$Max, [version]$Required)
@@ -137,7 +108,9 @@ function Test-VersionSatisfied {
 
 # ---------------------------------------------------------------------------
 # Loop 1: Assess each required module (no installs, no output).
-#         Builds $Plan; Problem = does not meet the manifest requirement.
+#         Builds $Plan; Problem = does not meet the declared requirement.
+#         The constraint parsing here is mirrored in Confirm-Dependency.ps1 --
+#         that duplication is deliberate; see the note in that script.
 # ---------------------------------------------------------------------------
 $Plan = foreach ($Entry in $RequiredModules) {
     # Entries can be a plain string or a hashtable with version constraints.
@@ -160,17 +133,18 @@ $Plan = foreach ($Entry in $RequiredModules) {
             $VersionLabel = "== v$($Entry.RequiredVersion)"
         }
         else {
+            $Parts = @()
             if ($Entry.ContainsKey('ModuleVersion')) {
                 $Min = [version]$Entry.ModuleVersion
                 $InstallParams['MinimumVersion'] = $Entry.ModuleVersion
-                $VersionLabel = ">= $($Entry.ModuleVersion)"
+                $Parts += ">= $($Entry.ModuleVersion)"
             }
             if ($Entry.ContainsKey('MaximumVersion')) {
                 $Max = [version]$Entry.MaximumVersion
                 $InstallParams['MaximumVersion'] = $Entry.MaximumVersion
-                $VersionLabel += " <= $($Entry.MaximumVersion)"
+                $Parts += "<= $($Entry.MaximumVersion)"
             }
-            $VersionLabel = $VersionLabel.Trim()
+            if ($Parts.Count -gt 0) { $VersionLabel = $Parts -join ' ' }
         }
     }
 
@@ -207,7 +181,6 @@ $Plan = foreach ($Entry in $RequiredModules) {
 # ---------------------------------------------------------------------------
 # Loop 2: Graph version mismatch. If the installed graph modules disagree
 #         (>=2 distinct versions), flag ALL graph modules as a problem.
-#         Install-Module cannot fix this -- it's advisory only (see report).
 # ---------------------------------------------------------------------------
 $GraphMismatch = $false
 $GraphMax = $null
@@ -222,7 +195,7 @@ if ($GraphPlan.Count -gt 1) {
 }
 
 # ---------------------------------------------------------------------------
-# Loop 3: Act (unless -Check) and report. Single output section.
+# Loop 3: Act and report. Single output section.
 #   - Non-graph problem  -> uninstall (if installed) + reinstall.
 #   - Missing graph (no mismatch) -> install normally (never uninstall graph).
 #   - Graph mismatch     -> do not touch; warn + recommend below.
@@ -232,13 +205,13 @@ $Locked = @()
 foreach ($R in $Plan) {
 
     # --- Act -------------------------------------------------------------
-    if ($R.Problem -and -not $Check) {
+    if ($R.Problem) {
         $InstallParams = $R.InstallParams   # splatting requires a variable
         if ($R.IsGraph) {
             # Graph modules are never uninstalled. A mismatch is left for the
             # advisory below; a merely-missing module installs normally.
             if (-not $GraphMismatch) {
-                if (-not $Quiet) { Write-Host @Yellow "Installing $($R.Name) $($R.VersionLabel)" }
+                Write-Host @Yellow "Installing $($R.Name) $($R.VersionLabel)"
                 if ($PSCmdlet.ShouldProcess($R.Name, 'Install-Module')) {
                     Install-Module @InstallParams
                 }
@@ -247,7 +220,7 @@ foreach ($R in $Plan) {
         else {
             # Non-graph: explicit uninstall + reinstall (no -Force reliance).
             $verb = if ($R.InstalledMax) { 'Reinstalling' } else { 'Installing' }
-            if (-not $Quiet) { Write-Host @Yellow "$verb $($R.Name) $($R.VersionLabel)" }
+            Write-Host @Yellow "$verb $($R.Name) $($R.VersionLabel)"
             if ($PSCmdlet.ShouldProcess($R.Name, "$verb (uninstall + install)")) {
                 $uninstallBlocked = $false
                 if ($R.InstalledMax) {
@@ -305,7 +278,7 @@ foreach ($R in $Plan) {
         $Status = 'UNINSTALL FAILED - FILE LOCKED'
     }
     elseif (-not $R.Satisfied) {
-        # Installed but below the manifest requirement is distinct from absent.
+        # Installed but below the declared requirement is distinct from absent.
         $Status = if ($null -ne $R.InstalledMax) {
             "OUTDATED ($($R.InstalledMax))"
         } else { 'MISSING' }
@@ -315,49 +288,50 @@ foreach ($R in $Plan) {
         $Status = 'OK'
     }
 
-    if (-not $Quiet) {
-        $Color = if ($Status -like 'OK*') { @{} } else { $Yellow }
-        Write-Host @Color "    $($R.Name) $($R.VersionLabel) -- $Status"
-    }
+    $Color = if ($Status -like 'OK*') { @{} } else { $Yellow }
+    Write-Host @Color "    $($R.Name) $($R.VersionLabel) -- $Status"
 }
 
 # --- Recommendation / summary --------------------------------------------
-if (-not $Quiet) {
-    if ($GraphMismatch) {
-        Write-Host @Red @"
+if ($GraphMismatch) {
+    Write-Host @Red @"
 
 Microsoft.Graph modules have mismatched versions.
 To resolve, uninstall all graph modules:
 "@
-        Write-Host @Yellow @"
+    Write-Host @Yellow @"
 Get-InstalledModule Microsoft.Graph* |
     Where-Object Name -ne 'Microsoft.Graph.Authentication' |
     ForEach-Object { Uninstall-Module `$_.Name -AllVersions -Force -ErrorAction SilentlyContinue }
 Uninstall-Module Microsoft.Graph.Authentication -AllVersions -Force
 "@
-        Write-Host @Red @"
+    Write-Host @Red @"
 
 Then, reinstall latest versions with:
 "@
-        Write-Host @Yellow @"
+    Write-Host @Yellow @"
 & '$PSCommandPath'
 
 "@
-    }
-    elseif ($Locked.Count -gt 0) {
-        Write-Host @Yellow "Uninstall failed because of a locked file: $($Locked -join ', ')"
-        Write-Host @Yellow 'Close ALL open PowerShell sessions, then re-run:'
-        Write-Host @Yellow "    & '$PSCommandPath'"
-    }
-    elseif ($AnyMissing) {
-        Write-Host @Yellow 'To fix, run:'
-        Write-Host @Yellow "    & '$PSCommandPath'"
-    }
-    else {
-        Write-Host @DarkCyan 'All required modules are installed and consistent.'
-    }
+}
+elseif ($Locked.Count -gt 0) {
+    Write-Host @Yellow "Uninstall failed because of a locked file: $($Locked -join ', ')"
+    Write-Host @Yellow 'Close ALL open PowerShell sessions, then re-run:'
+    Write-Host @Yellow "    & '$PSCommandPath'"
+}
+elseif ($AnyMissing) {
+    Write-Host @Yellow 'To fix, run:'
+    Write-Host @Yellow "    & '$PSCommandPath'"
+}
+else {
+    Write-Host @DarkCyan 'All required modules are installed and consistent.'
 }
 
-# Non-zero exit: a graph mismatch is never auto-fixed and a locked module needs a
-# restart (both gate in any mode); missing modules gate only under -Check.
-if ($GraphMismatch -or $Locked.Count -gt 0 -or ($Check -and $AnyMissing)) { throw }
+# Non-zero exit: a graph mismatch is never auto-fixed, and a locked module needs a
+# restart before the reinstall can be retried. Neither is resolved by re-running as-is.
+if ($GraphMismatch) {
+    throw 'Microsoft.Graph modules have mismatched versions. See above for remediation.'
+}
+if ($Locked.Count -gt 0) {
+    throw "Locked module file(s): $($Locked -join ', '). See above for remediation."
+}
