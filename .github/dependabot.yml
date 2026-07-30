@@ -7,11 +7,9 @@
 # Purpose: Dependabot is a GitHub service that automatically opens pull
 # requests to bump outdated dependencies. PowerShell Gallery modules are not
 # a supported Dependabot ecosystem, so only GitHub Actions workflow pins are
-# covered here. Keep module versions in the manifest current by hand (or via
-# Install-Dependency.ps1).
+# covered here.
 #
 # To customize:
-#   - Change interval to "monthly" if weekly PRs are too noisy.
 #   - Adjust open-pull-requests-limit if you want more or fewer open at once.
 #   - Add a target-branch key if your default branch is not "main".
 # =============================================================================
@@ -23,7 +21,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
     groups:
       github-actions:
