@@ -56,11 +56,12 @@ Set `[Git].Reinit = $true` in the config to start a fresh git history.
 
 Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
 ```powershell
+uv tool install detect-secrets
 uv tool install pre-commit
 pre-commit install
 pre-commit install --hook-type pre-push
 pre-commit autoupdate
-uvx detect-secrets scan @(git ls-files) > .secrets.baseline
+detect-secrets scan @(git ls-files) > .secrets.baseline
 ```
 
 ## Layout
