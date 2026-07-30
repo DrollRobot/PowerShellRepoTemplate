@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Read-LintFile.ps1`: shared file reader for the lint checks.
 - `TestConfig.psd1`: a `FailOnFixme` setting (default `$false`).
 - `setup.psd1`: a `Release.Enabled` item gating the release workflow.
+- `RequiredModules.psd1`: one dependency list read by both dependency scripts.
+- `Compare-Template.ps1`: tracks `RequiredModules.psd1` and `Confirm-Dependency.Tests.ps1`.
 
 ### Changed
 
@@ -45,9 +47,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Setup-NewProject.ps1`: declining a formatting feature deletes its lint test.
 - `setup.psd1`: `Features.Dependencies` renamed `Features.InstallDependenciesScript`.
 - `Install-Dependencies.ps1` and `Confirm-Dependencies.ps1` renamed singular.
+- **BREAKING** Both dependency scripts read `ScriptsToProcess\RequiredModules.psd1`
+  instead of a manifest, and no longer call each other.
+- `Confirm-Dependency.ps1`: runs its body in a scriptblock, so nothing leaks into the
+  importing session; `$Global:ModuleDependenciesChecked` is keyed by the script's folder.
+- `Compare-Template.ps1`: `Install-Dependency.ps1` is `-BlindCopy` now that its
+  hand-edit FIXME block is gone.
 
 ### Removed
 
+- **BREAKING** `Install-Dependency.ps1`: the `-Check` and `-Quiet` parameters and the
+  hard-coded fallback module list.
 - `Tests.ps1`: the `Formatting` and `TrailingWhitespace` categories.
 - The standalone `Tests\Test-*.ps1` code-style checkers and their Pester
   harnesses, replaced by the lint checks.
@@ -60,6 +70,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CommandNotFoundException`.
 - `Setup-NewProject.ps1`: the rename preview threw `PropertyNotFoundException` on
   a single matched file.
+- `Docs.ps1`: regenerates every page instead of merging, so edits to a function's
+  existing help now reach `Docs\Commands`.
+- `Install-Dependency.ps1` never found the manifest once deployed under
+  `ScriptsToProcess\`, so its module list was silently always empty.
+- `Setup-NewProject.ps1`: declining `Features.InstallDependenciesScript` left
+  `Confirm-Dependency.Tests.ps1` behind, failing the child repo's test run.
+- `Confirm-Dependency.ps1` no longer scans the whole module tree at import, nor
+  runs the entire check twice when a module is missing.
+- Both dependency scripts: a `MaximumVersion`-only entry printed `(latest) <= x`.
 
 ## [1.2.0] - 2026-07-22
 
