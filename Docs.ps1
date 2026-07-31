@@ -1,33 +1,59 @@
 #Requires -Version 7.5
-#Requires -Modules @{ ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0' }
+#Requires -Modules @{ ModuleName = 'Microsoft.PowerShell.PlatyPS'; ModuleVersion = '1.0.3' }
 
 <#
 .SYNOPSIS
-    Regenerates the PlatyPS markdown help for all exported functions.
+    Regenerates the markdown command help for all exported functions.
 
 .DESCRIPTION
-    Regenerates every markdown help file from the module's comment-based help,
-    overwriting whatever was there, and warns about (or deletes) orphaned doc files
-    whose corresponding function no longer exists in the module.
+    Rebuilds every markdown help file under 'Docs\<ModuleName>' from the
+    comment-based help in 'Source\', discarding whatever was there. Pages whose
+    function no longer exists are removed as part of the rebuild.
+
+    Microsoft.PowerShell.PlatyPS stubs several fields with '{{ ... }}' placeholder
+    text that comment-based help has no way to supply, so this script fills them
+    from the source before the pages are published:
+
+    - ALIASES: read from the [Alias()] attribute through the function's abstract
+      syntax tree. The module populates this field from neither [Alias()] nor the
+      module's exported aliases, and the source manifest keeps AliasesToExport
+      empty for ModuleBuilder, so the attribute is the only source available.
+    - OUTPUTS description: comment-based help has no syntax for one, so the
+      placeholder is blanked rather than published.
+    - Syntax: the generated syntax item leaves HasCmdletBinding false even when
+      the command has it, which drops [<CommonParameters>] from the syntax line.
+    - '### __AllParameterSets': PowerShell's internal name for the implicit
+      parameter set a command gets when it declares none. Only ever emitted when
+      there is exactly one set, so the heading is stripped after export. Commands
+      with named parameter sets keep their headings.
+
+    Authoring notes for the comment-based help this reads:
+
+    - Fence .EXAMPLE code with a powershell code fence. Unlike PlatyPS 0.14, this
+      version emits example bodies verbatim, so unfenced code renders as prose.
+    - Write .OUTPUTS as a bare type name. Any trailing prose is parsed as part of
+      the type name and produces a duplicate OUTPUTS entry.
+    - Add .LINK to populate RELATED LINKS and the HelpUri front matter field.
 
     Must be run from the repo root in a pwsh session where the module is not yet
-    imported, or use -Force to reload it.
-
-    Note: PlatyPS has an internal function named 'log'. If the module exports a
-    'Log' alias it shadows that internal function and causes an ambiguous-parameter
-    error, so any existing 'Log' alias is captured, removed for the duration of
-    this script, and restored afterward (to whatever it originally pointed at).
-
-.PARAMETER DeleteOrphaned
-    When specified, orphaned doc files are deleted instead of just warned about.
+    imported, or it reloads it.
 
 .EXAMPLE
     .\Docs.ps1
 
-.EXAMPLE
-    .\Docs.ps1 -DeleteOrphaned
+    Rebuilds 'Docs\<ModuleName>' from the functions exported by 'Source\',
+    removing any page whose function no longer exists.
+
+.OUTPUTS
+    None. Writes markdown files to 'Docs\<ModuleName>' and reports progress.
 
 .NOTES
+    2.0.0 - Move from PlatyPS 0.14 to Microsoft.PowerShell.PlatyPS. Pages are
+        written to 'Docs\<ModuleName>' instead of 'Docs\Commands', the folder
+        the new module creates on its own. Orphaned pages are always removed, so
+        -DeleteOrphaned is gone. The 'Log' alias workaround is gone with it: the
+        new module is compiled, so it has no internal 'log' function for a module
+        alias to shadow.
     1.1.1 - Write docs to 'Docs\Commands' instead of 'docs\commands' for *nix
         compatibility.
     1.1.0 - Import the module from Source\ instead of built module.
@@ -37,18 +63,126 @@
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [CmdletBinding()]
-param(
-    [switch] $DeleteOrphaned
-)
+param()
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '2.0.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$DocsPath = Join-Path -Path $PSScriptRoot -ChildPath 'Docs\Commands'
+function Get-DeclaredAlias {
+    <#
+    .SYNOPSIS
+        Returns the alias names declared by [Alias()] on a function.
+
+    .DESCRIPTION
+        Reads the alias names out of the function's abstract syntax tree. The
+        source manifest keeps AliasesToExport empty because ModuleBuilder fills
+        it at build time, so the aliases are never exported and are invisible to
+        Get-Alias and to PlatyPS when the module is imported from Source\.
+
+    .PARAMETER CommandInfo
+        The function to inspect.
+
+    .EXAMPLE
+        Get-DeclaredAlias -CommandInfo (Get-Command -Name Get-Greeting)
+
+        Returns 'Greet' when the function declares [Alias('Greet')].
+
+    .OUTPUTS
+        System.String. One alias name per declared alias.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Management.Automation.FunctionInfo] $CommandInfo
+    )
+
+    $ParamBlock = $CommandInfo.ScriptBlock.Ast.Body.ParamBlock
+    if (-not $ParamBlock) { return }
+
+    $AliasType = [System.Management.Automation.AliasAttribute]
+    $ParamBlock.Attributes |
+        Where-Object { $_.TypeName.GetReflectionType() -eq $AliasType } |
+        ForEach-Object { $_.PositionalArguments } |
+        ForEach-Object { $_.Value }
+}
+
+function Build-CommandMarkdown {
+    <#
+    .SYNOPSIS
+        Generates the markdown help pages for a module.
+
+    .DESCRIPTION
+        Builds a CommandHelp object for every exported function, fills the fields
+        Microsoft.PowerShell.PlatyPS would otherwise stub with placeholder text,
+        exports the markdown, and strips the implicit parameter set heading.
+
+        Strict mode is disabled for this scope on purpose. New-CommandHelp fails
+        under Set-StrictMode -Version 2.0 or later with "The property
+        'inputTypes' cannot be found on this object.", and the fault is inside
+        the compiled module. Turning it off here keeps the rest of the script
+        under -Version Latest.
+
+    .PARAMETER ModuleName
+        The name of the imported module to document.
+
+    .PARAMETER OutputFolder
+        The folder to export into. PlatyPS creates a subfolder named for the
+        module beneath it, so the pages land in '<OutputFolder>\<ModuleName>'.
+
+    .EXAMPLE
+        Build-CommandMarkdown -ModuleName 'MyModule' -OutputFolder '.\Docs'
+
+        Writes one markdown page per exported function to '.\Docs\MyModule'.
+
+    .OUTPUTS
+        System.IO.FileInfo. One object per generated markdown page.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $ModuleName,
+
+        [Parameter(Mandatory)]
+        [string] $OutputFolder
+    )
+
+    Set-StrictMode -Off
+
+    $Commands = Get-Command -Module $ModuleName -CommandType Function
+    foreach ($Command in $Commands) {
+        $Help = New-CommandHelp -CommandInfo $Command
+
+        $Aliases = @(Get-DeclaredAlias -CommandInfo $Command)
+        $Help.Aliases = if ($Aliases.Count) { $Aliases -join ', ' } else { 'None.' }
+
+        foreach ($Output in $Help.Outputs) {
+            if ($Output.Description -match '{{') { $Output.Description = '' }
+        }
+
+        foreach ($SyntaxItem in $Help.Syntax) {
+            $SyntaxItem.HasCmdletBinding = $Help.HasCmdletBinding
+        }
+
+        $ExportParams = @{
+            CommandHelp  = $Help
+            OutputFolder = $OutputFolder
+            Force        = $true
+        }
+        $Exported = Export-MarkdownCommandHelp @ExportParams
+
+        $Markdown = Get-Content -Path $Exported.FullName -Raw
+        $Markdown = $Markdown -replace '(?m)^### __AllParameterSets\r?\n\r?\n', ''
+        Set-Content -Path $Exported.FullName -Value $Markdown -NoNewline
+
+        $Exported
+    }
+}
+
+$DocsRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Docs'
 
 # Generate docs from the source tree, not a build: the comment-based help is
 # identical (the build only concatenates the same function files), and importing
@@ -59,54 +193,27 @@ $SourcePath = Join-Path -Path $PSScriptRoot -ChildPath 'Source'
 $SrcManifest = Get-ChildItem -Path $SourcePath -Filter '*.psd1' |
     Where-Object Name -ne 'Build.psd1' |
     Select-Object -First 1
-if (-not $SrcManifest) { throw "No source manifest found under $SourcePath" }
+if (-not $SrcManifest) { throw "No source manifest found under $($SourcePath)" }
 $ModuleName = $SrcManifest.BaseName
 
 Import-Module $SrcManifest.FullName -Force
+Import-Module -Name 'Microsoft.PowerShell.PlatyPS'
 
-# PlatyPS calls its internal 'log' function as: log -warning "..." If the module
-# exports a 'Log' alias it shadows that and causes an ambiguous-parameter error.
-# Capture any existing 'Log' alias (after import, so a module-exported one is
-# seen), remove it for the duration of this script, and restore it in the finally
-# block -- to whatever it originally pointed at, not an assumed target.
-$OriginalLogAlias = Get-Alias -Name 'Log' -ErrorAction SilentlyContinue
-if ($OriginalLogAlias) {
-    Remove-Alias -Name 'Log' -Force
-}
+# Export-MarkdownCommandHelp writes into a subfolder named for the module, so the
+# pages land in Docs\<ModuleName> and the top-level Docs\ pages are untouched.
+$DocsPath = Join-Path -Path $DocsRoot -ChildPath $ModuleName
 
-try {
-    # Rewrite every doc file from the comment-based help in Source\. -Force
-    # overwrites existing files; see .DESCRIPTION for why nothing is merged.
-    $HelpParams = @{
-        Module       = $ModuleName
-        OutputFolder = $DocsPath
-        Force        = $true
+$Generated = @(Build-CommandMarkdown -ModuleName $ModuleName -OutputFolder $DocsRoot)
+Write-Host "Generated $($Generated.Count) doc file(s)."
+
+# Every page is rebuilt from source on every run, so anything left in the folder
+# that the module no longer produces is orphaned.
+$GeneratedNames = $Generated.Name
+Get-ChildItem -Path $DocsPath -Filter '*.md' |
+    Where-Object { $_.Name -notin $GeneratedNames } |
+    ForEach-Object {
+        Remove-Item -Path $_.FullName
+        Write-Host "Deleted orphaned doc: $($_.Name)"
     }
-    # Array subexpression: Set-StrictMode -Version Latest rejects .Count on the
-    # bare FileInfo returned when the module exports exactly one function.
-    $Generated = @(New-MarkdownHelp @HelpParams)
-    Write-Host "Generated $($Generated.Count) doc file(s)."
 
-    # Warn about (or delete) orphaned doc files whose function no longer exists
-    $ExportedFunctions = (Get-Module $ModuleName).ExportedFunctions.Keys
-    Get-ChildItem -Path $DocsPath -Filter '*.md' |
-        Where-Object {
-            $_.BaseName -notin $ExportedFunctions -and $_.BaseName -ne $ModuleName
-        } |
-        ForEach-Object {
-            if ($DeleteOrphaned) {
-                Remove-Item -Path $_.FullName
-                Write-Host "Deleted orphaned doc: $($_.Name)"
-            } else {
-                Write-Warning "Orphaned doc (no matching exported function): $($_.Name)"
-            }
-        }
-}
-finally {
-    # Restore the 'Log' alias exactly as it was, if it existed.
-    if ($OriginalLogAlias) {
-        Set-Alias -Name 'Log' -Value $OriginalLogAlias.Definition -Scope Global
-    }
-}
-
-Write-Host "Docs updated at $DocsPath"
+Write-Host "Docs updated at $($DocsPath)"

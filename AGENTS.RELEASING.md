@@ -16,7 +16,7 @@ block.
   perform the prodedure described below.
 
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
-Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, Docs/Commands/, and any
+Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, `Docs/<ModuleName>/`, and any
 built artifacts in module root.
 
 
@@ -37,11 +37,12 @@ Run pester tests again on the built module:
 
 ## Update docs
 ```powershell
-.\Docs.ps1 -DeleteOrphaned
+.\Docs.ps1
 ```
 
 Review the documents in the root of the Docs folder for accuracy or any new features
-that should be added. Don't review or modify files in Docs/Commands. (built by PlatyPS)
+that should be added. Don't review or modify files in `Docs/<ModuleName>/`.
+(built by Microsoft.PowerShell.PlatyPS)
 
 ## Update CHANGELOG.md
 `CHANGELOG.md` in the repo root is the authoritative changelog.

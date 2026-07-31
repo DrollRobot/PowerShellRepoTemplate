@@ -12,21 +12,29 @@ function Get-Greeting {
         The name to greet. Defaults to 'World'.
 
     .EXAMPLE
+        ```powershell
         Get-Greeting
+        ```
 
         Returns 'Hello, World!'.
 
     .EXAMPLE
+        ```powershell
         Get-Greeting -Name 'PowerShell'
+        ```
 
         Returns 'Hello, PowerShell!'.
 
     .OUTPUTS
-        System.String. The greeting text.
+        System.String
 
     .NOTES
         Delete this file once your module has real public functions.
+
+    .LINK
+        https://github.com/FIXME/FIXME/blob/main/Docs/PowershellRepoTemplate/Get-Greeting.md
     #>
+    [Alias()]
     [CmdletBinding()]
     [OutputType([string])]
     param(

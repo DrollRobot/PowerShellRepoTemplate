@@ -192,14 +192,14 @@ Describe 'Invoke-RemoveSampleFunction' -Tag 'unit', 'functional' {
             ChildPath = [System.IO.Path]::GetRandomFileName()
         }
         $script:FakeRepo = Join-Path @TreeParams
-        foreach ($Rel in @('Source\Public', 'Tests\Pester', 'Docs\Commands')) {
+        foreach ($Rel in @('Source\Public', 'Tests\Pester', 'Docs\PowershellRepoTemplate')) {
             $Dir = Join-Path -Path $script:FakeRepo -ChildPath $Rel
             New-Item -ItemType Directory -Path $Dir -Force | Out-Null
         }
         $SampleFiles = @(
             'Source\Public\Get-Greeting.ps1'
             'Tests\Pester\Get-Greeting.Tests.ps1'
-            'Docs\Commands\Get-Greeting.md'
+            'Docs\PowershellRepoTemplate\Get-Greeting.md'
         )
         foreach ($Rel in $SampleFiles) {
             $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
@@ -210,7 +210,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Command Reference:
-    - Get-Greeting: commands/Get-Greeting.md
+    - Get-Greeting: PowershellRepoTemplate/Get-Greeting.md
 '@
         $script:FakeMkDocs = Join-Path -Path $script:FakeRepo -ChildPath 'mkdocs.yml'
         Set-Content -LiteralPath $script:FakeMkDocs -Value $MkDocs
@@ -227,7 +227,7 @@ nav:
         $Deleted = @(
             'Source\Public\Get-Greeting.ps1'
             'Tests\Pester\Get-Greeting.Tests.ps1'
-            'Docs\Commands\Get-Greeting.md'
+            'Docs\PowershellRepoTemplate\Get-Greeting.md'
         )
         foreach ($Rel in $Deleted) {
             $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
@@ -250,7 +250,7 @@ nav:
         $Kept = @(
             'Source\Public\Get-Greeting.ps1'
             'Tests\Pester\Get-Greeting.Tests.ps1'
-            'Docs\Commands\Get-Greeting.md'
+            'Docs\PowershellRepoTemplate\Get-Greeting.md'
         )
         foreach ($Rel in $Kept) {
             $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel

@@ -75,7 +75,7 @@
         # so an unedited config changes nothing here.
 
         # Documentation site: mkdocs.yml, Docs.ps1, the Docs\ folder (including
-        # the PlatyPS-generated command reference), and the docs CI workflow.
+        # the generated command reference), and the docs CI workflow.
         Docs = $true
 
         # GitHub-recognized community-health files. Independent of each other

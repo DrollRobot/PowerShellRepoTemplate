@@ -1,7 +1,7 @@
 # Testing
 
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
-Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, Docs/Commands/, and any
+Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, `Docs/<ModuleName>/`, and any
 built artifacts in module root.
 
 ## Test Tags

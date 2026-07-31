@@ -481,8 +481,10 @@ function Remove-SampleFunctionNavEntry {
     $MkDocsPath = Join-Path -Path $script:RepoRoot -ChildPath 'mkdocs.yml'
     if (-not (Test-Path -LiteralPath $MkDocsPath)) { return }
     $Text = Get-Content -Path $MkDocsPath -Raw
+    # The folder holding the page is named for the module, so match any path that
+    # ends in the page name rather than pinning the folder.
     $Pattern = '(?m)^  - Command Reference:\r?\n' +
-    '    - Get-Greeting: commands/Get-Greeting\.md\r?\n?'
+    '    - Get-Greeting: \S*Get-Greeting\.md\r?\n?'
     $Updated = $Text -replace $Pattern, ''
     if ($Updated -ne $Text) {
         Set-Content -Path $MkDocsPath -Value $Updated -NoNewline
@@ -490,15 +492,18 @@ function Remove-SampleFunctionNavEntry {
 }
 
 # Delete the sample public function the template ships to demonstrate its conventions, plus
-# everything that exists only to support it: its Pester test, its PlatyPS-generated docs page, and
-# its mkdocs nav entry. Always on (no [Features] toggle) -- like the ModuleBuilderNotes.md files,
-# it is scaffolding rather than content once a real project starts.
+# everything that exists only to support it: its Pester test, the generated docs folder, and
+# its mkdocs nav entry. The whole Docs\<TemplateName> folder goes, not just the one page: it is
+# named for the template module, and Invoke-RenameProject renames files only, so it would
+# otherwise survive the rename under the old name. Docs.ps1 recreates it under the new name on
+# the next run. Always on (no [Features] toggle) -- like the ModuleBuilderNotes.md files, it is
+# scaffolding rather than content once a real project starts.
 function Invoke-RemoveSampleFunction {
     param([Parameter(Mandatory)][bool]$DryRun)
     $Targets = @(
         'Source\Public\Get-Greeting.ps1'
         'Tests\Pester\Get-Greeting.Tests.ps1'
-        'Docs\Commands\Get-Greeting.md'
+        'Docs\PowershellRepoTemplate'
     )
     Write-Info 'Remove sample function' ($Targets -join ', ')
     Write-Host '    Drop its mkdocs nav entry, if mkdocs.yml is present'

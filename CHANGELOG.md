@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `setup.psd1`: a `Release.Enabled` item gating the release workflow.
 - `RequiredModules.psd1`: one dependency list read by both dependency scripts.
 - `Compare-Template.ps1`: tracks `RequiredModules.psd1` and `Confirm-Dependency.Tests.ps1`.
+- `MIGRATING.PLATYPS.md`: the comment-based help format Microsoft.PowerShell.PlatyPS
+  expects, for converting help written for PlatyPS 0.14.
 
 ### Changed
 
@@ -53,6 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   importing session; `$Global:ModuleDependenciesChecked` is keyed by the script's folder.
 - `Compare-Template.ps1`: `Install-Dependency.ps1` is `-BlindCopy` now that its
   hand-edit FIXME block is gone.
+- **BREAKING** `Docs.ps1`: generates with Microsoft.PowerShell.PlatyPS 1.0.3 instead
+  of PlatyPS 0.14. Pages are rewritten to schema `2024-05-01`, and comment-based help
+  needs the format in `MIGRATING.PLATYPS.md`: fenced `.EXAMPLE` code, a bare type name
+  in `.OUTPUTS`, and a `.LINK`.
+- **BREAKING** `Docs.ps1`: orphaned pages are always deleted, so `-DeleteOrphaned` is
+  gone.
+- **BREAKING** Command pages live in `Docs\<ModuleName>\`, not `Docs\Commands\` -- the
+  folder Microsoft.PowerShell.PlatyPS creates on its own. `mkdocs.yml` nav paths change
+  with it, and `Setup-NewProject.ps1` deletes the whole template-named folder.
+- `RequiredModules.psd1`: `PlatyPS` 0.14.0 replaced by `Microsoft.PowerShell.PlatyPS`
+  1.0.3.
+- `Get-Greeting.ps1`: help converted to the new format, demonstrating it.
 
 ### Removed
 

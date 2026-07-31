@@ -14,6 +14,6 @@
         @{ModuleName = 'Pester'; ModuleVersion = '6.0.0' }
         @{ModuleName = 'PSScriptAnalyzer'; ModuleVersion = '1.25.0' }
         @{ModuleName = 'ModuleBuilder'; ModuleVersion = '3.2.16' }
-        @{ModuleName = 'PlatyPS'; ModuleVersion = '0.14.0' }
+        @{ModuleName = 'Microsoft.PowerShell.PlatyPS'; ModuleVersion = '1.0.3' }
     )
 }
