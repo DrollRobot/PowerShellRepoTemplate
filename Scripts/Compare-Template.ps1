@@ -108,7 +108,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.7.0'
+$ScriptVersion = '2.7.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -347,10 +347,8 @@ $script:Manifest = @(
     (New-Entry 'Scripts/New-Worktree.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Push-NewTagToMain.ps1' -BlindCopy $true)
     (New-Entry 'Scripts/Remove-WorkTree.ps1' -BlindCopy $true)
-    # Tests.ps1 is a project-agnostic orchestrator; its project-specific parts
-    # live in the child-owned PreTests.ps1 / PostTests.ps1 hooks.
-    (New-Entry 'Build.ps1')
-    (New-Entry 'Tests.ps1')
+    (New-Entry 'Build.ps1' -BlindCopy $true)
+    (New-Entry 'Tests.ps1' -BlindCopy $true)
     # Helpers for the explicit-module-import check.
     (New-Entry 'Scripts/Find-ScriptCommand.ps1' -Gate 'ExplicitModuleImport')
     (New-Entry 'Scripts/Resolve-CommandModule.ps1' -Gate 'ExplicitModuleImport')
