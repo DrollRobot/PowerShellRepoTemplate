@@ -27,8 +27,31 @@ Instructions for setting up dev environment
 ## Project conventions
 
 Code style, naming, output, and testing conventions live in
-[AGENTS.md](AGENTS.md) -- they apply to humans and AI agents alike. The
-short version:
+[AGENTS.md](AGENTS.md).
+
+## Dev environment setup
+
+
+### Docs
+```powershell
+# install mkdocs
+uv tool install mkdocs --with mkdocs-material --force
+
+# build docs
+.\Docs.ps1
+
+# build site
+uv run mkdocs build --strict
+
+# launch local site
+mkdocs serve
+
+# open in browser
+edge/chrome/firefox "http://127.0.0.1:8000"
+
+# deploy to GitHub Pages
+uv run mkdocs gh-deploy --force
+```
 
 ## Pull requests
 
