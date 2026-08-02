@@ -4,7 +4,7 @@ external help file: PowershellRepoTemplate-Help.xml
 HelpUri: https://github.com/FIXME/FIXME/blob/main/Docs/PowershellRepoTemplate/Get-Greeting.md
 Locale: en-US
 Module Name: PowershellRepoTemplate
-ms.date: 07/30/2026
+ms.date: 07/31/2026
 PlatyPS schema version: 2024-05-01
 title: Get-Greeting
 ---

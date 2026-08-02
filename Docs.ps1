@@ -29,6 +29,9 @@
 
     Authoring notes for the comment-based help this reads:
 
+    - Fill in every required help field. New-CommandHelp throws when one is
+      missing (.DESCRIPTION, for example), reporting only that
+      string.IsNullOrEmpty got invalid arguments.
     - Fence .EXAMPLE code with a powershell code fence. Unlike PlatyPS 0.14, this
       version emits example bodies verbatim, so unfenced code renders as prose.
     - Write .OUTPUTS as a bare type name. Any trailing prose is parsed as part of
@@ -48,6 +51,14 @@
     None. Writes markdown files to 'Docs\<ModuleName>' and reports progress.
 
 .NOTES
+    2.2.1 - Name the real cause of the IsNullOrEmpty failure: help missing a
+        required field. The previous wording blamed a section returning a list.
+    2.2.0 - Delete 'Docs\<ModuleName>' before generating rather than removing
+        orphaned pages after, and report failures as a table instead of one
+        long exception message.
+    2.1.0 - Report which command New-CommandHelp failed on, and which file it
+        came from, instead of surfacing the module's own exception with no
+        context. All failures are collected and thrown together at the end.
     2.0.0 - Move from PlatyPS 0.14 to Microsoft.PowerShell.PlatyPS. Pages are
         written to 'Docs\<ModuleName>' instead of 'Docs\Commands', the folder
         the new module creates on its own. Orphaned pages are always removed, so
@@ -67,7 +78,7 @@ param()
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.0'
+$ScriptVersion = '2.2.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -120,6 +131,11 @@ function Build-CommandMarkdown {
         Microsoft.PowerShell.PlatyPS would otherwise stub with placeholder text,
         exports the markdown, and strips the implicit parameter set heading.
 
+        A command whose help New-CommandHelp cannot read is recorded and skipped
+        rather than ending the run, so a single pass names every function that
+        needs fixing. Once the loop finishes the recorded failures are printed
+        as a table and the run ends with a one-line error.
+
         Strict mode is disabled for this scope on purpose. New-CommandHelp fails
         under Set-StrictMode -Version 2.0 or later with "The property
         'inputTypes' cannot be found on this object.", and the fault is inside
@@ -152,9 +168,39 @@ function Build-CommandMarkdown {
 
     Set-StrictMode -Off
 
+    $Failures = [System.Collections.Generic.List[object]]::new()
+
     $Commands = Get-Command -Module $ModuleName -CommandType Function
+    # loop files one at a time so it's clear which file fails.
     foreach ($Command in $Commands) {
-        $Help = New-CommandHelp -CommandInfo $Command
+        try {
+            $Help = New-CommandHelp -CommandInfo $Command
+        }
+        catch {
+            # Trim the repo root so the File column stays readable in the table.
+            $SourceFile = $Command.ScriptBlock.File
+            if (-not $SourceFile) {
+                $SourceFile = 'unknown file'
+            }
+            elseif ($SourceFile.StartsWith($PSScriptRoot)) {
+                $SourceFile = $SourceFile.Substring($PSScriptRoot.Length).TrimStart('\', '/')
+            }
+
+            # A function whose help lacks a required field makes New-CommandHelp
+            # call string.IsNullOrEmpty on a value that is not a string, and the
+            # resulting overload-resolution error says nothing about help.
+            $Reason = $_.Exception.Message
+            if ($Reason -match 'IsNullOrEmpty') {
+                $Reason = 'Help is missing a required field, such as .DESCRIPTION.'
+            }
+
+            $Failures.Add([PSCustomObject]@{
+                    Command = $Command.Name
+                    File    = $SourceFile
+                    Reason  = $Reason
+                })
+            continue
+        }
 
         $Aliases = @(Get-DeclaredAlias -CommandInfo $Command)
         $Help.Aliases = if ($Aliases.Count) { $Aliases -join ', ' } else { 'None.' }
@@ -180,6 +226,17 @@ function Build-CommandMarkdown {
 
         $Exported
     }
+
+    if ($Failures.Count) {
+        # Out-Host keeps the formatting objects out of the pipeline, which
+        # otherwise returns them alongside the generated files.
+        Write-Host ''
+        Write-Host "New-CommandHelp failed for $($Failures.Count) command(s):"
+        $Failures | Format-Table -Property Command, File, Reason -AutoSize -Wrap | Out-Host
+
+        throw "Doc generation failed for $($Failures.Count) command(s). Read authoring" +
+            " notes in Docs.ps1's help."
+    }
 }
 
 $DocsRoot = Join-Path -Path $PSScriptRoot -ChildPath 'Docs'
@@ -203,17 +260,16 @@ Import-Module -Name 'Microsoft.PowerShell.PlatyPS'
 # pages land in Docs\<ModuleName> and the top-level Docs\ pages are untouched.
 $DocsPath = Join-Path -Path $DocsRoot -ChildPath $ModuleName
 
+# Clear the folder first so pages for functions that no longer exist go with it.
+# Every page is rebuilt from source on every run, so nothing here is worth
+# keeping, and the folder is generated output tracked in git: if a run fails part
+# way, the missing pages show up as deletions and are restored with git checkout.
+if (Test-Path -Path $DocsPath) {
+    Remove-Item -Path $DocsPath -Recurse -Force
+    Write-Host "Cleared $($DocsPath)"
+}
+
 $Generated = @(Build-CommandMarkdown -ModuleName $ModuleName -OutputFolder $DocsRoot)
 Write-Host "Generated $($Generated.Count) doc file(s)."
-
-# Every page is rebuilt from source on every run, so anything left in the folder
-# that the module no longer produces is orphaned.
-$GeneratedNames = $Generated.Name
-Get-ChildItem -Path $DocsPath -Filter '*.md' |
-    Where-Object { $_.Name -notin $GeneratedNames } |
-    ForEach-Object {
-        Remove-Item -Path $_.FullName
-        Write-Host "Deleted orphaned doc: $($_.Name)"
-    }
 
 Write-Host "Docs updated at $($DocsPath)"
