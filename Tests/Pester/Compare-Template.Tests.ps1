@@ -211,6 +211,8 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
     }
     It 'tracks the curated whitelist as blind-copy eligible' {
         $whitelist = @(
+            'Build.ps1'
+            'Tests.ps1'
             'Docs.ps1'
             'Scripts/Compare-Template.ps1'
             'Scripts/Complete-WorkTree.ps1'
@@ -243,8 +245,6 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         # UnwantedStrings is the one lint check left diff-only (child-owned
         # $UnwantedPattern); every other check is blind-copied above.
         $diffOnly = @(
-            'Build.ps1'
-            'Tests.ps1'
             'Scripts/TemplateSetup/Setup-NewProject.ps1'
             'Scripts/Find-ScriptCommand.ps1'
             'Scripts/Resolve-CommandModule.ps1'
