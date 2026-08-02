@@ -51,6 +51,9 @@ $ScriptVersion = '2.0.0'
 & {
     param([string]$ScriptDir)
 
+    $Red = @{ForegroundColor = 'Red' }
+    $Yellow = @{ForegroundColor = 'Yellow' }
+
     $DataPath = Join-Path -Path $ScriptDir -ChildPath 'RequiredModules.psd1'
     if (-not (Test-Path -LiteralPath $DataPath)) { return }
 
@@ -135,19 +138,18 @@ $ScriptVersion = '2.0.0'
     }
 
     if ($Unsatisfied) {
-        $Yellow = @{ForegroundColor = 'Yellow' }
-        Write-Host @Yellow 'Required module(s) not satisfied:'
-        foreach ($Line in $Unsatisfied) { Write-Host @Yellow $Line }
+        Write-Host @Red 'Required module(s) not satisfied:'
+        foreach ($Line in $Unsatisfied) {Write-Host @Yellow $Line}
 
         $InstallScript = Join-Path -Path $ScriptDir -ChildPath 'Install-Dependency.ps1'
         if (Test-Path -LiteralPath $InstallScript) {
-            Write-Host @Yellow 'To fix, run:'
+            Write-Host @Red 'To fix, run:'
             Write-Host @Yellow "    & '$InstallScript'"
         }
         else {
             Write-Host @Yellow 'Install them with Install-Module, then retry the import.'
         }
-        throw 'Import aborted. Required module(s) missing. See above for remediation guidance.'
+        throw
     }
 
     if ($DepsChecked -isnot [hashtable]) {

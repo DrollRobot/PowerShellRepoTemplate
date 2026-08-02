@@ -330,8 +330,8 @@ else {
 # Non-zero exit: a graph mismatch is never auto-fixed, and a locked module needs a
 # restart before the reinstall can be retried. Neither is resolved by re-running as-is.
 if ($GraphMismatch) {
-    throw 'Microsoft.Graph modules have mismatched versions. See above for remediation.'
+    throw
 }
 if ($Locked.Count -gt 0) {
-    throw "Locked module file(s): $($Locked -join ', '). See above for remediation."
+    throw
 }
