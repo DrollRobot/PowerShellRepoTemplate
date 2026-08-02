@@ -15,11 +15,7 @@ module you create from this template, not for the template repo.
 
 # PowershellRepoTemplate -- Agent Guidelines
 
-In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
-Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, `Docs/<ModuleName>/`, and any
-built artifacts in module root.
-
-## Architecture
+## ModuleBuilder Architecture
 
 Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit module
    files under `Source/`. Ignore module files in repo root.
@@ -32,8 +28,19 @@ Uses [ModuleBuilder](https://github.com/PoshCode/ModuleBuilder). Only read/edit 
    do not edit directly. For the comment-based help format it expects, see
    [MIGRATING.PLATYPS.md](MIGRATING.PLATYPS.md).
 
-Ignore built code in the module root, such as *.psm1 and *.psd1, ScriptsToProcess/,
-   Data/, Output, and Build/. Also, the built documents in `Docs/<ModuleName>/`.
+In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
+Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, `Docs/<ModuleName>/`, and any
+built artifacts in module root.
+
+Do not attempt to modify built code, such as any of the following in the module root or
+Output/ folders: *.psm1 and *.psd1, ScriptsToProcess/, Data/. Or: `Docs/<ModuleName>/`.
+
+## detect-secrets
+This repo uses detect-secrets in a precommit hook.
+- The only appropriate way to deal with detect-secrets findings is for the user to
+   audit the baseline.
+- Agents should not attempt to suppress detect-secrets findings, or use inline
+   `# pragma: allowlist secret` suppression.
 
 ## Code Style
 

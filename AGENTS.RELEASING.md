@@ -41,8 +41,8 @@ Run pester tests again on the built module:
 ```
 
 Review the documents in the root of the Docs folder for accuracy or any new features
-that should be added. Don't review or modify files in `Docs/<ModuleName>/`.
-(built by Microsoft.PowerShell.PlatyPS)
+that should be added. Don't review or modify files in `Docs/<ModuleName>/`. (built by
+PlatyPS)
 
 ## Update CHANGELOG.md
 `CHANGELOG.md` in the repo root is the authoritative changelog.
