@@ -33,12 +33,25 @@ BeforeAll {
     $script:ScratchDir = Join-Path @ScratchParams
     New-Item -ItemType Directory -Path $script:ScratchDir -Force | Out-Null
 
+    # The fixture repos below must inherit nothing from the developer's own git
+    # config: point global config at a file that does not exist and switch
+    # system config off. A global commit.gpgsign whose signing key arrives from
+    # a conditional include is the case that broke them, since the fixture path
+    # never matches the include and git then refuses to commit at all. Child
+    # pwsh processes started by these tests inherit the setting too.
+    $script:PriorConfigGlobal = $env:GIT_CONFIG_GLOBAL
+    $script:PriorConfigNoSystem = $env:GIT_CONFIG_NOSYSTEM
+    $env:GIT_CONFIG_GLOBAL = Join-Path -Path $script:ScratchDir -ChildPath 'no-global.gitconfig'
+    $env:GIT_CONFIG_NOSYSTEM = '1'
+
     # Dot-source with a bogus mandatory -Slug bound to something harmless: the
     # guard returns before -Slug (or anything else) is ever used.
     . $script:Sut -Slug 'dot-source-probe'
 }
 
 AfterAll {
+    $env:GIT_CONFIG_GLOBAL = $script:PriorConfigGlobal
+    $env:GIT_CONFIG_NOSYSTEM = $script:PriorConfigNoSystem
     Remove-Item -LiteralPath $script:ScratchDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
