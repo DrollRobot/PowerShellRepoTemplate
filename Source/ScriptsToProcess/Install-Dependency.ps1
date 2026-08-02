@@ -329,9 +329,11 @@ else {
 
 # Non-zero exit: a graph mismatch is never auto-fixed, and a locked module needs a
 # restart before the reinstall can be retried. Neither is resolved by re-running as-is.
+# Each message carries the summary rather than repeating the guidance above: a bare
+# throw here is not a rethrow, and would reach the caller as 'ScriptHalted'.
 if ($GraphMismatch) {
-    throw
+    throw 'Microsoft.Graph modules have mismatched versions. See above to fix.'
 }
 if ($Locked.Count -gt 0) {
-    throw
+    throw "Locked module file(s): $($Locked -join ', '). Restart PowerShell, then rerun."
 }

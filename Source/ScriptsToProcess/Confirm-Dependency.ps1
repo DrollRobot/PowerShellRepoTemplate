@@ -138,8 +138,7 @@ $ScriptVersion = '2.0.0'
     }
 
     if ($Unsatisfied) {
-        Write-Host @Red 'Required module(s) not satisfied:'
-        foreach ($Line in $Unsatisfied) {Write-Host @Yellow $Line}
+        foreach ($Line in $Unsatisfied) { Write-Host @Yellow $Line }
 
         $InstallScript = Join-Path -Path $ScriptDir -ChildPath 'Install-Dependency.ps1'
         if (Test-Path -LiteralPath $InstallScript) {
@@ -149,7 +148,9 @@ $ScriptVersion = '2.0.0'
         else {
             Write-Host @Yellow 'Install them with Install-Module, then retry the import.'
         }
-        throw
+        # The message carries the summary rather than repeating it above: a bare
+        # throw here is not a rethrow, and would reach the caller as 'ScriptHalted'.
+        throw "Required module(s) not satisfied: $($Unsatisfied.Count). See above to fix."
     }
 
     if ($DepsChecked -isnot [hashtable]) {
