@@ -12,13 +12,11 @@
         # LineLength: longest allowed line, in characters.
         MaxLength   = 100
 
-        # FixmeComments: $false reports open FIXMEs and passes; $true fails the
-        # run on any of them. Leave it false while a project still carries the
-        # template's own FIXME markers.
+        # FixmeComments: whether tests fail if FIXME comments found
         FailOnFixme = $false
 
-        # NonASCIICharacters: characters to allow anywhere, e.g. @('-').
-        # ExemptCharacter = @()
+        # NonASCIICharacters: exceptions
+        ExemptCharacter = @()
 
         # UnwantedStrings: patterns this project must not ship, and the lines
         # exempt from them. Both default to empty (the check then generates no
