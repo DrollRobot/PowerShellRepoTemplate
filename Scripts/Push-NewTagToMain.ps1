@@ -118,7 +118,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.0'
+$ScriptVersion = '2.1.0'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
@@ -179,6 +179,42 @@ function Invoke-NativeOk {
     }
     if ($LASTEXITCODE -ne 0) { return $null }
     return $output
+}
+
+# Stage everything and commit, retrying once when a pre-commit hook rewrote files.
+# Auto-fixing hooks (end-of-file-fixer, trailing-whitespace) repair the working tree
+# and then fail the commit, leaving their fix unstaged; re-staging and committing
+# again succeeds. A failure that leaves the tree untouched is a genuine one (lint,
+# tests, detect-secrets) and is rethrown so the release stops.
+function Invoke-GitCommit {
+    param([Parameter(Mandatory)][string]$Message)
+
+    Write-Run "git add -A"
+    git add -A
+    Write-Run "git commit -m `"$Message`""
+    try {
+        git commit -m $Message
+        return
+    }
+    catch {
+        # 'git diff --quiet' exits non-zero (and so throws here) when the working
+        # tree differs from the index -- i.e. a hook edited files.
+        $hookEdited = $true
+        try {
+            git diff --quiet
+            $hookEdited = $false
+        }
+        catch {
+            # Left as $true: unstaged changes are present.
+        }
+        if (-not $hookEdited) { throw }
+    }
+
+    Write-Host "  Pre-commit hooks modified files; restaging and retrying." -ForegroundColor Yellow
+    Write-Run "git add -A"
+    git add -A
+    Write-Run "git commit -m `"$Message`""
+    git commit -m $Message
 }
 
 # Prompt before running an action. Answering 'n' aborts the whole script and
@@ -545,10 +581,7 @@ catch {
 if ($versionChanged -or $treeDirty) {
     Write-Section "Step: commit release"
     Invoke-Step "Stage all changes and commit as 'Release v$versionStr'?" {
-        Write-Run "git add -A"
-        git add -A
-        Write-Run "git commit -m `"Release v$versionStr`""
-        git commit -m "Release v$versionStr"
+        Invoke-GitCommit -Message "Release v$versionStr"
     }
 }
 else {
