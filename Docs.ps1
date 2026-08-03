@@ -51,6 +51,10 @@
     None. Writes markdown files to 'Docs\<ModuleName>' and reports progress.
 
 .NOTES
+    2.3.0 - Import the modules declared in RequiredModules.psd1 before the
+        module itself. The source manifest declares no RequiredModules
+        (Confirm-Dependency.ps1 only checks that dependencies are installed),
+        so importing the module loads none of them.
     2.2.1 - Name the real cause of the IsNullOrEmpty failure: help missing a
         required field. The previous wording blamed a section returning a list.
     2.2.0 - Delete 'Docs\<ModuleName>' before generating rather than removing
@@ -78,7 +82,7 @@ param()
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.2.1'
+$ScriptVersion = '2.3.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -252,6 +256,48 @@ $SrcManifest = Get-ChildItem -Path $SourcePath -Filter '*.psd1' |
     Select-Object -First 1
 if (-not $SrcManifest) { throw "No source manifest found under $($SourcePath)" }
 $ModuleName = $SrcManifest.BaseName
+
+# The source manifest declares no RequiredModules (dependencies live in
+# RequiredModules.psd1, and Confirm-Dependency.ps1 only checks that they are
+# installed), so importing the module loads none of its dependencies. Import
+# them here first so the module's commands resolve against them. Entry shapes
+# match what Confirm-Dependency.ps1 accepts: a bare name, or a hashtable with
+# ModuleName plus optional RequiredVersion / ModuleVersion / MaximumVersion.
+$DepsDataPath = Join-Path -Path $SourcePath -ChildPath 'ScriptsToProcess'
+$DepsDataPath = Join-Path -Path $DepsDataPath -ChildPath 'RequiredModules.psd1'
+if (Test-Path -LiteralPath $DepsDataPath) {
+    $DepsData = Import-PowerShellDataFile -Path $DepsDataPath
+    $RequiredModules = @()
+    if ($DepsData.ContainsKey('RequiredModules')) {
+        $RequiredModules = @($DepsData['RequiredModules'])
+    }
+
+    foreach ($Entry in $RequiredModules) {
+        $ImportParams = @{}
+        if ($Entry -is [hashtable]) {
+            if (-not $Entry.ContainsKey('ModuleName')) { continue }
+            $ImportParams['Name'] = $Entry.ModuleName
+            if ($Entry.ContainsKey('RequiredVersion')) {
+                $ImportParams['RequiredVersion'] = $Entry.RequiredVersion
+            }
+            else {
+                if ($Entry.ContainsKey('ModuleVersion')) {
+                    $ImportParams['MinimumVersion'] = $Entry.ModuleVersion
+                }
+                if ($Entry.ContainsKey('MaximumVersion')) {
+                    $ImportParams['MaximumVersion'] = $Entry.MaximumVersion
+                }
+            }
+        }
+        else {
+            $ImportParams['Name'] = [string]$Entry
+        }
+        if (-not $ImportParams['Name']) { continue }
+
+        Import-Module @ImportParams
+        Write-Host "Imported dependency $($ImportParams['Name'])"
+    }
+}
 
 Import-Module $SrcManifest.FullName -Force
 Import-Module -Name 'Microsoft.PowerShell.PlatyPS'
