@@ -1,7 +1,7 @@
 # Rules for Commit messages
 
 - If the user asked you to read this file, treat that as them asking you to
-  perform the prodedure described below.
+  perform the procedure described below.
 
 - We should never be doing active work in the main branch. If we're in the main
    branch, do not commit or push. Alert the user.
@@ -38,5 +38,11 @@
 
 - After the user's approval, reread the file and commit the user's versions.
    Clear the contents of the file when done.
+
+- Use the following bash command for your commits: (errors quickly if no
+   ssh key passphrase)
+```bash
+SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=force DISPLAY= git commit
+```
 
 - After committing, if we're in a non-main branch, push to origin.
