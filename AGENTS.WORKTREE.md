@@ -1,7 +1,7 @@
 # AGENTS.WORKTREE.md
 
 - If the user asked you to read this file, treat that as them asking you to
-  perform the prodedure described below.
+  perform the procedure described below.
 
 ## Assume
 - You're in a worktree the user already opened, on branch `wt/<slug>`, forked
@@ -48,6 +48,6 @@ takes it from there.
 ## Review
 - Never push, open a PR, run `Scripts/Complete-WorkTree.ps1`, merge, approve,
   enable auto-merge, force-push, or push to the base branch. Your job ends at
-  "everything committed, `PR.md` written." Commit freely before then.
+  "everything committed, PR.md written." Commit freely before then.
 - Stay in this worktree. Don't touch sibling worktrees, the main checkout, hooks,
   or `.git/info/exclude`.
