@@ -13,7 +13,7 @@ block.
 # Releasing
 
 - If the user asked you to read this file, treat that as them asking you to
-  perform the prodedure described below.
+  perform the procedure described below.
 
 In-domain: All code in Source/, except functions in Lib/ folders and Build.psd1.
 Non-domain: Scripts/, Tests/, **/Lib/, Build/, Output/, `Docs/<ModuleName>/`, and any
@@ -77,7 +77,3 @@ current format rules. Do not rely on training data -- request a fresh copy every
 
 ## Hand off to user
 - The user will update manifest version, merge, tag, and push.
-- `.github\workflows\release.yml` only builds and publishes a GitHub release
-  when `Scripts\setup.psd1`'s `Release.Enabled` is true (default `$false`).
-  Set it to `$true` by hand once, ahead of the first real tag, or the push
-  is a no-op.
