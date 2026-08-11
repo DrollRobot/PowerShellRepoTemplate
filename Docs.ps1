@@ -51,6 +51,10 @@
     None. Writes markdown files to 'Docs\<ModuleName>' and reports progress.
 
 .NOTES
+    2.3.1 - Trim the trailing blank line PlatyPS leaves on pages whose related
+        links are the placeholder. The end-of-file-fixer pre-commit hook
+        stripped it on every commit, so each docs run produced a diff the hook
+        then had to undo.
     2.3.0 - Import the modules declared in RequiredModules.psd1 before the
         module itself. The source manifest declares no RequiredModules
         (Confirm-Dependency.ps1 only checks that dependencies are installed),
@@ -82,7 +86,7 @@ param()
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.3.0'
+$ScriptVersion = '2.3.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -226,6 +230,10 @@ function Build-CommandMarkdown {
 
         $Markdown = Get-Content -Path $Exported.FullName -Raw
         $Markdown = $Markdown -replace '(?m)^### __AllParameterSets\r?\n\r?\n', ''
+        # PlatyPS ends a page whose related links are the placeholder with a blank
+        # line; the end-of-file-fixer pre-commit hook wants exactly one trailing
+        # newline. Normalize here so a docs run and the hook do not undo each other.
+        $Markdown = $Markdown.TrimEnd() + "`n"
         Set-Content -Path $Exported.FullName -Value $Markdown -NoNewline
 
         $Exported
