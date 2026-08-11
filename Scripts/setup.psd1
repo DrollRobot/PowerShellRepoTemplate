@@ -10,6 +10,8 @@
 # Scripts\Compare-Template.ps1 keeps reading it afterward, so it stays in
 # Scripts\ rather than inside the one-time Scripts\TemplateSetup\ folder.
 
+# TODO: Separate new setup items from compare items.
+
 @{
     # Version of THIS config file's shape (the sections and keys below), owned by
     # the template. Declared as a bare hashtable key so Scripts\Compare-Template.ps1
@@ -17,13 +19,17 @@
     # It compares this against the template's copy: when the two disagree it flags
     # setup.psd1 for a manual diff so you can fold in new options -- it never copies
     # over your own choices. Bump only when the template changes the config's shape.
-    ScriptVersion = '2.5.1'
+    # TODO: rename to TemplateSetup.psd1, have dedicated config schema version
+    # number instead of using script version.
+    ScriptVersion = '2.7.1'
 
     Project = @{
-        # New module name (PascalCase recommended), e.g. 'MyModule'. Used for
+        # New module name. Used for
         # file renames and as the replacement for 'PowershellRepoTemplate'
         # throughout the repo. Shipped as the template's own name -- a no-op
         # until you change it.
+        # TODO: Remove template name from comments. Won't make sense in
+        # downstream package.
         Name = 'PowershellRepoTemplate'
 
         # Your GitHub username or org, e.g. 'octocat'. Fills in the FIXME

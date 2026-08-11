@@ -74,6 +74,10 @@
 .NOTES
     Run from inside the child repo. This script is itself a versioned file, so a
     child keeps its own copy in sync via the pre-flight.
+
+    TODO: Add Tests/TestConfig.psd1 to compare script.
+    TODO: Tests.ps1 should error if config not present.
+    TODO: Add schema version to testconfig.psd1
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
