@@ -19,22 +19,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-11
+
 ### Added
 
+- `Set-GitHubUser.ps1`: fills in the GitHub owner/repo placeholders, driven by
+  `Project.GitHubUser` in `setup.psd1`.
 - `Setup-NewProject.ps1` now removes `ModuleBuilderNotes.md` files.
 - `Setup-NewProject.ps1` now removes the sample `Get-Greeting` function.
+- `Build.ps1`: support for project-local Script Generators under
+  `Build\Generators\`.
+- `release.yml`: builds, zips `Output\`, and publishes a GitHub release on a `v*`
+  tag.
+- `setup.psd1`: a `Release.Enabled` item gating the release workflow.
+- `Push-NewTagToMain.ps1`: a `-NoManifest` switch for tagging a manifest-less repo.
 - `Tests.ps1`: a `Lint` category, plus one category per lint check.
 - `Tests.ps1`: `-Path` accepts a list; `-ConfigPath` overrides `TestConfig.psd1`.
 - `Read-LintFile.ps1`: shared file reader for the lint checks.
 - `TestConfig.psd1`: a `FailOnFixme` setting (default `$false`).
-- `setup.psd1`: a `Release.Enabled` item gating the release workflow.
 - `RequiredModules.psd1`: one dependency list read by both dependency scripts.
-- `Compare-Template.ps1`: tracks `RequiredModules.psd1` and `Confirm-Dependency.Tests.ps1`.
+- `Compare-Template.ps1`: tracks `AGENTS.COMMITTING.md`, `Tests.ps1`,
+  `RequiredModules.psd1`, and `Confirm-Dependency.Tests.ps1`.
 - `MIGRATING.PLATYPS.md`: the comment-based help format Microsoft.PowerShell.PlatyPS
   expects, for converting help written for PlatyPS 0.14.
 
 ### Changed
 
+- **BREAKING** `Setup-NewProject.ps1` moved to `Scripts\TemplateSetup\`, with
+  shared helpers in `_Common.ps1`. `setup.psd1` stays in `Scripts\`.
 - **BREAKING** `Tests.ps1`: multiple categories are comma-separated
   (`.\Tests.ps1 NotLive,PSSA`); bare arguments after the category are paths.
 - **BREAKING** `Build.ps1`: build target declared by `BuildToRoot` in
@@ -45,16 +57,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   renamed `PSSAAutoFormat`.
 - `.pre-commit-config.yaml`: one `ps-lint` hook replaces six per-check hooks, and
   checks staged files only.
-- `Compare-Template.ps1`: the lint checks and their helpers are `-BlindCopy`.
 - `Setup-NewProject.ps1`: declining a formatting feature deletes its lint test.
+- `Compare-Template.ps1`: the versioned pre-flight compares itself first and ends
+  the run if replaced, prints one summary line per file, compares `setup.psd1` by
+  `ScriptVersion`, and sends a version match with differing content to the diff
+  instead of offering to copy over it.
+- `Compare-Template.ps1`: the lint checks and their helpers, `Install-Dependency.ps1`,
+  `Build.ps1`, and `Tests.ps1` are `-BlindCopy` now, since none of them carry
+  project-specific content.
 - `setup.psd1`: `Features.Dependencies` renamed `Features.InstallDependenciesScript`.
 - `Install-Dependencies.ps1` and `Confirm-Dependencies.ps1` renamed singular.
 - **BREAKING** Both dependency scripts read `ScriptsToProcess\RequiredModules.psd1`
   instead of a manifest, and no longer call each other.
 - `Confirm-Dependency.ps1`: runs its body in a scriptblock, so nothing leaks into the
   importing session; `$Global:ModuleDependenciesChecked` is keyed by the script's folder.
-- `Compare-Template.ps1`: `Install-Dependency.ps1` is `-BlindCopy` now that its
-  hand-edit FIXME block is gone.
+- Both dependency scripts head the remediation output in red and leave the detail
+  lines yellow.
 - **BREAKING** `Docs.ps1`: generates with Microsoft.PowerShell.PlatyPS 1.0.3 instead
   of PlatyPS 0.14. Pages are rewritten to schema `2024-05-01`, and comment-based help
   needs the format in `MIGRATING.PLATYPS.md`: fenced `.EXAMPLE` code, a bare type name
@@ -64,8 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING** Command pages live in `Docs\<ModuleName>\`, not `Docs\Commands\` -- the
   folder Microsoft.PowerShell.PlatyPS creates on its own. `mkdocs.yml` nav paths change
   with it, and `Setup-NewProject.ps1` deletes the whole template-named folder.
-- `RequiredModules.psd1`: `PlatyPS` 0.14.0 replaced by `Microsoft.PowerShell.PlatyPS`
-  1.0.3.
+- `Docs.ps1`: generates from the source manifest under `Source\`.
+- `Push-NewTagToMain.ps1`: the manifest lookup no longer walks up the directory
+  tree.
 - `Get-Greeting.ps1`: help converted to the new format, demonstrating it.
 
 ### Removed
@@ -84,51 +103,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CommandNotFoundException`.
 - `Setup-NewProject.ps1`: the rename preview threw `PropertyNotFoundException` on
   a single matched file.
-- `Docs.ps1`: regenerates every page instead of merging, so edits to a function's
-  existing help now reach `Docs\Commands`.
-- `Install-Dependency.ps1` never found the manifest once deployed under
-  `ScriptsToProcess\`, so its module list was silently always empty.
 - `Setup-NewProject.ps1`: declining `Features.InstallDependenciesScript` left
   `Confirm-Dependency.Tests.ps1` behind, failing the child repo's test run.
+- `RequiredModules.psd1` listed Pester, PSScriptAnalyzer, ModuleBuilder, and
+  Microsoft.PowerShell.PlatyPS as required, so importing the module made every
+  consumer install the build tooling.
+- `Install-Dependency.ps1` never found the manifest once deployed under
+  `ScriptsToProcess\`, so its module list was silently always empty.
 - `Confirm-Dependency.ps1` no longer scans the whole module tree at import, nor
   runs the entire check twice when a module is missing.
+- `Confirm-Dependency.ps1` threw a bare `ScriptHalted` on a missing dependency; the
+  summary now travels with the exception, so a caller or CI log can read it.
 - Both dependency scripts: a `MaximumVersion`-only entry printed `(latest) <= x`.
-
-## [1.2.0] - 2026-07-22
-
-### Added
-
-- `Set-GitHubUser.ps1`: fills in the GitHub owner/repo placeholders, driven by
-  `Project.GitHubUser` in `setup.psd1`.
-- `Test-LineLength.ps1`: an `-AnyType` switch to check files of any extension.
-- `Build.ps1`: support for project-local Script Generators under
-  `Build\Generators\`.
-- `release.yml`: builds, zips `Output\`, and publishes a GitHub release on a `v*`
-  tag.
-- `Push-NewTagToMain.ps1`: a `-NoManifest` switch for tagging a manifest-less repo.
-- `Compare-Template.ps1`: tracks `AGENTS.COMMITTING.md` and `Tests.ps1`.
-
-### Changed
-
-- **BREAKING** `Setup-NewProject.ps1` moved to `Scripts\TemplateSetup\`, with
-  shared helpers in `_Common.ps1`. `setup.psd1` stays in `Scripts\`.
-- `Compare-Template.ps1`: the versioned pre-flight compares itself first and ends
-  the run if replaced, prints one summary line per file, compares `setup.psd1` by
-  `ScriptVersion`, and sends a version match with differing content to the diff
-  instead of offering to copy over it.
-- `Docs.ps1`: generates from the source manifest under `Source\`, writing to
-  `Docs\Commands`.
-- `Push-NewTagToMain.ps1`: the manifest lookup no longer walks up the directory
-  tree.
-
-### Fixed
-
+- `Docs.ps1`: regenerates every page instead of merging, so edits to a function's
+  existing help now reach the generated page.
+- `Docs.ps1`: a help generation failure named no command. Failures are collected and
+  reported as a table of command, source file, and reason.
+- `Docs.ps1`: imports the modules declared in `RequiredModules.psd1` before importing
+  the module, so generation no longer runs against missing commands.
+- `Docs.ps1`: pages whose related links were still the placeholder ended with a
+  trailing blank line, so every docs run left an end-of-file diff for the pre-commit
+  hook to strip.
 - `Tests.ps1 -Built` falls back to a flat `Output\<ModuleName>\` build layout.
 - The TEMPLATE SETUP NOTES box is now stripped whole, and recognized in
   `Source\Build.psd1`, `ci.yml`, `dependabot.yml`, and the issue templates.
 - `Build.ps1` no longer throws under strict mode when `Build.psd1` has no
   `CopyPaths` key.
 - `Push-NewTagToMain.ps1` checks for a duplicate tag before any merge or commit.
+- `Push-NewTagToMain.ps1` retries the release commit when an auto-fixing pre-commit
+  hook repairs the tree and fails the commit.
 
 ## [1.1.0] - 2026-07-20
 
