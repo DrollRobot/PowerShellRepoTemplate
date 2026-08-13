@@ -36,44 +36,43 @@ Run pester tests again on the built module:
 ```
 
 ## Update docs
-```powershell
-.\Docs.ps1
-```
+- Rebuild Docs/<ModuleName>/
+   ```powershell
+   .\Docs.ps1
+   ```
 
-Review the documents in the root of the Docs folder for accuracy or any new features
-that should be added. Don't review or modify files in `Docs/<ModuleName>/`. (built by
-PlatyPS)
+- Review the documents in the root of the Docs folder for accuracy or any new features
+   that should be added. Don't review or modify files in `Docs/<ModuleName>/`. (built
+   by PlatyPS)
+
 
 ## Update CHANGELOG.md
-`CHANGELOG.md` in the repo root is the authoritative changelog.
-Before proceeding, fetch and review <https://keepachangelog.com> to get the
-current format rules. Do not rely on training data -- request a fresh copy every time.
+`CHANGELOG.md` in the repo root is the authoritative changelog, in
+[Keep a Changelog](https://keepachangelog.com) format. Fetch that page for the
+current format rules; do not rely on training data.
 
-**How to update the changelog before tagging a new release**
-
-1. **Find the previous tag** and collect every commit since then:
+1. **Collect commits** since the previous tag:
    ```powershell
-   $prevTag = git describe --tags --abbrev=0   # most recent tag
+   $prevTag = git describe --tags --abbrev=0
    git log "$prevTag..HEAD" --oneline
    ```
 
-2. **Break each commit message into individual details**, then evaluate each detail
-   against the three changelog categories:
-   - **Features** -- new or changed functionality a user can invoke (maps to Added,
-     Changed, Deprecated, Removed).
-   - **User-facing bugs** -- something that was broken and is now fixed (maps to Fixed).
-   - **Security** -- vulnerabilities or security-relevant changes (maps to Security).
+2. Select from commits. Keep only:
+- Features -- functionality a user can invoke (Added, Changed, Deprecated, Removed).
+- User-facing bug fixes (Fixed).
+- Security changes (Security).
+- Performance improvements.
+Do not mention: refactors, tests, lint, building docs, build tooling.
 
-   If a detail does not clearly fit one of those three categories, discard it.
-   Implementation details, refactors, test changes, linting fixes, and documentation
-   updates are never included, even if they appear in the same commit as something that is.
+3. Write each entry as a BRIEF overview, not an explanation.
+- Fixed: Name what broke and where.
+- Added/Changed: one or two sentences describing the new behavior.
+- Detailed explanations belong in the commit message and the code, not the
+   changelog.
 
-   Collect all surviving details, grouped by category, then use them to build the
-   changelog section.
-
-3. **Prepend** the new release section to `CHANGELOG.md` immediately after the
-   `# Changelog` heading. Use today's date and the version about to be tagged.
-   Do not rewrite or delete any existing sections.
+4. Prepend the new section immediately after the # Changelog heading,
+with today's date and the version about to be tagged. Don't rewrite or
+delete existing sections unless directly requested.
 
 ## Hand off to user
 - The user will update manifest version, merge, tag, and push.
