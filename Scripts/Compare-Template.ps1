@@ -75,7 +75,6 @@
     Run from inside the child repo. This script is itself a versioned file, so a
     child keeps its own copy in sync via the pre-flight.
 
-    TODO: Add Tests/TestConfig.psd1 to compare script.
     TODO: Tests.ps1 should error if config not present.
     TODO: Add schema version to testconfig.psd1
 #>
@@ -112,7 +111,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.7.1'
+$ScriptVersion = '2.8.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -211,11 +210,9 @@ $script:HashBanner =
 '(?ms)^# =+\s*\r?\n# TEMPLATE SETUP NOTES[^\n]*\r?\n(?:#[^\n]*\r?\n)*# =+\s*\r?\n'
 
 # Extracts a script's own $ScriptVersion. Anchored to line start so the
-# SuppressMessageAttribute line above the declaration cannot match. The '$' is
-# optional so a .psd1 data file (setup.psd1) can declare the same version as a
-# bare 'ScriptVersion = ...' hashtable key -- read by the same Get-ScriptVersion,
-# not a separate method. Escaped quotes are doubled for the single-quoted string.
-$script:VersionPattern = '(?m)^\s*\$?ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
+# SuppressMessageAttribute line above the declaration cannot match. Escaped
+# quotes are doubled for the single-quoted string.
+$script:VersionPattern = '(?m)^\s*\$ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
 
 <#
 .SYNOPSIS
@@ -243,10 +240,11 @@ $script:VersionPattern = '(?m)^\s*\$?ScriptVersion\s*=\s*[''"]([^''"]+)[''"]'
     Compare presence only: when the child copy exists its contents are not
     checked, because the child owns them.
 
-.PARAMETER VersionOnly
-    Compare by declared version alone. Equal versions match with contents ignored;
-    a mismatch (or a version missing on either side) is flagged for review and
-    shown under -Diff. The file is never copied.
+.PARAMETER SchemaOnly
+    Compare by declared SchemaVersion alone, for a config file whose values the
+    child owns and whose shape the template owns. Equal schema versions match
+    with contents ignored; a mismatch (or a schema version missing on either
+    side) is flagged for review and shown under -Diff. The file is never copied.
 
 .PARAMETER BlindCopy
     Also include the entry in the pre-flight version sync (Invoke-VersionedPreflight),
@@ -284,7 +282,7 @@ function New-Entry {
         [bool]$Required = $true,
         [bool]$Strict = $true,
         [bool]$ExistenceOnly = $false,
-        [bool]$VersionOnly = $false,
+        [bool]$SchemaOnly = $false,
         [bool]$BlindCopy = $false,
         [string]$Gate = $null,
         [string]$LocalOverrideFlag = $null,
@@ -296,7 +294,7 @@ function New-Entry {
         Required          = $Required
         Strict            = $Strict
         ExistenceOnly     = $ExistenceOnly
-        VersionOnly       = $VersionOnly
+        SchemaOnly        = $SchemaOnly
         BlindCopy         = $BlindCopy
         Gate              = $Gate
         LocalOverrideFlag = $LocalOverrideFlag
@@ -331,9 +329,9 @@ $script:Manifest = @(
     (New-Entry 'CONTRIBUTING.md' -Gate 'ContributingMd')
     (New-Entry 'SECURITY.md' -Gate 'SecurityMd')
     (New-Entry 'README.md' -ExistenceOnly $true)
-    # Holds the child's own config choices, not the template's; a version mismatch
-    # means the config's shape changed and needs reconciling.
-    (New-Entry 'Scripts/setup.psd1' -VersionOnly $true)
+    # Holds the child's own config choices, not the template's; a SchemaVersion
+    # mismatch means the config's shape changed and needs reconciling by hand.
+    (New-Entry 'Scripts/setup.psd1' -SchemaOnly $true)
     # ModuleBuilder build config.
     (New-Entry 'Source/Build.psd1')
     $DepsGate = @{ Gate = 'InstallDependenciesScript' }
@@ -426,12 +424,32 @@ function Remove-TemplateBanner {
     return ($Text -replace $script:MarkdownBanner, '' -replace $script:HashBanner, '')
 }
 
-# Extract a declared version, or $null when none. Reads a script's $ScriptVersion
-# and a .psd1 data file's bare 'ScriptVersion' key alike (see VersionPattern).
+# Extract a script's declared $ScriptVersion, or $null when none.
 function Get-ScriptVersion {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$Text)
     $match = [regex]::Match($Text, $script:VersionPattern)
     if ($match.Success) { return $match.Groups[1].Value }
+    return $null
+}
+
+# Read a .psd1 config file's declared SchemaVersion. Parsed with
+# Import-PowerShellDataFile -- the same restricted-language reader
+# Get-ChildFeatureFlag uses, so quoting, spacing, comments and key order are the
+# parser's problem, not a pattern's. Returns $null when the file is unreadable or
+# not valid data, when it declares no SchemaVersion (an older child copy), or when
+# the value is not an integer: a schema version counts revisions of the config's
+# shape, so a semver-looking string is a malformed one, not a version to compare.
+function Get-SchemaVersion {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    try {
+        $data = Import-PowerShellDataFile -Path $Path
+    }
+    catch {
+        return $null
+    }
+    $value = $data['SchemaVersion']
+    if ($value -is [int]) { return $value }
     return $null
 }
 
@@ -724,21 +742,24 @@ function Compare-Entry {
         $result.Note = ' (exists; contents not compared)'
         return $result
     }
-    # Equal versions match with contents ignored; a mismatch (including a missing
-    # version on either side) is flagged for review and opened under -Diff.
-    if ($Entry.VersionOnly) {
-        $templateRawText = Get-RawText $templatePath
-        $childRawText = Get-RawText $childPath
-        $templateVersion = Get-ScriptVersion $templateRawText
-        $childVersion = Get-ScriptVersion $childRawText
-        if ($templateVersion -and $childVersion -and $templateVersion -eq $childVersion) {
-            $result.Note = " (version $childVersion; contents not compared)"
+    # Equal schema versions mean the shapes agree, so the child's own values are
+    # not drift and the contents are never compared. A mismatch (including a
+    # missing schema version on either side) is flagged for review and opened
+    # under -Diff to be reconciled by hand -- the file is never copied over.
+    if ($Entry.SchemaOnly) {
+        $templateSchema = Get-SchemaVersion $templatePath
+        $childSchema = Get-SchemaVersion $childPath
+        $bothDeclared = $null -ne $templateSchema -and $null -ne $childSchema
+        if ($bothDeclared -and $templateSchema -eq $childSchema) {
+            $result.Note = " (schema $childSchema; contents not compared)"
             return $result
         }
-        $templateShown = if ($templateVersion) { $templateVersion } else { 'unversioned' }
-        $childShown = if ($childVersion) { $childVersion } else { 'unversioned' }
+        $templateRawText = Get-RawText $templatePath
+        $childRawText = Get-RawText $childPath
+        $templateShown = if ($null -ne $templateSchema) { $templateSchema } else { 'none' }
+        $childShown = if ($null -ne $childSchema) { $childSchema } else { 'none' }
         $result.Status = 'review'
-        $result.Note = " (version template $templateShown, child $childShown; reconcile)"
+        $result.Note = " (schema template $templateShown, child $childShown; reconcile)"
         $result.HasText = $true
         $result.TemplateNorm = ConvertTo-NormalizedTemplate $templateRawText
         $result.ChildNorm = ConvertTo-NormalizedChild $childRawText

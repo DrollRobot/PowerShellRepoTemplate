@@ -42,11 +42,59 @@ Describe 'Get-ScriptVersion' -Tag 'unit', 'functional' {
         $text = "# a note about `$ScriptVersion`n`$ScriptVersion = '2.0.0'"
         Get-ScriptVersion $text | Should -Be '2.0.0'
     }
-    It 'reads a bare hashtable-key version (no $), as in a .psd1' {
-        Get-ScriptVersion "@{`n    ScriptVersion = '1.0.0'`n}" | Should -Be '1.0.0'
+    It 'ignores a bare hashtable-key version (no $), as in a .psd1' {
+        Get-ScriptVersion "@{`n    ScriptVersion = '1.0.0'`n}" | Should -BeNullOrEmpty
     }
     It 'returns null when there is no version' {
         Get-ScriptVersion 'nothing here' | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-SchemaVersion' -Tag 'integration', 'functional' {
+    BeforeAll {
+        $ScratchParams = @{
+            Path      = [System.IO.Path]::GetTempPath()
+            ChildPath = [System.IO.Path]::GetRandomFileName()
+        }
+        $script:SchemaReadDir = Join-Path @ScratchParams
+        New-Item -ItemType Directory -Path $script:SchemaReadDir -Force | Out-Null
+        $script:SchemaReadFile = Join-Path -Path $script:SchemaReadDir -ChildPath 'config.psd1'
+    }
+    AfterAll {
+        $RemoveParams = @{
+            LiteralPath = $script:SchemaReadDir
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
+        }
+        Remove-Item @RemoveParams
+    }
+
+    It 'reads an integer key, past comments and other settings' {
+        $data = "@{`n    # SchemaVersion = 9 in a comment`n    SchemaVersion = 3`n" +
+        "    Project = @{ Name = 'x' }`n}"
+        Set-Content -LiteralPath $script:SchemaReadFile -Value $data
+        Get-SchemaVersion $script:SchemaReadFile | Should -Be 3
+    }
+    It 'returns an integer, not a string' {
+        Set-Content -LiteralPath $script:SchemaReadFile -Value "@{`n    SchemaVersion = 12`n}"
+        Get-SchemaVersion $script:SchemaReadFile | Should -BeOfType [int]
+    }
+    It 'rejects a quoted (semver-style) value' {
+        Set-Content -LiteralPath $script:SchemaReadFile -Value "@{`n    SchemaVersion = '1.0.0'`n}"
+        Get-SchemaVersion $script:SchemaReadFile | Should -BeNullOrEmpty
+    }
+    It 'returns null when the file declares no schema version' {
+        Set-Content -LiteralPath $script:SchemaReadFile -Value "@{`n    Name = 'x'`n}"
+        Get-SchemaVersion $script:SchemaReadFile | Should -BeNullOrEmpty
+    }
+    It 'returns null when the file is not valid PowerShell data' {
+        Set-Content -LiteralPath $script:SchemaReadFile -Value 'not valid { data'
+        Get-SchemaVersion $script:SchemaReadFile | Should -BeNullOrEmpty
+    }
+    It 'returns null when the file does not exist' {
+        $missing = Join-Path -Path $script:SchemaReadDir -ChildPath 'nope.psd1'
+        Get-SchemaVersion $missing | Should -BeNullOrEmpty
     }
 }
 
@@ -154,7 +202,7 @@ Describe 'New-Entry' -Tag 'unit', 'functional' {
         $entry.Required | Should -BeTrue
         $entry.Strict | Should -BeTrue
         $entry.ExistenceOnly | Should -BeFalse
-        $entry.VersionOnly | Should -BeFalse
+        $entry.SchemaOnly | Should -BeFalse
         $entry.BlindCopy | Should -BeFalse
         $entry.Gate | Should -BeNullOrEmpty
         $entry.LocalOverrideFlag | Should -BeNullOrEmpty
@@ -169,7 +217,7 @@ Describe 'New-Entry' -Tag 'unit', 'functional' {
             Required          = $false
             Strict            = $false
             ExistenceOnly     = $true
-            VersionOnly       = $true
+            SchemaOnly        = $true
             BlindCopy         = $true
             Gate              = 'SomeFeature'
             LocalOverrideFlag = 'SomeFlag'
@@ -179,7 +227,7 @@ Describe 'New-Entry' -Tag 'unit', 'functional' {
         $entry.Required | Should -BeFalse
         $entry.Strict | Should -BeFalse
         $entry.ExistenceOnly | Should -BeTrue
-        $entry.VersionOnly | Should -BeTrue
+        $entry.SchemaOnly | Should -BeTrue
         $entry.BlindCopy | Should -BeTrue
         $entry.Gate | Should -Be 'SomeFeature'
         $entry.LocalOverrideFlag | Should -Be 'SomeFlag'
@@ -264,12 +312,16 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
         $testConfig = $script:Manifest | Where-Object Path -EQ 'Tests/TestConfig.psd1'
         $testConfig.Strict | Should -BeFalse
     }
-    It 'tracks the setup config file as version-only, never blind-copied' {
+    It 'tracks the setup config file as schema-only, never blind-copied' {
         $entry = $script:Manifest | Where-Object Path -EQ 'Scripts/setup.psd1'
         $entry | Should -Not -BeNullOrEmpty
-        $entry.VersionOnly | Should -BeTrue
+        $entry.SchemaOnly | Should -BeTrue
         $entry.ExistenceOnly | Should -BeFalse
         $entry.BlindCopy | Should -BeFalse
+    }
+    It 'ships a setup config that declares an integer schema version' {
+        $configPath = Join-Path -Path $script:RepoRoot -ChildPath 'Scripts\setup.psd1'
+        Get-SchemaVersion $configPath | Should -BeGreaterThan 0
     }
     It 'gates every docs-feature file on Docs' {
         $docsFiles = @(
@@ -379,6 +431,85 @@ Describe 'Get-ChildFeatureFlag' -Tag 'integration', 'functional' {
         $flags = Get-ChildFeatureFlag -ChildRoot $script:FlagScratchDir
         $flags['Docs'] | Should -BeTrue
         Remove-Item -LiteralPath $configPath -Force
+    }
+}
+
+Describe 'Compare-Entry with a schema-only entry' -Tag 'integration', 'functional' {
+    BeforeAll {
+        $ScratchParams = @{
+            Path      = [System.IO.Path]::GetTempPath()
+            ChildPath = [System.IO.Path]::GetRandomFileName()
+        }
+        $script:SchemaScratchDir = Join-Path @ScratchParams
+        $script:SchemaTemplateRoot = Join-Path -Path $script:SchemaScratchDir -ChildPath 'template'
+        $script:SchemaChildRoot = Join-Path -Path $script:SchemaScratchDir -ChildPath 'child'
+        foreach ($Root in @($script:SchemaTemplateRoot, $script:SchemaChildRoot)) {
+            $ScriptsDir = Join-Path -Path $Root -ChildPath 'Scripts'
+            New-Item -ItemType Directory -Path $ScriptsDir -Force | Out-Null
+        }
+        $script:SchemaEntry = New-Entry 'Scripts/setup.psd1' -SchemaOnly $true
+        $script:SchemaTemplateConfig =
+            Join-Path -Path $script:SchemaTemplateRoot -ChildPath 'Scripts\setup.psd1'
+        $script:SchemaChildConfig =
+            Join-Path -Path $script:SchemaChildRoot -ChildPath 'Scripts\setup.psd1'
+        # Same shape, different values -- what a configured child always looks like.
+        $script:SchemaTemplateText = "@{`n    SchemaVersion = 2`n    Name = 'template'`n}"
+        $script:SchemaChildText = "@{`n    SchemaVersion = 2`n    Name = 'mine'`n}"
+    }
+    AfterAll {
+        $RemoveParams = @{
+            LiteralPath = $script:SchemaScratchDir
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
+        }
+        Remove-Item @RemoveParams
+    }
+    BeforeEach {
+        $script:ChildName = 'MyModule'
+        $script:ChildOwner = $null
+    }
+
+    It 'matches without comparing contents when the schema versions agree' {
+        Set-Content -LiteralPath $script:SchemaTemplateConfig -Value $script:SchemaTemplateText
+        Set-Content -LiteralPath $script:SchemaChildConfig -Value $script:SchemaChildText
+        $CompareParams = @{
+            Entry        = $script:SchemaEntry
+            TemplateRoot = $script:SchemaTemplateRoot
+            ChildRoot    = $script:SchemaChildRoot
+        }
+        $result = Compare-Entry @CompareParams
+        $result.Status | Should -Be 'match'
+        $result.Note | Should -Be ' (schema 2; contents not compared)'
+        $result.HasText | Should -BeFalse
+    }
+    It 'sends a schema mismatch to review, with both texts kept for the diff' {
+        Set-Content -LiteralPath $script:SchemaTemplateConfig -Value $script:SchemaTemplateText
+        $older = $script:SchemaChildText.Replace('SchemaVersion = 2', 'SchemaVersion = 1')
+        Set-Content -LiteralPath $script:SchemaChildConfig -Value $older
+        $CompareParams = @{
+            Entry        = $script:SchemaEntry
+            TemplateRoot = $script:SchemaTemplateRoot
+            ChildRoot    = $script:SchemaChildRoot
+        }
+        $result = Compare-Entry @CompareParams
+        $result.Status | Should -Be 'review'
+        $result.Note | Should -Be ' (schema template 2, child 1; reconcile)'
+        $result.HasText | Should -BeTrue
+        $result.ChildNorm | Should -Match 'mine'
+    }
+    It 'reports a child that declares no schema version as none' {
+        Set-Content -LiteralPath $script:SchemaTemplateConfig -Value $script:SchemaTemplateText
+        Set-Content -LiteralPath $script:SchemaChildConfig -Value "@{`n    Name = 'mine'`n}"
+        $CompareParams = @{
+            Entry        = $script:SchemaEntry
+            TemplateRoot = $script:SchemaTemplateRoot
+            ChildRoot    = $script:SchemaChildRoot
+        }
+        $result = Compare-Entry @CompareParams
+        $result.Status | Should -Be 'review'
+        $result.Note | Should -Be ' (schema template 2, child none; reconcile)'
+        $result.HasText | Should -BeTrue
     }
 }
 

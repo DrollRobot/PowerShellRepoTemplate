@@ -14,14 +14,14 @@
 
 @{
     # Version of THIS config file's shape (the sections and keys below), owned by
-    # the template. Declared as a bare hashtable key so Scripts\Compare-Template.ps1
-    # reads it with the same version parser it uses for $ScriptVersion in scripts.
-    # It compares this against the template's copy: when the two disagree it flags
-    # setup.psd1 for a manual diff so you can fold in new options -- it never copies
-    # over your own choices. Bump only when the template changes the config's shape.
-    # TODO: rename to TemplateSetup.psd1, have dedicated config schema version
-    # number instead of using script version.
-    ScriptVersion = '2.7.1'
+    # the template and independent of any script's version. A plain counter, not
+    # semver: bump it by one whenever the template adds, removes, or renames a
+    # setting here. Scripts\Compare-Template.ps1 compares this against the
+    # template's copy -- equal schema versions mean the shapes agree and the
+    # contents are not compared at all (your own choices are never drift). When
+    # they differ it flags setup.psd1 for a manual diff so you can fold in the new
+    # options by hand; it never copies over your values.
+    SchemaVersion = 1
 
     Project = @{
         # New module name. Used for
