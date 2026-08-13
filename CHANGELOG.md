@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `setup.psd1`: an integer `SchemaVersion` replaces the `ScriptVersion`
+  key it borrowed from `Compare-Template.ps1`. Bump it by one whenever the config's
+  shape changes.
+- `Compare-Template.ps1`: compares `setup.psd1` by `SchemaVersion`. Equal schema
+  versions skip the content comparison entirely; a mismatch goes to the diff for a
+  hand reconcile and is never copied over.
+
 ## [1.2.0] - 2026-08-11
 
 ### Added
