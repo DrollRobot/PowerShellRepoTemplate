@@ -15,7 +15,11 @@
     TEMPLATE SETUP NOTES banner, and the module-name / GitHub-owner substitutions
     Setup-NewProject.ps1 applied), so only genuine drift is reported. Files the
     child owns -- its Source\ code, module manifest, changelog, license, generated
-    docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked.
+    docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked. The one
+    exception is Source\Private\Lib\Resolve-EnvParameter.ps1, which the template
+    ships as the module half of the Script Generators' EnvResolver contract -- a
+    Lib\ helper, so non-domain by the AGENTS.md split. It is tracked leniently, so
+    drift is reported for review rather than as an error.
 
     -BlindCopy entries also get an earlier pre-flight that offers to refresh an
     outdated child copy from the template by version number, before the diff
@@ -111,7 +115,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.8.0'
+$ScriptVersion = '2.9.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -340,6 +344,25 @@ $script:Manifest = @(
     # Holds the child's own dependency list, not the template's -- existence only.
     (New-Entry 'Source/ScriptsToProcess/RequiredModules.psd1' -ExistenceOnly $true @DepsGate)
     (New-Entry 'Tests/Pester/Confirm-Dependency.Tests.ps1' -BlindCopy $true @DepsGate)
+    # Script Generators. None carries a $ScriptVersion, so these compare by
+    # content and are not blind-copied.
+    $StandaloneGate = @{ Gate = 'StandaloneScriptGenerator' }
+    (New-Entry 'Build/Generators/ConvertTo-StandaloneScript.ps1' @StandaloneGate)
+    (New-Entry 'Build/Generators/ConvertTo-ScriptVariant.ps1' @StandaloneGate)
+    (New-Entry 'Tests/Pester/ConvertTo-StandaloneScript.Tests.ps1' @StandaloneGate)
+    (New-Entry 'Tests/Pester/ConvertTo-ScriptVariant.Tests.ps1' @StandaloneGate)
+    # The only Source\ file the template tracks: it is the module half of the
+    # generators' EnvResolver contract, not project code. Lenient, because a
+    # child is expected to wire it into its own logging and defaults.
+    (New-Entry 'Source/Private/Lib/Resolve-EnvParameter.ps1' -Strict $false @StandaloneGate)
+    (New-Entry 'Tests/Pester/Resolve-EnvParameter.Tests.ps1' -Strict $false @StandaloneGate)
+    $IntuneGate = @{ Gate = 'IntunePackageGenerator' }
+    (New-Entry 'Build/Generators/ConvertTo-IntuneWinPackage.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Detect.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Install.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Uninstall.ps1' @IntuneGate)
+    (New-Entry 'Build/Generators/Intune/Write-PackageLog.ps1' @IntuneGate)
+    (New-Entry 'Tests/Pester/ConvertTo-IntuneWinPackage.Tests.ps1' @IntuneGate)
     # Docs site config.
     (New-Entry 'mkdocs.yml' -Required $false -Strict $false -Gate 'Docs')
     # Worktree, release, and docs helper scripts.
@@ -902,6 +925,8 @@ $script:FeatureDefaults = @{
     ContributingMd            = $true
     ExplicitModuleImport      = $true
     InstallDependenciesScript = $true
+    StandaloneScriptGenerator = $true
+    IntunePackageGenerator    = $true
     NonASCIICharacters        = $true
     FormatOperator            = $true
     WriteVerboseDebug         = $true
