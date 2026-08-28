@@ -247,7 +247,7 @@ function Build-CommandMarkdown {
         $Failures | Format-Table -Property Command, File, Reason -AutoSize -Wrap | Out-Host
 
         throw "Doc generation failed for $($Failures.Count) command(s). Read authoring" +
-            " notes in Docs.ps1's help."
+        " notes in Docs.ps1's help."
     }
 }
 

@@ -449,9 +449,9 @@ Describe 'Compare-Entry with a schema-only entry' -Tag 'integration', 'functiona
         }
         $script:SchemaEntry = New-Entry 'Scripts/setup.psd1' -SchemaOnly $true
         $script:SchemaTemplateConfig =
-            Join-Path -Path $script:SchemaTemplateRoot -ChildPath 'Scripts\setup.psd1'
+        Join-Path -Path $script:SchemaTemplateRoot -ChildPath 'Scripts\setup.psd1'
         $script:SchemaChildConfig =
-            Join-Path -Path $script:SchemaChildRoot -ChildPath 'Scripts\setup.psd1'
+        Join-Path -Path $script:SchemaChildRoot -ChildPath 'Scripts\setup.psd1'
         # Same shape, different values -- what a configured child always looks like.
         $script:SchemaTemplateText = "@{`n    SchemaVersion = 2`n    Name = 'template'`n}"
         $script:SchemaChildText = "@{`n    SchemaVersion = 2`n    Name = 'mine'`n}"

@@ -95,7 +95,7 @@ Describe 'mkdocs.yml navigation' -Tag 'integration', 'acceptance' {
                 -not $script:DocFileSet.Contains($_)
             })
         $Because = "every nav path should exist under $($script:DocsDir)/" +
-            " (case-sensitive), found none named: $($Missing -join ', ')"
+        " (case-sensitive), found none named: $($Missing -join ', ')"
         $Missing | Should -BeNullOrEmpty -Because $Because
     }
 
@@ -104,7 +104,7 @@ Describe 'mkdocs.yml navigation' -Tag 'integration', 'acceptance' {
                 -not $script:NavPathSet.Contains($_)
             })
         $Because = 'every markdown page should be reachable from the nav,' +
-            " not listed: $($Orphaned -join ', ')"
+        " not listed: $($Orphaned -join ', ')"
         $Orphaned | Should -BeNullOrEmpty -Because $Because
     }
 }
