@@ -19,6 +19,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ConvertTo-IntuneWinPackage.ps1`: a Script Generator that packages a payload
+  `.ps1` as a self-healing Intune Win32 app, rendering its Install, Uninstall,
+  Detect, and logging sources from `Build\Generators\Intune\`. Each build stamps a
+  build id and the payload's SHA256, so detection reports the app installed only
+  while the device matches the package that was uploaded.
+- `ConvertTo-ScriptVariant.ps1`: emits a named variant of a standalone script with
+  per-variant values baked in and a GUID derived from the source script's, for
+  builds that ship one script per customer, region, or ring. Call it from
+  `Build\PostBuild.ps1`; ModuleBuilder ignores it.
+- `ConvertTo-StandaloneScript.ps1`: `Defaults` bakes values into the hoisted param
+  block, and `EnvResolver` names a module command that finds injected `env_<Name>`
+  values. Precedence per parameter: command-line argument, injected value, baked
+  default.
+- `Resolve-EnvParameter.ps1`: the module half of that `EnvResolver` contract, for
+  deployment platforms that inject parameters as `env_<Name>` variables instead of
+  passing arguments.
+- `setup.psd1`: `StandaloneScriptGenerator` and `IntunePackageGenerator` feature
+  flags. Each removes its generators, sources, and tests when declined.
+- `Compare-Template.ps1`: tracks the Script Generators, their Intune sources, their
+  Pester files, and `Source\Private\Lib\Resolve-EnvParameter.ps1`, each gated on the
+  feature flag that ships it.
+- `Source\Build.psd1`: a commented-out `Generators` block as an example.
+
 ### Changed
 
 - **BREAKING** `setup.psd1`: an integer `SchemaVersion` replaces the `ScriptVersion`
@@ -27,6 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Compare-Template.ps1`: compares `setup.psd1` by `SchemaVersion`. Equal schema
   versions skip the content comparison entirely; a mismatch goes to the diff for a
   hand reconcile and is never copied over.
+- `Build.ps1`: mints a build id per run and exposes it as `MODULEBUILD_ID`, so every
+  generator in one build shares it. Accepts `-BuildId` to pin one.
+- `ci.yml`: the pinned `detect-secrets` version moved into a step environment
+  variable.
+
+### Removed
+
+- `ConvertTo-InlineModuleScript.ps1`, the here-string generator.
+  `ConvertTo-StandaloneScript.ps1` supersedes it: no here-string closer collisions,
+  and PowerShell classes work natively.
 
 ## [1.2.0] - 2026-08-11
 
