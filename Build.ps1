@@ -77,12 +77,13 @@
 param(
     [string] $SourcePath = (Join-Path -Path $PSScriptRoot -ChildPath 'Source'),
     [string] $OutputDirectory,
-    [string] $Version
+    [string] $Version,
+    [string] $BuildId
 )
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.0'
+$ScriptVersion = '2.1.0'
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
@@ -201,6 +202,13 @@ function Resolve-Dependency {
     }
     Write-Warning $message
 }
+
+# --- Build id ------------------------------------------------------------------
+# One id per run. Hooks run in a child scope and generators inside ModuleBuilder's,
+# so the environment is the one channel that reaches all of them unchanged.
+if (-not $BuildId) { $BuildId = [guid]::NewGuid().ToString('N').Substring(0, 12) }
+$env:MODULEBUILD_ID = $BuildId
+Write-Host "==> Build id $BuildId" -ForegroundColor Green
 
 # --- Clean (always runs first) -------------------------------------------------
 Write-Host '==> Clean' -ForegroundColor Green
