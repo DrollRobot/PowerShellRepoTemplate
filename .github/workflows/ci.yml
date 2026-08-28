@@ -56,8 +56,10 @@ jobs:
 
       - name: Scan for secrets
         shell: pwsh
+        env:
+          DETECT_SECRETS_VERSION: 1.5.0
         run: |
-          pip install detect-secrets==1.5.0
+          pip install "detect-secrets==$env:DETECT_SECRETS_VERSION"
           detect-secrets-hook --baseline .secrets.baseline @(git ls-files)
 
       - name: Install PowerShell modules
