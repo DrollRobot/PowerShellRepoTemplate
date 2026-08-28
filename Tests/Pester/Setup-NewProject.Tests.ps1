@@ -98,6 +98,8 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
                 ContributingMd            = $true
                 ExplicitModuleImport      = $true
                 InstallDependenciesScript = $true
+                StandaloneScriptGenerator = $true
+                IntunePackageGenerator    = $true
                 NonASCIICharacters        = $true
                 FormatOperator            = $true
                 WriteVerboseDebug         = $true
@@ -266,6 +268,113 @@ nav:
     }
 }
 
+Describe 'Script Generator feature removal' -Tag 'unit', 'functional' {
+    BeforeEach {
+        # Same scratch-tree redirection as Invoke-RemoveSampleFunction above: the
+        # removal steps read $script:RepoRoot, which the SUT points at THIS repo.
+        $script:SavedRepoRoot = $script:RepoRoot
+        $TreeParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = [System.IO.Path]::GetRandomFileName()
+        }
+        $script:FakeRepo = Join-Path @TreeParams
+        $Dirs = @(
+            'Build\Generators\Intune'
+            'Source\Private\Lib'
+            'Tests\Pester'
+        )
+        foreach ($Rel in $Dirs) {
+            $Dir = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            New-Item -ItemType Directory -Path $Dir -Force | Out-Null
+        }
+        $script:GeneratorFiles = @(
+            'Build\Generators\ConvertTo-StandaloneScript.ps1'
+            'Build\Generators\ConvertTo-ScriptVariant.ps1'
+            'Build\Generators\ConvertTo-IntuneWinPackage.ps1'
+            'Build\Generators\Intune\Install.ps1'
+            'Build\Generators\Intune\Uninstall.ps1'
+            'Build\Generators\Intune\Detect.ps1'
+            'Build\Generators\Intune\Write-PackageLog.ps1'
+            'Source\Private\Lib\Resolve-EnvParameter.ps1'
+            'Tests\Pester\ConvertTo-StandaloneScript.Tests.ps1'
+            'Tests\Pester\ConvertTo-ScriptVariant.Tests.ps1'
+            'Tests\Pester\ConvertTo-IntuneWinPackage.Tests.ps1'
+            'Tests\Pester\Resolve-EnvParameter.Tests.ps1'
+        )
+        foreach ($Rel in $script:GeneratorFiles) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Set-Content -LiteralPath $Full -Value 'generator'
+        }
+        $script:RepoRoot = $script:FakeRepo
+    }
+
+    AfterEach {
+        $script:RepoRoot = $script:SavedRepoRoot
+        Remove-Item -LiteralPath $script:FakeRepo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'removes the standalone-script generators, the resolver, and their tests' {
+        Invoke-RemoveStandaloneScriptGenerator -DryRun $false | Should -BeTrue
+        $Gone = @(
+            'Build\Generators\ConvertTo-StandaloneScript.ps1'
+            'Build\Generators\ConvertTo-ScriptVariant.ps1'
+            'Source\Private\Lib\Resolve-EnvParameter.ps1'
+            'Tests\Pester\ConvertTo-StandaloneScript.Tests.ps1'
+            'Tests\Pester\ConvertTo-ScriptVariant.Tests.ps1'
+            'Tests\Pester\Resolve-EnvParameter.Tests.ps1'
+        )
+        foreach ($Rel in $Gone) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Test-Path -LiteralPath $Full | Should -BeFalse -Because "$Rel should be gone"
+        }
+    }
+
+    It 'leaves the Intune generator alone when only the standalone one is declined' {
+        Invoke-RemoveStandaloneScriptGenerator -DryRun $false | Should -BeTrue
+        $Kept = @(
+            'Build\Generators\ConvertTo-IntuneWinPackage.ps1'
+            'Build\Generators\Intune\Install.ps1'
+            'Tests\Pester\ConvertTo-IntuneWinPackage.Tests.ps1'
+        )
+        foreach ($Rel in $Kept) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Test-Path -LiteralPath $Full | Should -BeTrue -Because "$Rel should remain"
+        }
+    }
+
+    It 'removes the Intune generator, its whole template folder, and its test' {
+        Invoke-RemoveIntunePackageGenerator -DryRun $false | Should -BeTrue
+        $Gone = @(
+            'Build\Generators\ConvertTo-IntuneWinPackage.ps1'
+            'Build\Generators\Intune'
+            'Tests\Pester\ConvertTo-IntuneWinPackage.Tests.ps1'
+        )
+        foreach ($Rel in $Gone) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Test-Path -LiteralPath $Full | Should -BeFalse -Because "$Rel should be gone"
+        }
+        $Kept = Join-Path -Path $script:FakeRepo -ChildPath (
+            'Build\Generators\ConvertTo-StandaloneScript.ps1')
+        Test-Path -LiteralPath $Kept | Should -BeTrue
+    }
+
+    It 'writes nothing under -DryRun' {
+        Invoke-RemoveStandaloneScriptGenerator -DryRun $true | Should -BeTrue
+        Invoke-RemoveIntunePackageGenerator -DryRun $true | Should -BeTrue
+        foreach ($Rel in $script:GeneratorFiles) {
+            $Full = Join-Path -Path $script:FakeRepo -ChildPath $Rel
+            Test-Path -LiteralPath $Full | Should -BeTrue -Because "$Rel should survive a dry run"
+        }
+    }
+
+    It 'is idempotent when the files are already gone' {
+        Invoke-RemoveStandaloneScriptGenerator -DryRun $false | Should -BeTrue
+        Invoke-RemoveIntunePackageGenerator -DryRun $false | Should -BeTrue
+        { Invoke-RemoveStandaloneScriptGenerator -DryRun $false } | Should -Not -Throw
+        { Invoke-RemoveIntunePackageGenerator -DryRun $false } | Should -Not -Throw
+    }
+}
+
 Describe 'Test-PristineTemplateClone' -Tag 'integration', 'functional' {
     It 'returns a boolean when run against this real repository' {
         # Read-only (`git rev-list`); $script:RepoRoot always resolves to this
@@ -292,6 +401,8 @@ Describe 'Setup-NewProject -DryRun' -Tag 'integration', 'functional' {
         ContributingMd = $true
         ExplicitModuleImport = $true
         InstallDependenciesScript = $true
+        StandaloneScriptGenerator = $true
+        IntunePackageGenerator = $true
         NonASCIICharacters = $true
         FormatOperator = $true
         WriteVerboseDebug = $true

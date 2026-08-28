@@ -21,7 +21,7 @@
     # contents are not compared at all (your own choices are never drift). When
     # they differ it flags setup.psd1 for a manual diff so you can fold in the new
     # options by hand; it never copies over your values.
-    SchemaVersion = 1
+    SchemaVersion = 2
 
     Project = @{
         # New module name. Used for
@@ -93,6 +93,23 @@
         # scripts (Scripts\Find-ScriptCommand.ps1, Scripts\Resolve-CommandModule.ps1)
         # -- nothing else uses those helpers, so all three go together.
         ExplicitModuleImport = $true
+
+        # The standalone-script Script Generators: Build\Generators\
+        # ConvertTo-StandaloneScript.ps1 (emits a single .ps1 with the whole
+        # built module inlined) and ConvertTo-ScriptVariant.ps1 (re-bakes that
+        # script once per variant), plus Source\Private\Lib\Resolve-EnvParameter.ps1,
+        # the module half of their EnvResolver contract, and the three Pester
+        # files covering them. false removes all six together. A project that
+        # ships only a module does not need them.
+        StandaloneScriptGenerator = $true
+
+        # The Intune Win32 packaging generator:
+        # Build\Generators\ConvertTo-IntuneWinPackage.ps1, the Install /
+        # Uninstall / Detect / Write-PackageLog sources it renders under
+        # Build\Generators\Intune\, and its Pester file. Independent of
+        # StandaloneScriptGenerator above -- it packages any payload .ps1 --
+        # though the two are usually taken together.
+        IntunePackageGenerator = $true
 
         # The pre-import dependency check: Source\ScriptsToProcess\Confirm-Dependency.ps1,
         # Install-Dependency.ps1 and the RequiredModules.psd1 they both read, plus that

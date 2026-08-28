@@ -23,9 +23,10 @@
       5. Fill in the GitHub owner/repo placeholders from [Project].GitHubUser (blank skips).
       6. Select a license.
       7. Remove any declined [Features]: the docs site, SECURITY.md, CONTRIBUTING.md, the
-         explicit-module-import check, the pre-import dependency check, and the opinionated
-         formatting checks -- each independently. Also relocates the unwanted-strings check
-         to .local\tests\ when [Features].UnwantedStringsLocal is true.
+         explicit-module-import check, the pre-import dependency check, the standalone-script
+         and Intune packaging Script Generators, and the opinionated formatting checks --
+         each independently. Also relocates the unwanted-strings check to .local\tests\
+         when [Features].UnwantedStringsLocal is true.
       8. Reinitialize git -- only when [Git].Reinit is true. Destructive, and has its own
          extra confirmation.
       9. Report any remaining FIXMEs. Read-only, always last, and not gated by -DryRun's
@@ -234,6 +235,10 @@ function Test-SetupConfig {
     $FeatureExplicitImport = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.InstallDependenciesScript'; Problems = $Problems }
     $FeatureInstallDependenciesScript = Get-ConfigBool @Params
+    $Params = @{ Raw = $Raw; Path = 'Features.StandaloneScriptGenerator'; Problems = $Problems }
+    $FeatureStandaloneScriptGenerator = Get-ConfigBool @Params
+    $Params = @{ Raw = $Raw; Path = 'Features.IntunePackageGenerator'; Problems = $Problems }
+    $FeatureIntunePackageGenerator = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.NonASCIICharacters'; Problems = $Problems }
     $FeatureNonASCII = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.FormatOperator'; Problems = $Problems }
@@ -307,6 +312,8 @@ function Test-SetupConfig {
         FeatureContributingMd            = $FeatureContributingMd
         FeatureExplicitImport            = $FeatureExplicitImport
         FeatureInstallDependenciesScript = $FeatureInstallDependenciesScript
+        FeatureStandaloneScriptGenerator = $FeatureStandaloneScriptGenerator
+        FeatureIntunePackageGenerator    = $FeatureIntunePackageGenerator
         FeatureNonASCII                  = $FeatureNonASCII
         FeatureFormatOperator            = $FeatureFormatOperator
         FeatureWriteVerboseDebug         = $FeatureWriteVerboseDebug
@@ -547,6 +554,38 @@ function Invoke-RemoveExplicitModuleImport {
     return $true
 }
 
+# Removes the standalone-script generators, the module-side helper their EnvResolver
+# contract calls, and the Pester files covering all three. Build.psd1's Generators block
+# ships commented out, so nothing is left pointing at the deleted files.
+function Invoke-RemoveStandaloneScriptGenerator {
+    param([Parameter(Mandatory)][bool]$DryRun)
+    $Targets = @(
+        'Build\Generators\ConvertTo-StandaloneScript.ps1'
+        'Build\Generators\ConvertTo-ScriptVariant.ps1'
+        'Source\Private\Lib\Resolve-EnvParameter.ps1'
+        'Tests\Pester\ConvertTo-StandaloneScript.Tests.ps1'
+        'Tests\Pester\ConvertTo-ScriptVariant.Tests.ps1'
+        'Tests\Pester\Resolve-EnvParameter.Tests.ps1'
+    )
+    Write-Info 'Remove standalone-script generators' ($Targets -join ', ')
+    if (-not $DryRun) { Invoke-RemoveRepoPath -RelativePath $Targets }
+    return $true
+}
+
+# Removes the Intune Win32 packaging generator, the Install/Uninstall/Detect/logger
+# sources it renders, and its Pester file.
+function Invoke-RemoveIntunePackageGenerator {
+    param([Parameter(Mandatory)][bool]$DryRun)
+    $Targets = @(
+        'Build\Generators\ConvertTo-IntuneWinPackage.ps1'
+        'Build\Generators\Intune'
+        'Tests\Pester\ConvertTo-IntuneWinPackage.Tests.ps1'
+    )
+    Write-Info 'Remove Intune packaging generator' ($Targets -join ', ')
+    if (-not $DryRun) { Invoke-RemoveRepoPath -RelativePath $Targets }
+    return $true
+}
+
 # Removes the pre-import dependency-check feature: both ScriptsToProcess scripts, the
 # RequiredModules.psd1 they read, its Pester test, plus the ScriptsToProcess entry that
 # wires Confirm-Dependency.ps1 into the (already renamed) module manifest -- so a declined
@@ -632,6 +671,12 @@ function Invoke-FeatureStep {
         'SecurityMd' { return Invoke-RemoveSecurityMd -DryRun $DryRun }
         'ContributingMd' { return Invoke-RemoveContributingMd -DryRun $DryRun }
         'ExplicitModuleImport' { return Invoke-RemoveExplicitModuleImport -DryRun $DryRun }
+        'StandaloneScriptGenerator' {
+            return Invoke-RemoveStandaloneScriptGenerator -DryRun $DryRun
+        }
+        'IntunePackageGenerator' {
+            return Invoke-RemoveIntunePackageGenerator -DryRun $DryRun
+        }
         'InstallDependenciesScript' {
             return Invoke-RemoveDependency -Name $Step.Name -DryRun $DryRun
         }
@@ -665,6 +710,18 @@ function Get-FeatureStep {
         $Steps.Add([pscustomobject]@{
                 Key  = 'remove_explicit_module_import'
                 Type = 'ExplicitModuleImport'
+            })
+    }
+    if (-not $Config.FeatureStandaloneScriptGenerator) {
+        $Steps.Add([pscustomobject]@{
+                Key  = 'remove_standalone_script_generator'
+                Type = 'StandaloneScriptGenerator'
+            })
+    }
+    if (-not $Config.FeatureIntunePackageGenerator) {
+        $Steps.Add([pscustomobject]@{
+                Key  = 'remove_intune_package_generator'
+                Type = 'IntunePackageGenerator'
             })
     }
     if (-not $Config.FeatureInstallDependenciesScript) {
