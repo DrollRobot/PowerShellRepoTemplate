@@ -9,6 +9,12 @@
     forwarded to the wrapped function with the documented precedence
     (argument, then EnvResolver-injected value, then baked default).
 #>
+# Template file version, read by Scripts\Compare-Template.ps1, which keeps a
+# child repo's copy of this test in sync by version.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 
 Describe 'ConvertTo-StandaloneScript' -Tag 'unit' {
 

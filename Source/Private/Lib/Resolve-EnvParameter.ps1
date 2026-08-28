@@ -83,6 +83,13 @@ function Resolve-EnvParameter {
         [string[]] $Scope
     )
 
+    # Template file version, read by Scripts\Compare-Template.ps1, which keeps a
+    # child repo's copy of this file in sync by version. Declared inside the
+    # function so ModuleBuilder does not inline a module-scope assignment.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+    $ScriptVersion = '1.0.0'
+
     if (-not $Scope) {
         # Get-Variable rather than $Script:EnvParameterScopes directly: under
         # Set-StrictMode the bare reference throws when a module does not

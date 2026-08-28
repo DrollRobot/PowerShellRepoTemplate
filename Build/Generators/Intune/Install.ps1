@@ -44,6 +44,12 @@
 [CmdletBinding()]
 param()
 
+# Template file version, read by Scripts\Compare-Template.ps1, which keeps a
+# child repo's copy of this template in sync by version.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 $ErrorActionPreference = 'Stop'
 
 #{{CONSTANTS}}

@@ -1,3 +1,10 @@
+# Template file version, read by Scripts\Compare-Template.ps1, which keeps a
+# child repo's copy of this generator in sync by version. Build.ps1 dot-sources
+# this file, so the assignment lands in the caller's scope; nothing reads it there.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 # global: so ModuleBuilder's Invoke-ScriptGenerator can find it after Build.ps1
 # dot-sources this file.
 function global:ConvertTo-IntuneWinPackage {

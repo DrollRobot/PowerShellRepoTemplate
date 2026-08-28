@@ -53,6 +53,13 @@ function Write-PackageLog {
         [string]$Level = 'Info'
     )
 
+    # Template file version, read by Scripts\Compare-Template.ps1, which keeps a
+    # child repo's copy of this file in sync by version. Declared inside the
+    # function so the copy injected into a generated package stays scoped to it.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+    $ScriptVersion = '1.0.0'
+
     $Stamp = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')
     $Line = "$Stamp [$LogScript] $($Level.ToUpper()) $Message"
     try {

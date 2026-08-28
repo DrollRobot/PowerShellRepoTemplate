@@ -14,6 +14,12 @@
     The function is dot-sourced from Source\Private\Lib\ rather than reached
     through the built module, so the tests run without a build.
 #>
+# Template file version, read by Scripts\Compare-Template.ps1, which keeps a
+# child repo's copy of this test in sync by version.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+    'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
+$ScriptVersion = '1.0.0'
+
 
 Describe 'Resolve-EnvParameter' -Tag 'unit' {
 
