@@ -5,11 +5,9 @@ function global:ConvertTo-StandaloneScript {
         built module inlined as plain script text.
 
     .DESCRIPTION
-        Function-injection counterpart to ConvertTo-InlineModuleScript (Part 2
-        of the standalone-script plan). Where that generator embeds the built
-        .psm1 in a single-quoted here-string and imports it through
-        New-Module and [scriptblock]::Create, this one writes the module
-        content directly into the script body as ordinary top-level code:
+        Writes the built module's content directly into the script body as
+        ordinary top-level code -- no here-string wrapper, no New-Module, and
+        no [scriptblock]::Create:
 
           * the target function's comment-based help and param block are
             hoisted, so the script exposes the same parameters and help as
@@ -21,10 +19,9 @@ function global:ConvertTo-StandaloneScript {
           * the script ends by invoking the target function with the script's
             own bound parameters.
 
-        The output contains no here-string wrapper, no [scriptblock]::Create,
-        and no New-Module -- the plainest shape available. It is immune to the
-        here-string closer collision that forces ConvertTo-InlineModuleScript
-        to refuse some modules, and it natively supports PowerShell classes.
+        That is the plainest shape available: nothing in the output can
+        collide with a here-string closer in the module's own source, and
+        PowerShell classes work natively.
 
         Two module shapes cannot be inlined and fail the build loudly:
           * a top-level using statement is only legal at the start of a
@@ -33,8 +30,7 @@ function global:ConvertTo-StandaloneScript {
           * a top-level Export-ModuleMember call cannot run outside a module.
             ModuleBuilder builds drive exports from the manifest, so a
             compliant build never contains one; if present, the generator
-            throws and points at ConvertTo-InlineModuleScript, whose dynamic
-            module honors the call.
+            throws rather than emit a script that cannot run.
 
         The PSScriptInfo header block is written directly with the real module
         version and script GUID, so no Update-ScriptFileInfo call (and no
@@ -168,8 +164,7 @@ function global:ConvertTo-StandaloneScript {
         if ($ExportCalls) {
             $Message = "ConvertTo-StandaloneScript: the built module '$Path' calls " +
             'Export-ModuleMember at the top level, which cannot run outside a module. ' +
-            'Drive exports from the module manifest instead, or use the here-string ' +
-            'generator (ConvertTo-InlineModuleScript), whose dynamic module honors the call.'
+            'Drive exports from the module manifest instead.'
             throw $Message
         }
 
