@@ -18,8 +18,8 @@
     docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked. The one
     exception is Source\Private\Lib\Resolve-EnvParameter.ps1, which the template
     ships as the module half of the Script Generators' EnvResolver contract -- a
-    Lib\ helper, so non-domain by the AGENTS.md split. It is tracked leniently, so
-    drift is reported for review rather than as an error.
+    Lib\ helper, so non-domain by the AGENTS.md split. It is versioned and
+    refreshed by version with the generators it serves.
 
     -BlindCopy entries also get an earlier pre-flight that offers to refresh an
     outdated child copy from the template by version number, before the diff
@@ -115,7 +115,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.9.0'
+$ScriptVersion = '2.10.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -344,19 +344,20 @@ $script:Manifest = @(
     # Holds the child's own dependency list, not the template's -- existence only.
     (New-Entry 'Source/ScriptsToProcess/RequiredModules.psd1' -ExistenceOnly $true @DepsGate)
     (New-Entry 'Tests/Pester/Confirm-Dependency.Tests.ps1' -BlindCopy $true @DepsGate)
-    # Script Generators. None carries a $ScriptVersion, so these compare by
-    # content and are not blind-copied.
-    $StandaloneGate = @{ Gate = 'StandaloneScriptGenerator' }
+    # Script Generators. The template owns these outright -- a child repo runs
+    # them, it does not customize them -- so each carries a $ScriptVersion and is
+    # refreshed by version in the pre-flight.
+    $StandaloneGate = @{ Gate = 'StandaloneScriptGenerator'; BlindCopy = $true }
     (New-Entry 'Build/Generators/ConvertTo-StandaloneScript.ps1' @StandaloneGate)
     (New-Entry 'Build/Generators/ConvertTo-ScriptVariant.ps1' @StandaloneGate)
     (New-Entry 'Tests/Pester/ConvertTo-StandaloneScript.Tests.ps1' @StandaloneGate)
     (New-Entry 'Tests/Pester/ConvertTo-ScriptVariant.Tests.ps1' @StandaloneGate)
     # The only Source\ file the template tracks: it is the module half of the
-    # generators' EnvResolver contract, not project code. Lenient, because a
-    # child is expected to wire it into its own logging and defaults.
-    (New-Entry 'Source/Private/Lib/Resolve-EnvParameter.ps1' -Strict $false @StandaloneGate)
-    (New-Entry 'Tests/Pester/Resolve-EnvParameter.Tests.ps1' -Strict $false @StandaloneGate)
-    $IntuneGate = @{ Gate = 'IntunePackageGenerator' }
+    # generators' EnvResolver contract, not project code, so it follows the same
+    # rule as the generators -- template-owned, versioned, refreshed by version.
+    (New-Entry 'Source/Private/Lib/Resolve-EnvParameter.ps1' @StandaloneGate)
+    (New-Entry 'Tests/Pester/Resolve-EnvParameter.Tests.ps1' @StandaloneGate)
+    $IntuneGate = @{ Gate = 'IntunePackageGenerator'; BlindCopy = $true }
     (New-Entry 'Build/Generators/ConvertTo-IntuneWinPackage.ps1' @IntuneGate)
     (New-Entry 'Build/Generators/Intune/Detect.ps1' @IntuneGate)
     (New-Entry 'Build/Generators/Intune/Install.ps1' @IntuneGate)

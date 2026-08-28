@@ -41,7 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flags. Each removes its generators, sources, and tests when declined.
 - `Compare-Template.ps1`: tracks the Script Generators, their Intune sources, their
   Pester files, and `Source\Private\Lib\Resolve-EnvParameter.ps1`, each gated on the
-  feature flag that ships it.
+  feature flag that ships it. The template owns all of them -- a child runs the
+  generators rather than customizes them -- so each file carries a `$ScriptVersion`
+  and the pre-flight offers to refresh an outdated child copy by version.
 - `Source\Build.psd1`: a commented-out `Generators` block as an example.
 
 ### Changed
@@ -56,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generator in one build shares it. Accepts `-BuildId` to pin one.
 - `ci.yml`: the pinned `detect-secrets` version moved into a step environment
   variable.
+- `Confirm-Dependency.Tests.ps1`: declares a `$ScriptVersion`, so the blind-copy
+  pre-flight reports versions for it instead of comparing contents alone.
 
 ### Removed
 

@@ -282,12 +282,36 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             'Tests/Pester/LineLength.Lint.Tests.ps1'
             'Tests/Pester/NonASCIICharacters.Lint.Tests.ps1'
             'Tests/Pester/WriteVerboseDebug.Lint.Tests.ps1'
+            'Build/Generators/ConvertTo-StandaloneScript.ps1'
+            'Build/Generators/ConvertTo-ScriptVariant.ps1'
+            'Build/Generators/ConvertTo-IntuneWinPackage.ps1'
+            'Build/Generators/Intune/Detect.ps1'
+            'Build/Generators/Intune/Install.ps1'
+            'Build/Generators/Intune/Uninstall.ps1'
+            'Build/Generators/Intune/Write-PackageLog.ps1'
+            'Tests/Pester/ConvertTo-StandaloneScript.Tests.ps1'
+            'Tests/Pester/ConvertTo-ScriptVariant.Tests.ps1'
+            'Tests/Pester/ConvertTo-IntuneWinPackage.Tests.ps1'
+            'Source/Private/Lib/Resolve-EnvParameter.ps1'
+            'Tests/Pester/Resolve-EnvParameter.Tests.ps1'
         )
         foreach ($path in $whitelist) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
             $entry | Should -Not -BeNullOrEmpty -Because "$path should be tracked"
             $entry.BlindCopy | Should -BeTrue -Because "$path should be blind-copy eligible"
         }
+    }
+    It 'ships a $ScriptVersion in every blind-copied file' {
+        # A blind-copy entry with no version silently falls back to a content
+        # compare in the pre-flight, so the refresh offer never fires.
+        $unversioned = foreach ($entry in ($script:Manifest | Where-Object BlindCopy)) {
+            $entryPath = Join-Path -Path $script:RepoRoot -ChildPath $entry.Path
+            if (Test-Path -LiteralPath $entryPath) {
+                $text = Get-Content -Path $entryPath -Raw
+                if (-not (Get-ScriptVersion $text)) { $entry.Path }
+            }
+        }
+        $unversioned | Should -BeNullOrEmpty
     }
     It 'keeps other versioned dev scripts diff-only, never blind-copied' {
         # UnwantedStrings is the one lint check left diff-only (child-owned
