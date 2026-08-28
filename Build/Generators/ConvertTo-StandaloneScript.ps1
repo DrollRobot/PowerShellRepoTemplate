@@ -71,6 +71,27 @@ function global:ConvertTo-StandaloneScript {
         '..' in Build.psd1 to emit the script into the output root, above the
         module folder. Created if it does not exist.
 
+    .PARAMETER Defaults
+        Parameter name to value to bake into the hoisted param block as that
+        parameter's default, replacing any default it already has. Booleans
+        are emitted as $true/$false (for switch parameters); everything else
+        as a single-quoted string literal. A param default never lands in
+        $PSBoundParameters, so when Defaults are given the closing invocation
+        is wrapped in a "#region Baked defaults" block that forwards each
+        baked value unless the caller bound that parameter or (see
+        EnvResolver) an injected value exists for it. Precedence per
+        parameter: command-line argument, injected env_<Name> value, baked
+        default.
+
+    .PARAMETER EnvResolver
+        Name of a command in the built module that the Baked defaults block
+        calls to find injected env_<Name> values, so those beat baked
+        defaults. It is called as
+        <EnvResolver> -BoundParameters $PSBoundParameters -ParameterName <names>
+        and must return a dictionary keyed by the parameter names it found
+        values for. When omitted, baked defaults yield only to command-line
+        arguments. Ignored when Defaults is empty.
+
     .PARAMETER Encoding
         File encoding for the generated script. Defaults to UTF8 with a BOM on
         both Windows PowerShell and PowerShell 7+ (where the default name is
@@ -108,6 +129,10 @@ function global:ConvertTo-StandaloneScript {
         [string]$Path,
 
         [string]$Destination = '.',
+
+        [System.Collections.IDictionary]$Defaults = @{},
+
+        [string]$EnvResolver,
 
         [ValidateSet('UTF8', 'UTF8Bom', 'UTF8NoBom', 'UTF7', 'ASCII', 'Unicode', 'UTF32')]
         [string]$Encoding = $(
@@ -197,9 +222,78 @@ function global:ConvertTo-StandaloneScript {
             throw ("ConvertTo-StandaloneScript: function '$FunctionName' has no param " +
                 'block to hoist into the standalone script.')
         }
+        # Bake Defaults into the hoisted param block: each named parameter
+        # gets the value as its default (replacing any it already has).
+        # Edits are applied highest offset first so earlier offsets hold.
+        $ParamText = $ParamBlockAst.Extent.Text
+        $ParamStart = $ParamBlockAst.Extent.StartOffset
+        $ParamEdits = foreach ($Name in $Defaults.Keys) {
+            $Parameter = $ParamBlockAst.Parameters |
+                Where-Object { $_.Name.VariablePath.UserPath -eq $Name } |
+                Select-Object -First 1
+            if (-not $Parameter) {
+                throw ("ConvertTo-StandaloneScript: function '$FunctionName' has no " +
+                    "parameter '$Name' to bake a default into.")
+            }
+            $Value = $Defaults[$Name]
+            $Literal = if ($Value -is [bool]) {
+                if ($Value) { '$true' } else { '$false' }
+            } else {
+                "'" + ("$Value" -replace "'", "''") + "'"
+            }
+            $EditStart = $Parameter.Name.Extent.EndOffset
+            $EditEnd = if ($Parameter.DefaultValue) {
+                $Parameter.DefaultValue.Extent.EndOffset
+            } else { $EditStart }
+            @{
+                Offset      = $EditStart - $ParamStart
+                Length      = $EditEnd - $EditStart
+                Replacement = " = $Literal"
+            }
+        }
+        foreach ($Edit in ($ParamEdits | Sort-Object -Property { $_.Offset } -Descending)) {
+            $ParamText = $ParamText.Remove($Edit.Offset, $Edit.Length).Insert(
+                $Edit.Offset, $Edit.Replacement)
+        }
         $HoistedParams = @(
-            @($ParamBlockAst.Attributes.Extent.Text) + $ParamBlockAst.Extent.Text
+            @($ParamBlockAst.Attributes.Extent.Text) + $ParamText
         ) -join "`n"
+
+        # A param default never lands in $PSBoundParameters, so the closing
+        # splat would drop it. When Defaults are baked, forward each one
+        # unless the caller bound it or (with EnvResolver) an env_<Name>
+        # variable supplies it: argument > env > baked.
+        $Invocation = "$FunctionName @PSBoundParameters"
+        if ($Defaults.Count -gt 0) {
+            $NameList = @($Defaults.Keys | ForEach-Object { "'$_'" }) -join ', '
+            $ResolveLines = if ($EnvResolver) {
+                @(
+                    '$BakedInjectedParams = @{'
+                    '    BoundParameters = $PSBoundParameters'
+                    '    ParameterName   = $BakedDefaultNames'
+                    '}'
+                    "`$BakedInjected = $EnvResolver @BakedInjectedParams"
+                )
+            } else {
+                @('$BakedInjected = @{}')
+            }
+            $Invocation = @(
+                '#region Baked defaults'
+                '# Values set at build time. Each is bound only when the caller passed no'
+                '# argument for it and no injected env_<Name> value exists for it, so it'
+                '# ranks below both: argument > env > baked.'
+                "`$BakedDefaultNames = @($NameList)"
+                $ResolveLines
+                'foreach ($BakedName in $BakedDefaultNames) {'
+                '    if (-not $PSBoundParameters.ContainsKey($BakedName) -and'
+                '        -not $BakedInjected.ContainsKey($BakedName)) {'
+                '        $PSBoundParameters[$BakedName] = Get-Variable -Name $BakedName -ValueOnly'
+                '    }'
+                '}'
+                '#endregion'
+                "$FunctionName @PSBoundParameters"
+            ) -join "`n"
+        }
 
         # GetCommentBlock() RECONSTRUCTS the help (doubled blank lines,
         # uppercased parameter names, lost indentation), so prefer lifting the
@@ -270,7 +364,7 @@ function global:ConvertTo-StandaloneScript {
             $HoistedParams
             ''
             $ModuleContent
-            "$FunctionName @PSBoundParameters"
+            $Invocation
         )
 
         $SetContentParams = @{
