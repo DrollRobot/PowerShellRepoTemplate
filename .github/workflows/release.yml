@@ -101,6 +101,20 @@ jobs:
         shell: pwsh
         run: .\Build.ps1 -Version ${{ steps.ver.outputs.version }}
 
+      # <intune-package-sources>
+      # FIXME uncomment if building Intune packages (with ConvertTo-IntuneWinPackage)
+      # - name: Remove Intune packaging sources
+      #   shell: pwsh
+      #   run: |
+      #     $sources = Get-ChildItem -Path 'Output' -Directory -Recurse -Filter 'Source' |
+      #         Where-Object {
+      #             Test-Path -Path (Join-Path -Path $_.Parent.FullName -ChildPath 'Detect.ps1')
+      #         }
+      #     foreach ($source in $sources) {
+      #         Remove-Item -Path $source.FullName -Recurse -Force
+      #     }
+      # </intune-package-sources>
+
       - name: Package
         shell: pwsh
         run: |
