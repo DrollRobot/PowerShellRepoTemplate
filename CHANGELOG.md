@@ -19,167 +19,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- `ConvertTo-IntuneWinPackage.ps1`: a Script Generator that packages a payload
-  `.ps1` as a self-healing Intune Win32 app, rendering its Install, Uninstall,
-  Detect, and logging sources from `Build\Generators\Intune\`. Each build stamps a
-  build id and the payload's SHA256, so detection reports the app installed only
-  while the device matches the package that was uploaded.
-- `ConvertTo-ScriptVariant.ps1`: emits a named variant of a standalone script with
-  per-variant values baked in and a GUID derived from the source script's, for
-  builds that ship one script per customer, region, or ring. Call it from
-  `Build\PostBuild.ps1`; ModuleBuilder ignores it.
-- `ConvertTo-StandaloneScript.ps1`: `Defaults` bakes values into the hoisted param
-  block, and `EnvResolver` names a module command that finds injected `env_<Name>`
-  values. Precedence per parameter: command-line argument, injected value, baked
-  default.
-- `Resolve-EnvParameter.ps1`: the module half of that `EnvResolver` contract, for
-  deployment platforms that inject parameters as `env_<Name>` variables instead of
-  passing arguments.
-- `setup.psd1`: `StandaloneScriptGenerator` and `IntunePackageGenerator` feature
-  flags. Each removes its generators, sources, and tests when declined.
-- `Compare-Template.ps1`: tracks the Script Generators, their Intune sources, their
-  Pester files, and `Source\Private\Lib\Resolve-EnvParameter.ps1`, each gated on the
-  feature flag that ships it. The template owns all of them -- a child runs the
-  generators rather than customizes them -- so each file carries a `$ScriptVersion`
-  and the pre-flight offers to refresh an outdated child copy by version.
-- `Source\Build.psd1`: a commented-out `Generators` block as an example.
-
-### Changed
-
-- **BREAKING** `setup.psd1`: an integer `SchemaVersion` replaces the `ScriptVersion`
-  key it borrowed from `Compare-Template.ps1`. Bump it by one whenever the config's
-  shape changes.
-- `Compare-Template.ps1`: compares `setup.psd1` by `SchemaVersion`. Equal schema
-  versions skip the content comparison entirely; a mismatch goes to the diff for a
-  hand reconcile and is never copied over.
-- `Build.ps1`: mints a build id per run and exposes it as `MODULEBUILD_ID`, so every
-  generator in one build shares it. Accepts `-BuildId` to pin one.
-- `ci.yml`: the pinned `detect-secrets` version moved into a step environment
-  variable.
-- `Confirm-Dependency.Tests.ps1`: declares a `$ScriptVersion`, so the blind-copy
-  pre-flight reports versions for it instead of comparing contents alone.
-
-### Removed
-
-- `ConvertTo-InlineModuleScript.ps1`, the here-string generator.
-  `ConvertTo-StandaloneScript.ps1` supersedes it: no here-string closer collisions,
-  and PowerShell classes work natively.
-
-## [1.2.0] - 2026-08-11
+## [1.2.0] - 2026-08-31
 
 ### Added
 
-- `Set-GitHubUser.ps1`: fills in the GitHub owner/repo placeholders, driven by
-  `Project.GitHubUser` in `setup.psd1`.
-- `Setup-NewProject.ps1` now removes `ModuleBuilderNotes.md` files.
-- `Setup-NewProject.ps1` now removes the sample `Get-Greeting` function.
-- `Build.ps1`: support for project-local Script Generators under
-  `Build\Generators\`.
-- `release.yml`: builds, zips `Output\`, and publishes a GitHub release on a `v*`
-  tag.
-- `setup.psd1`: a `Release.Enabled` item gating the release workflow.
-- `Push-NewTagToMain.ps1`: a `-NoManifest` switch for tagging a manifest-less repo.
-- `Tests.ps1`: a `Lint` category, plus one category per lint check.
-- `Tests.ps1`: `-Path` accepts a list; `-ConfigPath` overrides `TestConfig.psd1`.
-- `Read-LintFile.ps1`: shared file reader for the lint checks.
-- `TestConfig.psd1`: a `FailOnFixme` setting (default `$false`).
-- `RequiredModules.psd1`: one dependency list read by both dependency scripts.
-- `Compare-Template.ps1`: tracks `AGENTS.COMMITTING.md`, `Tests.ps1`,
-  `RequiredModules.psd1`, and `Confirm-Dependency.Tests.ps1`.
-- `MIGRATING.PLATYPS.md`: the comment-based help format Microsoft.PowerShell.PlatyPS
-  expects, for converting help written for PlatyPS 0.14.
+- Script Generators: a build step that renders standalone `.ps1` files from module
+  source. Three ship with the template -- a standalone script, named per-customer
+  variants, and a self-healing Intune Win32 package -- each opt-in in `setup.psd1`.
+- Standalone scripts can bake in build-time defaults and read parameters a deployment
+  platform injects as `env_<Name>` variables.
+- A release workflow that builds, zips, and publishes a GitHub release on a `v*` tag,
+  disarmed until `Release.Enabled` is set.
+- One dependency list, `RequiredModules.psd1`, read by both dependency scripts.
+- Setup fills in the GitHub owner/repo placeholders and removes the sample function
+  and the ModuleBuilder notes.
+- `Push-NewTagToMain.ps1`: `-NoManifest`, for tagging a repo with no module manifest.
+- `New-Worktree.ps1`: `-NoOpenVSCode`, to skip the editor launch.
 
 ### Changed
 
-- **BREAKING** `Setup-NewProject.ps1` moved to `Scripts\TemplateSetup\`, with
-  shared helpers in `_Common.ps1`. `setup.psd1` stays in `Scripts\`.
-- **BREAKING** `Tests.ps1`: multiple categories are comma-separated
-  (`.\Tests.ps1 NotLive,PSSA`); bare arguments after the category are paths.
-- **BREAKING** `Build.ps1`: build target declared by `BuildToRoot` in
-  `Source\Build.psd1`, not the `-BuildToRoot` switch.
-- The code-style checks are Pester lint tests now, matching parsed code instead
-  of text. `# noqa:` markers are named after the check.
-- `Tests.ps1`: `FindUnwantedStrings` renamed `UnwantedStrings`, `AutoFormat`
-  renamed `PSSAAutoFormat`.
-- `.pre-commit-config.yaml`: one `ps-lint` hook replaces six per-check hooks, and
-  checks staged files only.
-- `Setup-NewProject.ps1`: declining a formatting feature deletes its lint test.
-- `Compare-Template.ps1`: the versioned pre-flight compares itself first and ends
-  the run if replaced, prints one summary line per file, compares `setup.psd1` by
-  `ScriptVersion`, and sends a version match with differing content to the diff
-  instead of offering to copy over it.
-- `Compare-Template.ps1`: the lint checks and their helpers, `Install-Dependency.ps1`,
-  `Build.ps1`, and `Tests.ps1` are `-BlindCopy` now, since none of them carry
-  project-specific content.
-- `setup.psd1`: `Features.Dependencies` renamed `Features.InstallDependenciesScript`.
-- `Install-Dependencies.ps1` and `Confirm-Dependencies.ps1` renamed singular.
-- **BREAKING** Both dependency scripts read `ScriptsToProcess\RequiredModules.psd1`
-  instead of a manifest, and no longer call each other.
-- `Confirm-Dependency.ps1`: runs its body in a scriptblock, so nothing leaks into the
-  importing session; `$Global:ModuleDependenciesChecked` is keyed by the script's folder.
-- Both dependency scripts head the remediation output in red and leave the detail
-  lines yellow.
-- **BREAKING** `Docs.ps1`: generates with Microsoft.PowerShell.PlatyPS 1.0.3 instead
-  of PlatyPS 0.14. Pages are rewritten to schema `2024-05-01`, and comment-based help
-  needs the format in `MIGRATING.PLATYPS.md`: fenced `.EXAMPLE` code, a bare type name
-  in `.OUTPUTS`, and a `.LINK`.
-- **BREAKING** `Docs.ps1`: orphaned pages are always deleted, so `-DeleteOrphaned` is
-  gone.
-- **BREAKING** Command pages live in `Docs\<ModuleName>\`, not `Docs\Commands\` -- the
-  folder Microsoft.PowerShell.PlatyPS creates on its own. `mkdocs.yml` nav paths change
-  with it, and `Setup-NewProject.ps1` deletes the whole template-named folder.
-- `Docs.ps1`: generates from the source manifest under `Source\`.
-- `Push-NewTagToMain.ps1`: the manifest lookup no longer walks up the directory
-  tree.
-- `Get-Greeting.ps1`: help converted to the new format, demonstrating it.
+
+- **BREAKING** `Tests.ps1` takes comma-separated categories, a list of paths, and an
+  overriding `-ConfigPath`. The `NonLive` tag and category are named `NotLive`.
+- **BREAKING** Docs are generated with Microsoft.PowerShell.PlatyPS 1.0.3, into
+  `Docs\<ModuleName>\` rather than `Docs\Commands\`. Comment-based help needs the
+  format described in `MIGRATING.PLATYPS.md`.
+- **BREAKING** Both dependency scripts read `RequiredModules.psd1` instead of a
+  manifest, and no longer call each other.
+- **BREAKING** `Build.ps1` reads its build target from `Source\Build.psd1` instead of
+  the `-BuildToRoot` switch, and mints a build id per run for the generators.
+- **BREAKING** Setup moved to `Scripts\TemplateSetup\`, and `setup.psd1` carries an
+  integer `SchemaVersion`.
+- The code-style checks are Pester lint tests now, matching parsed code
+  instead of text. They run as the `Lint` category or one category per check, and
+  `# noqa:` markers are named after the check.
+- `Compare-Template.ps1` compares template-owned files by version instead of content:
+  matching versions are skipped, drift goes to a diff, and `setup.psd1` is never
+  copied over.
 
 ### Removed
 
-- **BREAKING** `Install-Dependency.ps1`: the `-Check` and `-Quiet` parameters and the
-  hard-coded fallback module list.
-- `Tests.ps1`: the `Formatting` and `TrailingWhitespace` categories.
-- The standalone `Tests\Test-*.ps1` code-style checkers and their Pester
-  harnesses, replaced by the lint checks.
-- `Build.ps1`: the `-BuildToRoot` switch.
-- `Push-NewTagToMain.ps1`: the `-Build` parameter.
+- The here-string inline module generator, superseded by the standalone generator: no
+  here-string closer collisions, and PowerShell classes work natively.
+- The standalone `Tests\Test-*.ps1` code-style checkers, replaced by the lint tests.
 
 ### Fixed
 
-- `Setup-NewProject.ps1`: declining `Features.InstallDependenciesScript` threw
-  `CommandNotFoundException`.
-- `Setup-NewProject.ps1`: the rename preview threw `PropertyNotFoundException` on
-  a single matched file.
-- `Setup-NewProject.ps1`: declining `Features.InstallDependenciesScript` left
-  `Confirm-Dependency.Tests.ps1` behind, failing the child repo's test run.
-- `RequiredModules.psd1` listed Pester, PSScriptAnalyzer, ModuleBuilder, and
-  Microsoft.PowerShell.PlatyPS as required, so importing the module made every
-  consumer install the build tooling.
-- `Install-Dependency.ps1` never found the manifest once deployed under
-  `ScriptsToProcess\`, so its module list was silently always empty.
-- `Confirm-Dependency.ps1` no longer scans the whole module tree at import, nor
-  runs the entire check twice when a module is missing.
-- `Confirm-Dependency.ps1` threw a bare `ScriptHalted` on a missing dependency; the
-  summary now travels with the exception, so a caller or CI log can read it.
-- Both dependency scripts: a `MaximumVersion`-only entry printed `(latest) <= x`.
-- `Docs.ps1`: regenerates every page instead of merging, so edits to a function's
-  existing help now reach the generated page.
-- `Docs.ps1`: a help generation failure named no command. Failures are collected and
-  reported as a table of command, source file, and reason.
-- `Docs.ps1`: imports the modules declared in `RequiredModules.psd1` before importing
-  the module, so generation no longer runs against missing commands.
-- `Docs.ps1`: pages whose related links were still the placeholder ended with a
-  trailing blank line, so every docs run left an end-of-file diff for the pre-commit
-  hook to strip.
-- `Tests.ps1 -Built` falls back to a flat `Output\<ModuleName>\` build layout.
-- The TEMPLATE SETUP NOTES box is now stripped whole, and recognized in
-  `Source\Build.psd1`, `ci.yml`, `dependabot.yml`, and the issue templates.
-- `Build.ps1` no longer throws under strict mode when `Build.psd1` has no
-  `CopyPaths` key.
-- `Push-NewTagToMain.ps1` checks for a duplicate tag before any merge or commit.
-- `Push-NewTagToMain.ps1` retries the release commit when an auto-fixing pre-commit
-  hook repairs the tree and fails the commit.
+- Setup no longer aborts partway through. Declining the dependency feature, the FIXME
+  report, and a single-file rename preview each threw.
+- Importing a module no longer installs the build tooling, and a missing dependency
+  reports what is missing instead of a bare `ScriptHalted`.
+- Docs generation regenerates every page instead of merging, names the command behind
+  a failure, and loads declared dependencies before importing the module.
+- `Push-NewTagToMain.ps1` checks for a duplicate tag before any merge, and retries the
+  release commit when an auto-fixing hook repairs the tree.
+- The template setup notes box is stripped whole, from every file that carries one.
 
 ## [1.1.0] - 2026-07-20
 
