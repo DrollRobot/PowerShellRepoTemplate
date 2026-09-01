@@ -1,4 +1,5 @@
-# FIXME: replace site/repo values with your module's name and GitHub location.
+# mkdocs.yml
+
 site_name: PowershellRepoTemplate
 site_description: FIXME one-line description of your module.
 site_url: https://FIXME.github.io/FIXME/
