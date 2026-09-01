@@ -19,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Scripts\TemplateSetup\Set-ModuleManifest.ps1`: setup's manifest step, now its own
+  runnable script. It stamps a fresh GUID, drops the placeholder note comments above the
+  GUID key, and fills in Author, CompanyName and Copyright.
+
+### Changed
+
+- Setup fills in the module manifest as its own step (`set_module_manifest`) instead of
+  stamping only the GUID inside the rename step. Author, CompanyName and Copyright come
+  from the existing `[License]` fields (`Name`, `Company`, `Year`) in `setup.psd1`, which
+  now documents that it feeds both the LICENSE file and the manifest.
+
 ## [1.2.0] - 2026-08-31
 
 ### Added

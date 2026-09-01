@@ -18,18 +18,19 @@
       2. Delete the ModuleBuilderNotes.md scaffolding files under Source\.
       3. Delete the sample Get-Greeting function and everything that exists only to support
          it: its Pester test, its generated docs page, and its mkdocs nav entry.
-      4. Replace the template name, rename files that carry it, and stamp a fresh manifest
-         GUID.
-      5. Fill in the GitHub owner/repo placeholders from [Project].GitHubUser (blank skips).
-      6. Select a license.
-      7. Remove any declined [Features]: the docs site, SECURITY.md, CONTRIBUTING.md, the
+      4. Replace the template name and rename the files that carry it.
+      5. Fill in the module manifest: a fresh GUID (dropping the placeholder note
+         above it), plus Author, CompanyName and Copyright from [License].
+      6. Fill in the GitHub owner/repo placeholders from [Project].GitHubUser (blank skips).
+      7. Select a license.
+      8. Remove any declined [Features]: the docs site, SECURITY.md, CONTRIBUTING.md, the
          explicit-module-import check, the pre-import dependency check, the standalone-script
          and Intune packaging Script Generators, and the opinionated formatting checks --
          each independently. Also relocates the unwanted-strings check to .local\tests\
          when [Features].UnwantedStringsLocal is true.
-      8. Reinitialize git -- only when [Git].Reinit is true. Destructive, and has its own
+      9. Reinitialize git -- only when [Git].Reinit is true. Destructive, and has its own
          extra confirmation.
-      9. Report any remaining FIXMEs. Read-only, always last, and not gated by -DryRun's
+     10. Report any remaining FIXMEs. Read-only, always last, and not gated by -DryRun's
          early exit.
 
     Removing a formatting-check feature deletes that check's Tests\Pester\*.Lint.Tests.ps1 file.
@@ -41,7 +42,7 @@
     This orchestrator and its step scripts live in Scripts\TemplateSetup\. Shared console-output
     and file-walk helpers come from Scripts\TemplateSetup\_Common.ps1; individually runnable
     steps are being split into their own scripts there (e.g. Set-GitHubUser.ps1,
-    Remove-ModuleBuilderNote.ps1). Scripts\setup.psd1
+    Remove-ModuleBuilderNote.ps1, Set-ModuleManifest.ps1). Scripts\setup.psd1
     deliberately stays one level up in Scripts\ so it survives once TemplateSetup\ is removed and
     Scripts\Compare-Template.ps1 can keep reading it.
 
@@ -92,7 +93,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.6.0'
+$ScriptVersion = '2.7.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -117,6 +118,7 @@ $script:DryRunMode = [bool] $DryRun
 # parameter-driven body against running under a dot-source.
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Set-GitHubUser.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Remove-ModuleBuilderNote.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Set-ModuleManifest.ps1')
 
 # Set AFTER the dot-sources: a step's -RepoRoot param defaults to empty, and dot-sourcing it here
 # would otherwise overwrite this. This script lives in Scripts\TemplateSetup\, so the repo root is
@@ -365,7 +367,6 @@ function Invoke-RenameProject {
     Write-Info 'Rename project' "'$($script:TemplateName)' -> '$Name'"
     Write-Host "    Replace the template name in $($RenameTargets.Count) file(s)"
     Write-Host "    Rename $($FileRenames.Count) file(s) whose name carries the template name"
-    Write-Host '    Stamp a fresh GUID into the source manifest'
 
     if ($DryRun) { return $true }
 
@@ -377,19 +378,6 @@ function Invoke-RenameProject {
     foreach ($File in $FileRenames) {
         $NewLeaf = $File.Name -replace [regex]::Escape($script:TemplateName), $Name
         Rename-Item -Path $File.FullName -NewName $NewLeaf
-    }
-
-    $ManifestPath = Join-Path -Path $script:RepoRoot -ChildPath "Source\$Name.psd1"
-    if (Test-Path -LiteralPath $ManifestPath) {
-        $Guid = (New-Guid).Guid
-        $Manifest = Get-Content -Path $ManifestPath -Raw
-        $Pattern = "GUID(\s*)=(\s*)'[0-9a-fA-F-]+'"
-        $Manifest = $Manifest -replace $Pattern, "GUID`$1=`$2'$Guid'"
-        Set-Content -Path $ManifestPath -Value $Manifest -NoNewline
-        Write-Info 'New GUID' $Guid
-    }
-    else {
-        Write-Warn "  Manifest not found at $ManifestPath; GUID not updated."
     }
     return $true
 }
@@ -837,6 +825,16 @@ $null = Invoke-StripHeader -DryRun $true
 $null = Remove-ModuleBuilderNote -RepoRoot $script:RepoRoot -DryRun $true
 $null = Invoke-RemoveSampleFunction -DryRun $true
 $null = Invoke-RenameProject -Name $Config.Name -DryRun $true
+# No -ManifestPath: the preview runs before the rename, so the step finds the manifest under
+# whichever name it currently carries.
+$ManifestPreviewParams = @{
+    RepoRoot    = $script:RepoRoot
+    Author      = $Config.LicenseName
+    CompanyName = $Config.LicenseCompany
+    Year        = $Config.LicenseYear
+    DryRun      = $true
+}
+$null = Set-ModuleManifest @ManifestPreviewParams
 $GitHubUserPreviewParams = @{
     RepoRoot   = $script:RepoRoot
     Name       = $Config.Name
@@ -887,6 +885,16 @@ Invoke-SetupStep -Key 'remove_sample_function' -Failed $Failed -Action {
 }
 Invoke-SetupStep -Key 'rename_project' -Failed $Failed -Action {
     Invoke-RenameProject -Name $Config.Name -DryRun $false
+}
+Invoke-SetupStep -Key 'set_module_manifest' -Failed $Failed -Action {
+    $Params = @{
+        RepoRoot    = $script:RepoRoot
+        Author      = $Config.LicenseName
+        CompanyName = $Config.LicenseCompany
+        Year        = $Config.LicenseYear
+        DryRun      = $false
+    }
+    Set-ModuleManifest @Params
 }
 Invoke-SetupStep -Key 'set_github_user' -Failed $Failed -Action {
     $Params = @{

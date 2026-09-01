@@ -41,21 +41,34 @@
         GitHubUser = ''
     }
 
+    # Who owns this module. Setup uses this section twice: it writes the LICENSE
+    # file, and it fills in the module manifest's identity keys (Author,
+    # CompanyName, Copyright) alongside a freshly minted GUID. A field left
+    # blank leaves its manifest key at the template placeholder, which the
+    # closing FIXME report then lists for you to finish by hand.
     License = @{
         # One of: 'mit', 'apache', 'gnu', 'proprietary', 'none'. No default is
         # a genuine no-op -- the template ships 4 unclaimed LICENSE.*.FIXME
         # candidates and a choice is mandatory. This section WILL fail
         # validation on an unedited config; that's deliberate, not a bug.
+        # Chooses the LICENSE text only; the three fields below are what reach
+        # the manifest.
         Key     = ''
 
         # Copyright year. Required unless Key is 'gnu' (the GPL text carries
-        # its own notice) or 'none'.
+        # its own notice) or 'none'. Also the year in the manifest's Copyright:
+        # '(c) <Year> <Name>. All rights reserved.'
         Year    = ''
 
-        # Copyright holder name. Required unless Key is 'gnu' or 'none'.
+        # Copyright holder name. Required unless Key is 'gnu' or 'none'. Also
+        # the manifest's Author, and the holder in its Copyright. Worth filling
+        # in even for 'gnu' and 'none', which need no holder in the LICENSE
+        # text but leave the manifest keys unset without it.
         Name    = ''
 
-        # Owning company. Required only when Key is 'proprietary'.
+        # Owning company. Required only when Key is 'proprietary'. Fills the
+        # manifest's CompanyName whenever it is set, whatever the license, so
+        # set it for a module published under a company's name.
         Company = ''
     }
 
