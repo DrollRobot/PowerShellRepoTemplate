@@ -12,22 +12,22 @@
         },
         // tests
         {
-            "name": "Tests.ps1 offline",
+            "name": "Tests.ps1 notlive",
             "type": "PowerShell",
             "request": "launch",
             "script": "${workspaceFolder}\\Tests.ps1",
             "args": [
-                "offline",
+                "notlive",
             ],
             "cwd": "${workspaceFolder}",
         },
         {
-            "name": "Tests.ps1 online",
+            "name": "Tests.ps1 live",
             "type": "PowerShell",
             "request": "launch",
             "script": "${workspaceFolder}\\Tests.ps1",
             "args": [
-                "online",
+                "live",
             ],
             "cwd": "${workspaceFolder}",
         },
