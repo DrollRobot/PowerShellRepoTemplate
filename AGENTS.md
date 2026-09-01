@@ -35,11 +35,18 @@ Do not attempt to modify built code, such as any of the following in the module 
 Output/ folders: *.psm1 and *.psd1, ScriptsToProcess/, Data/. Or: `Docs/<ModuleName>/`.
 
 ## detect-secrets
-This repo uses detect-secrets in a precommit hook.
-- The only appropriate way to deal with detect-secrets findings is for the user to
-   audit the baseline.
-- Agents should not attempt to suppress detect-secrets findings, or use inline
-   `# pragma: allowlist secret` suppression.
+This repo uses detect-secrets.
+- Baseline updates during pre-commit checks are expected. Do not attempt to revert.
+- Agents can/should freely scan for secrets:
+```bash
+uv run detect-secrets scan --baseline .secrets.baseline
+```
+- Agents should NEVER regenerate the baseline
+```bash
+detect-secrets scan > .secrets.baseline
+```
+- Agents should NEVER attempt to audit (that's user only), modify the `.secrets.baseline`
+  file directly, or suppress findings with `# pragma: allowlist secret`.
 
 ## Code Style
 
