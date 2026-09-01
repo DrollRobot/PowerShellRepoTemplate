@@ -30,8 +30,10 @@
          when [Features].UnwantedStringsLocal is true.
       9. Reinitialize git -- only when [Git].Reinit is true. Destructive, and has its own
          extra confirmation.
-     10. Report any remaining FIXMEs. Read-only, always last, and not gated by -DryRun's
-         early exit.
+     10. Report any remaining FIXMEs. Read-only, and not gated by -DryRun's early exit.
+     11. Offer to delete Scripts\TemplateSetup\ and the Pester files covering it. Always
+         last, and skipped when an earlier step reported a problem, so the scripts stay
+         available for a re-run.
 
     Removing a formatting-check feature deletes that check's Tests\Pester\*.Lint.Tests.ps1 file.
     The pre-commit hook is shared by every lint check (Tests.ps1 runs whichever files
@@ -42,9 +44,9 @@
     This orchestrator and its step scripts live in Scripts\TemplateSetup\. Shared console-output
     and file-walk helpers come from Scripts\TemplateSetup\_Common.ps1; individually runnable
     steps are being split into their own scripts there (e.g. Set-GitHubUser.ps1,
-    Remove-ModuleBuilderNote.ps1, Set-ModuleManifest.ps1). Scripts\setup.psd1
-    deliberately stays one level up in Scripts\ so it survives once TemplateSetup\ is removed and
-    Scripts\Compare-Template.ps1 can keep reading it.
+    Remove-ModuleBuilderNote.ps1, Set-ModuleManifest.ps1, Remove-TemplateSetup.ps1).
+    Scripts\setup.psd1 deliberately stays one level up in Scripts\ so it survives once
+    TemplateSetup\ is removed and Scripts\Compare-Template.ps1 can keep reading it.
 
 .PARAMETER ConfigPath
     Path to the setup config file. Defaults to Scripts\setup.psd1 (one level up from this
@@ -55,7 +57,8 @@
 
 .PARAMETER Yes
     Skip the confirmation prompt. The preview still runs first, and the destructive git-reinit
-    step's own confirmation is skipped too.
+    step's own confirmation is skipped too, as is the final offer to delete
+    Scripts\TemplateSetup\ -- under -Yes that folder and its tests are deleted.
 
 .EXAMPLE
     .\Scripts\TemplateSetup\Setup-NewProject.ps1 -DryRun
@@ -93,7 +96,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.7.0'
+$ScriptVersion = '2.8.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -119,6 +122,7 @@ $script:DryRunMode = [bool] $DryRun
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Set-GitHubUser.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Remove-ModuleBuilderNote.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Set-ModuleManifest.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Remove-TemplateSetup.ps1')
 
 # Set AFTER the dot-sources: a step's -RepoRoot param defaults to empty, and dot-sourcing it here
 # would otherwise overwrite this. This script lives in Scripts\TemplateSetup\, so the repo root is
@@ -858,6 +862,8 @@ if ($Config.GitReinit) {
     Write-Section 'Reinitialize git'
     $null = Invoke-ReinitGit -Branch $Config.GitBranch -DryRun $true
 }
+Write-Section 'Remove template setup'
+$null = Remove-TemplateSetup -RepoRoot $script:RepoRoot -DryRun $true
 
 if ($script:DryRunMode) {
     Write-Host ''
@@ -928,6 +934,25 @@ if ($Config.GitReinit) {
 }
 
 Invoke-FixmeReport
+
+# Last, and only on a clean run: a failed step is usually re-run from this same folder, so
+# deleting it would take the fix with it. Keeping the scripts is a legitimate choice the
+# config file does not express, so this step asks rather than reading a [Features] toggle --
+# and, like the git-reinit step, -Yes answers for the user.
+Write-Section 'Remove template setup'
+if ($Failed.Count -gt 0) {
+    Write-Warn '  Skipped: earlier steps reported problems; keeping the scripts for a re-run.'
+}
+else {
+    Invoke-SetupStep -Key 'remove_template_setup' -Failed $Failed -Action {
+        $Params = @{
+            RepoRoot  = $script:RepoRoot
+            DryRun    = $false
+            AssumeYes = $script:AssumeYes
+        }
+        Remove-TemplateSetup @Params
+    }
+}
 
 Write-Section 'Setup complete'
 if ($Failed.Count -gt 0) {

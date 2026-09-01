@@ -54,6 +54,9 @@ fills in the GitHub owner/repo placeholders in URLs from `Project.GitHubUser`
 any declined optional features, and lists the remaining FIXMEs to finish by hand.
 Set `[Git].Reinit = $true` in the config to start a fresh git history.
 
+Last, it offers to delete `Scripts\TemplateSetup\` and the tests covering it --
+one-time scripts your project never needs again. Decline to keep them around.
+
 Optionally install the pre-commit hooks (requires [uv](https://docs.astral.sh/uv/)):
 ```powershell
 uv tool install detect-secrets

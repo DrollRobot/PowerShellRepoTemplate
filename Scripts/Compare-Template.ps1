@@ -115,7 +115,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.11.0'
+$ScriptVersion = '2.12.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -384,6 +384,7 @@ $script:Manifest = @(
     (New-Entry 'Scripts/TemplateSetup/Set-GitHubUser.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Remove-ModuleBuilderNote.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Set-ModuleManifest.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/Remove-TemplateSetup.ps1' -Required $false)
     # Code-style and hygiene checkers that are standalone scripts.
     (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -BlindCopy $true -Gate 'ExplicitModuleImport')
     (New-Entry 'Tests/Test-ModuleSyntax.ps1' -BlindCopy $true)

@@ -24,9 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Scripts\TemplateSetup\Set-ModuleManifest.ps1`: setup's manifest step, now its own
   runnable script. It stamps a fresh GUID, drops the placeholder note comments above the
   GUID key, and fills in Author, CompanyName and Copyright.
+- `Scripts\TemplateSetup\Remove-TemplateSetup.ps1`: setup's own cleanup step. It offers
+  to delete `Scripts\TemplateSetup\` along with the `Tests\Pester\` files covering the
+  scripts in it -- tests that would otherwise cover scripts the project no longer ships.
+  Setup runs it last; it is also runnable on its own (`-DryRun` to preview, `-Yes` to skip
+  the prompt).
 
 ### Changed
 
+- Setup ends by offering to remove itself: after the FIXME report, the new
+  `remove_template_setup` step lists the setup folder and its tests, then asks. It is
+  skipped when an earlier step reported a problem, so a failed run keeps the scripts
+  available for a re-run. `-Yes` answers the offer, as it does for the git-reinit step.
 - Setup fills in the module manifest as its own step (`set_module_manifest`) instead of
   stamping only the GUID inside the rename step. Author, CompanyName and Copyright come
   from the existing `[License]` fields (`Name`, `Company`, `Year`) in `setup.psd1`, which
