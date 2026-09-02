@@ -25,9 +25,9 @@
       7. Select a license.
       8. Remove any declined [Features]: the docs site, SECURITY.md, CONTRIBUTING.md, the
          explicit-module-import check, the pre-import dependency check, the standalone-script
-         and Intune packaging Script Generators, and the opinionated formatting checks --
-         each independently. Also relocates the unwanted-strings check to .local\tests\
-         when [Features].UnwantedStringsLocal is true.
+         and Intune packaging Script Generators, the Write-Log logging library, and the
+         opinionated formatting checks -- each independently. Also relocates the
+         unwanted-strings check to .local\tests\ when [Features].UnwantedStringsLocal is true.
       9. Reinitialize git -- only when [Git].Reinit is true. Destructive, and has its own
          extra confirmation.
      10. Report any remaining FIXMEs. Read-only, and not gated by -DryRun's early exit.
@@ -44,7 +44,8 @@
     This orchestrator and its step scripts live in Scripts\TemplateSetup\. Shared console-output
     and file-walk helpers come from Scripts\TemplateSetup\_Common.ps1; individually runnable
     steps are being split into their own scripts there (e.g. Set-GitHubUser.ps1,
-    Remove-ModuleBuilderNote.ps1, Set-ModuleManifest.ps1, Remove-TemplateSetup.ps1).
+    Remove-ModuleBuilderNote.ps1, Set-ModuleManifest.ps1, Remove-WriteLog.ps1,
+    Remove-TemplateSetup.ps1).
     Scripts\setup.psd1 deliberately stays one level up in Scripts\ so it survives once
     TemplateSetup\ is removed and Scripts\Compare-Template.ps1 can keep reading it.
 
@@ -96,7 +97,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.8.0'
+$ScriptVersion = '2.9.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -122,6 +123,7 @@ $script:DryRunMode = [bool] $DryRun
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Set-GitHubUser.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Remove-ModuleBuilderNote.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Set-ModuleManifest.ps1')
+. (Join-Path -Path $PSScriptRoot -ChildPath 'Remove-WriteLog.ps1')
 . (Join-Path -Path $PSScriptRoot -ChildPath 'Remove-TemplateSetup.ps1')
 
 # Set AFTER the dot-sources: a step's -RepoRoot param defaults to empty, and dot-sourcing it here
@@ -245,6 +247,8 @@ function Test-SetupConfig {
     $FeatureStandaloneScriptGenerator = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.IntunePackageGenerator'; Problems = $Problems }
     $FeatureIntunePackageGenerator = Get-ConfigBool @Params
+    $Params = @{ Raw = $Raw; Path = 'Features.WriteLog'; Problems = $Problems }
+    $FeatureWriteLog = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.NonASCIICharacters'; Problems = $Problems }
     $FeatureNonASCII = Get-ConfigBool @Params
     $Params = @{ Raw = $Raw; Path = 'Features.FormatOperator'; Problems = $Problems }
@@ -320,6 +324,7 @@ function Test-SetupConfig {
         FeatureInstallDependenciesScript = $FeatureInstallDependenciesScript
         FeatureStandaloneScriptGenerator = $FeatureStandaloneScriptGenerator
         FeatureIntunePackageGenerator    = $FeatureIntunePackageGenerator
+        FeatureWriteLog                  = $FeatureWriteLog
         FeatureNonASCII                  = $FeatureNonASCII
         FeatureFormatOperator            = $FeatureFormatOperator
         FeatureWriteVerboseDebug         = $FeatureWriteVerboseDebug
@@ -672,6 +677,9 @@ function Invoke-FeatureStep {
         'InstallDependenciesScript' {
             return Invoke-RemoveDependency -Name $Step.Name -DryRun $DryRun
         }
+        'WriteLog' {
+            return Remove-WriteLog -RepoRoot $script:RepoRoot -DryRun $DryRun
+        }
         'FormattingTest' {
             $Params = @{ FileName = $Step.FileName; DryRun = $DryRun }
             return Invoke-RemoveFormattingTest @Params
@@ -682,7 +690,8 @@ function Invoke-FeatureStep {
 
 # Build the list of feature steps this run needs, in a fixed order, from the validated config.
 # Declined keep-by-default features (Docs, SecurityMd, ContributingMd, ExplicitModuleImport,
-# InstallDependenciesScript, the four formatting checks) are included as removals;
+# the two Script Generators, InstallDependenciesScript, WriteLog, the four formatting checks)
+# are included as removals;
 # UnwantedStringsLocal is the opposite -- it is included when true (opted in), since false is the
 # always-shipped default.
 function Get-FeatureStep {
@@ -722,6 +731,9 @@ function Get-FeatureStep {
                 Type = 'InstallDependenciesScript'
                 Name = $Config.Name
             })
+    }
+    if (-not $Config.FeatureWriteLog) {
+        $Steps.Add([pscustomobject]@{ Key = 'remove_write_log'; Type = 'WriteLog' })
     }
 
     $FormattingFeatures = @(

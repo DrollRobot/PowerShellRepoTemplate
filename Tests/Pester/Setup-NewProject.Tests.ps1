@@ -100,6 +100,7 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
                 InstallDependenciesScript = $true
                 StandaloneScriptGenerator = $true
                 IntunePackageGenerator    = $true
+                WriteLog                  = $true
                 NonASCIICharacters        = $true
                 FormatOperator            = $true
                 WriteVerboseDebug         = $true
@@ -180,6 +181,40 @@ Describe 'Test-SetupConfig' -Tag 'unit', 'functional' {
         $Raw = New-ValidRawConfig -Overrides @{ Git = @{ Branch = 'main'; Reinit = $true } }
         $Result = Test-SetupConfig -Raw $Raw
         $Result.Problems.Count | Should -BeGreaterThan 0
+    }
+
+    It 'requires Features.WriteLog like every other feature flag' {
+        $Raw = New-ValidRawConfig
+        $Raw.Features.Remove('WriteLog')
+        $Result = Test-SetupConfig -Raw $Raw
+        $ExpectedProblem = '[Features.WriteLog] is missing or is not a true/false value.'
+        $Result.Problems | Should -Contain $ExpectedProblem
+    }
+}
+
+Describe 'Get-FeatureStep' -Tag 'unit', 'functional' {
+    It 'plans no feature steps for an unedited (keep-everything) config' {
+        $Config = Test-SetupConfig -Raw (New-ValidRawConfig)
+        @(Get-FeatureStep -Config $Config) | Should -HaveCount 0
+    }
+
+    It 'plans the Write-Log removal when Features.WriteLog is false' {
+        $Raw = New-ValidRawConfig
+        $Raw.Features.WriteLog = $false
+        $Config = Test-SetupConfig -Raw $Raw
+        $Steps = @(Get-FeatureStep -Config $Config)
+        $Steps | Should -HaveCount 1
+        $Steps[0].Key | Should -Be 'remove_write_log'
+        $Steps[0].Type | Should -Be 'WriteLog'
+    }
+
+    It 'dispatches the WriteLog step to Remove-WriteLog against the repo root' {
+        Mock Remove-WriteLog { return $true }
+        $Step = [pscustomobject]@{ Key = 'remove_write_log'; Type = 'WriteLog' }
+        Invoke-FeatureStep -Step $Step -DryRun $true | Should -BeTrue
+        Should -Invoke Remove-WriteLog -Times 1 -Exactly -ParameterFilter {
+            $RepoRoot -eq $script:RepoRoot -and $DryRun -eq $true
+        }
     }
 }
 
@@ -403,6 +438,7 @@ Describe 'Setup-NewProject -DryRun' -Tag 'integration', 'functional' {
         InstallDependenciesScript = $true
         StandaloneScriptGenerator = $true
         IntunePackageGenerator = $true
+        WriteLog = $true
         NonASCIICharacters = $true
         FormatOperator = $true
         WriteVerboseDebug = $true

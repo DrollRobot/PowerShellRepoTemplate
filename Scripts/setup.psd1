@@ -21,7 +21,7 @@
     # contents are not compared at all (your own choices are never drift). When
     # they differ it flags setup.psd1 for a manual diff so you can fold in the new
     # options by hand; it never copies over your values.
-    SchemaVersion = 2
+    SchemaVersion = 3
 
     Project = @{
         # New module name. Used for
@@ -129,6 +129,15 @@
         # check's Pester test and the ScriptsToProcess entry in the module manifest that
         # wires the check in. false removes all of them together.
         InstallDependenciesScript = $true
+
+        # The internal logging library under Source\Private\Lib\Write-log\
+        # (Set-LogConfig, Write-Log, Get-LogMessage, Get-LogConfig, Write-LogEvent,
+        # Write-LogEventBuffer, Register-LogEventSource: memory, host, file and
+        # Windows event log targets), the Set-LogConfig block in Source\Suffix.ps1
+        # that creates its context at module load, and the five Pester files
+        # covering it. false removes all of them together. A project that logs
+        # some other way does not need them.
+        WriteLog = $true
 
         # Opinionated lint checks some teams don't want enforced. Removing one
         # deletes its Tests\Pester\<Name>.Lint.Tests.ps1 file; the shared
