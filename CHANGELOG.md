@@ -19,40 +19,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-02
+
 ### Added
 
-- `Source\Private\Lib\Write-log\`: an internal logging library -- `Set-LogConfig`,
-  `Write-Log`, `Get-LogMessage`, `Get-LogConfig`, `Write-LogEvent`, `Write-LogEventBuffer`
-  and `Register-LogEventSource` -- with memory, host, file and Windows event log targets.
-  `Source\Suffix.ps1` creates its context at module load; five Pester files cover it; and
-  `Compare-Template.ps1` tracks every file by version. Opt out with `Features.WriteLog` in
-  `setup.psd1`, whose schema version is now 3.
-- `Scripts\TemplateSetup\Remove-WriteLog.ps1`: the removal step behind that toggle. It
-  deletes the library and its tests and drops the `Set-LogConfig` block from
-  `Source\Suffix.ps1`, refusing to leave a stray call the module could no longer import
-  with. Runnable on its own (`-DryRun` to preview).
-- `Scripts\TemplateSetup\Set-ModuleManifest.ps1`: setup's manifest step, now its own
-  runnable script. It stamps a fresh GUID, drops the placeholder note comments above the
-  GUID key, and fills in Author, CompanyName and Copyright.
-- `Scripts\TemplateSetup\Remove-TemplateSetup.ps1`: setup's own cleanup step. It offers
-  to delete `Scripts\TemplateSetup\` along with the `Tests\Pester\` files covering the
-  scripts in it -- tests that would otherwise cover scripts the project no longer ships.
-  Setup runs it last; it is also runnable on its own (`-DryRun` to preview, `-Yes` to skip
-  the prompt).
+- An internal logging library under `Source\Private\Lib\Write-log\`: `Write-Log` routes
+  messages to memory, host, file and Windows event log targets configured through
+  `Set-LogConfig`, which `Source\Suffix.ps1` calls at module load. Opt out with
+  `Features.WriteLog` in `setup.psd1` (schema version 3). `Compare-Template.ps1` tracks
+  the library by version.
+- `Scripts\TemplateSetup\Remove-WriteLog.ps1`: removes the logging library, its tests,
+  and its `Suffix.ps1` wiring when the feature is declined. Runnable on its own.
+- `Scripts\TemplateSetup\Set-ModuleManifest.ps1`: setup fills in the module manifest's
+  GUID, Author, CompanyName and Copyright from the `[License]` fields in `setup.psd1`, as
+  its own runnable step.
+- `Scripts\TemplateSetup\Remove-TemplateSetup.ps1`: setup ends by offering to delete
+  `Scripts\TemplateSetup\` and the tests covering it. Skipped when an earlier step
+  reported a problem; `-Yes` answers the offer.
 
 ### Changed
 
-- The Intune package logger (`Build\Generators\Intune\Write-PackageLog.ps1`) and
-  `Set-LogConfig` expand cmd-style `%Name%` environment variable references in the log path,
-  so a path baked in at build time resolves on the endpoint that runs the script.
-- Setup ends by offering to remove itself: after the FIXME report, the new
-  `remove_template_setup` step lists the setup folder and its tests, then asks. It is
-  skipped when an earlier step reported a problem, so a failed run keeps the scripts
-  available for a re-run. `-Yes` answers the offer, as it does for the git-reinit step.
-- Setup fills in the module manifest as its own step (`set_module_manifest`) instead of
-  stamping only the GUID inside the rename step. Author, CompanyName and Copyright come
-  from the existing `[License]` fields (`Name`, `Company`, `Year`) in `setup.psd1`, which
-  now documents that it feeds both the LICENSE file and the manifest.
+- The Intune package logger and `Set-LogConfig` expand cmd-style `%Name%` references in
+  the log path, so a path baked in at build time resolves on the endpoint.
+
+### Fixed
+
+- The VS Code test launch configurations pass categories `Tests.ps1` accepts (`NotLive`,
+  `Live`) instead of the old `offline`/`online` names.
 
 ## [1.2.0] - 2026-08-31
 
@@ -172,7 +165,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ModuleBuilder build tooling, PlatyPS docs, GitHub Actions CI, and pre-commit
   hooks.
 
-[Unreleased]: https://github.com/FIXME/FIXME/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/FIXME/FIXME/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/FIXME/FIXME/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/FIXME/FIXME/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/FIXME/FIXME/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/FIXME/FIXME/releases/tag/v1.0.0
