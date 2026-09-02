@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Source\Private\Lib\Write-log\`: an internal logging library -- `Set-LogConfig`,
+  `Write-Log`, `Get-LogMessage`, `Get-LogConfig`, `Write-LogEvent`, `Write-LogEventBuffer`
+  and `Register-LogEventSource` -- with memory, host, file and Windows event log targets.
+  `Source\Suffix.ps1` creates its context at module load; five Pester files cover it; and
+  `Compare-Template.ps1` tracks every file by version. Opt out with `Features.WriteLog` in
+  `setup.psd1`, whose schema version is now 3.
+- `Scripts\TemplateSetup\Remove-WriteLog.ps1`: the removal step behind that toggle. It
+  deletes the library and its tests and drops the `Set-LogConfig` block from
+  `Source\Suffix.ps1`, refusing to leave a stray call the module could no longer import
+  with. Runnable on its own (`-DryRun` to preview).
 - `Scripts\TemplateSetup\Set-ModuleManifest.ps1`: setup's manifest step, now its own
   runnable script. It stamps a fresh GUID, drops the placeholder note comments above the
   GUID key, and fills in Author, CompanyName and Copyright.
@@ -32,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Intune package logger (`Build\Generators\Intune\Write-PackageLog.ps1`) and
+  `Set-LogConfig` expand cmd-style `%Name%` environment variable references in the log path,
+  so a path baked in at build time resolves on the endpoint that runs the script.
 - Setup ends by offering to remove itself: after the FIXME report, the new
   `remove_template_setup` step lists the setup folder and its tests, then asks. It is
   skipped when an earlier step reported a problem, so a failed run keeps the scripts
