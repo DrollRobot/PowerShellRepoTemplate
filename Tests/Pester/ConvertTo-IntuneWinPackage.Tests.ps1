@@ -22,7 +22,7 @@ param()
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 
 Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
 
@@ -342,13 +342,22 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
             $Install | Should -Match "(?m)^\`$LogMaxBytes = 1048576"
             $Install | Should -Match '\$Existing\.Length -gt \$LogMaxBytes'
             $Install |
-                Should -Match 'Move-Item -Path \$LogPath -Destination \$Rotated -Force'
+                Should -Match 'Move-Item -Path \$ResolvedPath -Destination \$Rotated -Force'
             # Rotation must not read or rewrite the log it is bounding.
-            $Install | Should -Not -Match 'Get-Content -Path \$LogPath'
+            $Install | Should -Not -Match 'Get-Content -Path \$ResolvedPath'
+        }
+
+        It 'expands environment variables in the baked log path' {
+            # The path is baked as a literal, so a %Name% reference in it
+            # reaches the endpoint unexpanded; the log function expands it.
+            $Pattern = '\$ResolvedPath = \[Environment\]::' +
+            'ExpandEnvironmentVariables\(\$LogPath\)'
+            $Install | Should -Match $Pattern
+            $Install | Should -Match 'Add-Content -Path \$ResolvedPath'
         }
 
         It 'never lets a log write failure fail the deployment' {
-            $Install | Should -Match 'Message     = "Log write to \$LogPath failed'
+            $Install | Should -Match 'Message     = "Log write to \$ResolvedPath failed'
             $Install | Should -Not -Match 'throw .*Log write'
         }
 

@@ -18,6 +18,12 @@ function Write-PackageLog {
         the previous generation, and a fresh file starts. Peak disk use is
         twice the cap and rotation costs one metadata operation.
 
+        The log path is baked into the constants block as a literal, so a
+        %Name% environment variable reference in it arrives here unexpanded.
+        It is expanded before any file work, so a path written against the
+        endpoint's environment resolves there rather than on the machine that
+        built the package.
+
         Logging never fails the deployment: a write that cannot land is
         reported on stderr and execution continues, because the deployment's
         own success does not depend on the record of it. Every other write in
@@ -58,26 +64,27 @@ function Write-PackageLog {
     # function so the copy injected into a generated package stays scoped to it.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-    $ScriptVersion = '1.0.0'
+    $ScriptVersion = '1.1.0'
 
     $Stamp = [DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')
     $Line = "$Stamp [$LogScript] $($Level.ToUpper()) $Message"
+    $ResolvedPath = [Environment]::ExpandEnvironmentVariables($LogPath)
     try {
-        $LogDir = Split-Path -Path $LogPath -Parent
+        $LogDir = Split-Path -Path $ResolvedPath -Parent
         if (-not (Test-Path -Path $LogDir -PathType Container)) {
             $null = New-Item -Path $LogDir -ItemType Directory -Force
         }
-        $Existing = Get-Item -Path $LogPath -ErrorAction SilentlyContinue
+        $Existing = Get-Item -Path $ResolvedPath -ErrorAction SilentlyContinue
         if ($Existing -and $Existing.Length -gt $LogMaxBytes) {
             $Rotated = Join-Path -Path $LogDir -ChildPath (
-                "$([System.IO.Path]::GetFileNameWithoutExtension($LogPath)).1" +
-                [System.IO.Path]::GetExtension($LogPath))
-            Move-Item -Path $LogPath -Destination $Rotated -Force
+                "$([System.IO.Path]::GetFileNameWithoutExtension($ResolvedPath)).1" +
+                [System.IO.Path]::GetExtension($ResolvedPath))
+            Move-Item -Path $ResolvedPath -Destination $Rotated -Force
         }
-        Add-Content -Path $LogPath -Value $Line -Encoding UTF8
+        Add-Content -Path $ResolvedPath -Value $Line -Encoding UTF8
     } catch {
         $FailureParams = @{
-            Message     = "Log write to $LogPath failed: $($_.Exception.Message)"
+            Message     = "Log write to $ResolvedPath failed: $($_.Exception.Message)"
             ErrorAction = 'Continue'
         }
         Write-Error @FailureParams
