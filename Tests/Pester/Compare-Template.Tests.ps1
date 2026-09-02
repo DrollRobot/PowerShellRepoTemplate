@@ -294,6 +294,18 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             'Tests/Pester/ConvertTo-IntuneWinPackage.Tests.ps1'
             'Source/Private/Lib/Resolve-EnvParameter.ps1'
             'Tests/Pester/Resolve-EnvParameter.Tests.ps1'
+            'Source/Private/Lib/Write-log/Get-LogConfig.ps1'
+            'Source/Private/Lib/Write-log/Get-LogMessage.ps1'
+            'Source/Private/Lib/Write-log/Register-LogEventSource.ps1'
+            'Source/Private/Lib/Write-log/Set-LogConfig.ps1'
+            'Source/Private/Lib/Write-log/Write-Log.ps1'
+            'Source/Private/Lib/Write-log/Write-LogEvent.ps1'
+            'Source/Private/Lib/Write-log/Write-LogEventBuffer.ps1'
+            'Tests/Pester/Get-LogConfig.Tests.ps1'
+            'Tests/Pester/Get-LogMessage.Tests.ps1'
+            'Tests/Pester/Set-LogConfig.Tests.ps1'
+            'Tests/Pester/Write-Log.Tests.ps1'
+            'Tests/Pester/Write-LogEventBuffer.Tests.ps1'
         )
         foreach ($path in $whitelist) {
             $entry = $script:Manifest | Where-Object Path -EQ $path
@@ -379,6 +391,35 @@ Describe 'Manifest' -Tag 'unit', 'functional', 'acceptance' {
             $entry.Gate | Should -Be 'InstallDependenciesScript' -Because "$path should be gated"
         }
     }
+    It 'gates the Write-Log library and its tests on WriteLog' {
+        $library = @(
+            'Source/Private/Lib/Write-log/Get-LogConfig.ps1'
+            'Source/Private/Lib/Write-log/Get-LogMessage.ps1'
+            'Source/Private/Lib/Write-log/Register-LogEventSource.ps1'
+            'Source/Private/Lib/Write-log/Set-LogConfig.ps1'
+            'Source/Private/Lib/Write-log/Write-Log.ps1'
+            'Source/Private/Lib/Write-log/Write-LogEvent.ps1'
+            'Source/Private/Lib/Write-log/Write-LogEventBuffer.ps1'
+            'Tests/Pester/Get-LogConfig.Tests.ps1'
+            'Tests/Pester/Get-LogMessage.Tests.ps1'
+            'Tests/Pester/Set-LogConfig.Tests.ps1'
+            'Tests/Pester/Write-Log.Tests.ps1'
+            'Tests/Pester/Write-LogEventBuffer.Tests.ps1'
+        )
+        foreach ($path in $library) {
+            $entry = $script:Manifest | Where-Object Path -EQ $path
+            $entry.Gate | Should -Be 'WriteLog' -Because "$path should be gated on WriteLog"
+        }
+    }
+    It 'never tracks the child-owned Suffix.ps1 that wires the Write-Log library in' {
+        $script:Manifest.Path | Should -Not -Contain 'Source/Suffix.ps1'
+    }
+    It 'tracks the Write-Log removal step as optional, like its setup siblings' {
+        $entry = $script:Manifest |
+            Where-Object Path -EQ 'Scripts/TemplateSetup/Remove-WriteLog.ps1'
+        $entry | Should -Not -BeNullOrEmpty
+        $entry.Required | Should -BeFalse
+    }
     It 'gates each opinionated formatting check on its own feature' {
         $gateMap = @{
             'Tests/Pester/NonASCIICharacters.Lint.Tests.ps1'   = 'NonASCIICharacters'
@@ -431,6 +472,7 @@ Describe 'Get-ChildFeatureFlag' -Tag 'integration', 'functional' {
         $flags['Docs'] | Should -BeTrue
         $flags['SecurityMd'] | Should -BeTrue
         $flags['InstallDependenciesScript'] | Should -BeTrue
+        $flags['WriteLog'] | Should -BeTrue
         $flags['UnwantedStringsLocal'] | Should -BeFalse
     }
     It 'reads a real [Features] table and leaves unmentioned keys at their default' {

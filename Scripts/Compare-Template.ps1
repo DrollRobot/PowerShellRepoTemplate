@@ -15,11 +15,12 @@
     TEMPLATE SETUP NOTES banner, and the module-name / GitHub-owner substitutions
     Setup-NewProject.ps1 applied), so only genuine drift is reported. Files the
     child owns -- its Source\ code, module manifest, changelog, license, generated
-    docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked. The one
-    exception is Source\Private\Lib\Resolve-EnvParameter.ps1, which the template
-    ships as the module half of the Script Generators' EnvResolver contract -- a
-    Lib\ helper, so non-domain by the AGENTS.md split. It is versioned and
-    refreshed by version with the generators it serves.
+    docs, and the PreTests.ps1 / PostTests.ps1 hooks -- are not tracked. The
+    exceptions are the Lib\ helpers the template ships under Source\Private\Lib\
+    -- Resolve-EnvParameter.ps1, the module half of the Script Generators'
+    EnvResolver contract, and the Write-Log logging library under Write-log\ --
+    which are non-domain by the AGENTS.md split. They are versioned and
+    refreshed by version, like the generators and tests they ship with.
 
     -BlindCopy entries also get an earlier pre-flight that offers to refresh an
     outdated child copy from the template by version number, before the diff
@@ -115,7 +116,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.12.0'
+$ScriptVersion = '2.13.0'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -352,9 +353,10 @@ $script:Manifest = @(
     (New-Entry 'Build/Generators/ConvertTo-ScriptVariant.ps1' @StandaloneGate)
     (New-Entry 'Tests/Pester/ConvertTo-StandaloneScript.Tests.ps1' @StandaloneGate)
     (New-Entry 'Tests/Pester/ConvertTo-ScriptVariant.Tests.ps1' @StandaloneGate)
-    # The only Source\ file the template tracks: it is the module half of the
-    # generators' EnvResolver contract, not project code, so it follows the same
-    # rule as the generators -- template-owned, versioned, refreshed by version.
+    # The Source\ files the template tracks are Lib\ helpers only. This one is
+    # the module half of the generators' EnvResolver contract, not project code,
+    # so it follows the same rule as the generators -- template-owned, versioned,
+    # refreshed by version.
     (New-Entry 'Source/Private/Lib/Resolve-EnvParameter.ps1' @StandaloneGate)
     (New-Entry 'Tests/Pester/Resolve-EnvParameter.Tests.ps1' @StandaloneGate)
     $IntuneGate = @{ Gate = 'IntunePackageGenerator'; BlindCopy = $true }
@@ -364,6 +366,22 @@ $script:Manifest = @(
     (New-Entry 'Build/Generators/Intune/Uninstall.ps1' @IntuneGate)
     (New-Entry 'Build/Generators/Intune/Write-PackageLog.ps1' @IntuneGate)
     (New-Entry 'Tests/Pester/ConvertTo-IntuneWinPackage.Tests.ps1' @IntuneGate)
+    # The Write-Log logging library, the other Lib\ helper set: template-owned,
+    # versioned, refreshed by version. Its Set-LogConfig wiring lives in
+    # Source\Suffix.ps1, which the child owns, so that file is not tracked.
+    $WriteLogGate = @{ Gate = 'WriteLog'; BlindCopy = $true }
+    (New-Entry 'Source/Private/Lib/Write-log/Get-LogConfig.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Get-LogMessage.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Register-LogEventSource.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Set-LogConfig.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Write-Log.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Write-LogEvent.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Write-LogEventBuffer.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Get-LogConfig.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Get-LogMessage.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Set-LogConfig.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Write-Log.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/Write-LogEventBuffer.Tests.ps1' @WriteLogGate)
     # Docs site config.
     (New-Entry 'mkdocs.yml' -Required $false -Strict $false -Gate 'Docs')
     # Worktree, release, and docs helper scripts.
@@ -384,6 +402,7 @@ $script:Manifest = @(
     (New-Entry 'Scripts/TemplateSetup/Set-GitHubUser.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Remove-ModuleBuilderNote.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Set-ModuleManifest.ps1' -Required $false)
+    (New-Entry 'Scripts/TemplateSetup/Remove-WriteLog.ps1' -Required $false)
     (New-Entry 'Scripts/TemplateSetup/Remove-TemplateSetup.ps1' -Required $false)
     # Code-style and hygiene checkers that are standalone scripts.
     (New-Entry 'Tests/Test-ExplicitModuleImport.ps1' -BlindCopy $true -Gate 'ExplicitModuleImport')
@@ -930,6 +949,7 @@ $script:FeatureDefaults = @{
     InstallDependenciesScript = $true
     StandaloneScriptGenerator = $true
     IntunePackageGenerator    = $true
+    WriteLog                  = $true
     NonASCIICharacters        = $true
     FormatOperator            = $true
     WriteVerboseDebug         = $true
