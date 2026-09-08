@@ -5,11 +5,11 @@
 .DESCRIPTION
     The template ships an internal logging library under
     Source\Private\Lib\Write-log\ -- Set-LogConfig, Write-Log, Get-LogMessage,
-    Get-LogConfig, Write-LogEvent, Write-LogEventBuffer and
-    Register-LogEventSource -- wired in by a Set-LogConfig block in
-    Source\Suffix.ps1 that creates the logging context at module load, and
-    covered by five Pester files. A project that logs some other way wants none
-    of it, so this step removes all three parts together:
+    Get-LogConfig, Write-LogEvent, Write-LogEventBuffer, Enter-LogScope,
+    Exit-LogScope and Register-LogEventSource -- wired in by a Set-LogConfig
+    block in Source\Suffix.ps1 that creates the logging context at module load,
+    and covered by six Pester files. A project that logs some other way wants
+    none of it, so this step removes all three parts together:
 
       - the Source\Private\Lib\Write-log\ folder,
       - the Set-LogConfig block in Source\Suffix.ps1 -- left in place, the
@@ -77,6 +77,7 @@ $script:WriteLogLibDir = 'Source\Private\Lib\Write-log'
 $script:WriteLogTestFiles = @(
     'Tests\Pester\Get-LogConfig.Tests.ps1'
     'Tests\Pester\Get-LogMessage.Tests.ps1'
+    'Tests\Pester\LogScope.Tests.ps1'
     'Tests\Pester\Set-LogConfig.Tests.ps1'
     'Tests\Pester\Write-Log.Tests.ps1'
     'Tests\Pester\Write-LogEventBuffer.Tests.ps1'

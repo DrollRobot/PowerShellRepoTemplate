@@ -1,6 +1,6 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.1.0'
+$ScriptVersion = '2.2.0'
 
 function Get-LogConfig {
     <#
@@ -10,7 +10,8 @@ function Get-LogConfig {
     .DESCRIPTION
         Reads the module-scoped logging context and returns a copy of its
         settings for the memory, host, file, and event log targets, plus the
-        current in-memory buffer count. The returned object is a snapshot:
+        current in-memory buffer count and open log scope depth. The returned
+        object is a snapshot:
         mutating it does not change the live configuration. Use Set-LogConfig
         to make changes. Throws if called before Set-LogConfig has created the
         context.
@@ -26,9 +27,16 @@ function Get-LogConfig {
         Returns the configured log file path (or $null when file logging is
         off).
 
+    .EXAMPLE
+        (Get-LogConfig).ScopeDepth
+
+        Returns the number of log scopes currently open. Zero means no run is
+        in progress; anything else after a command returns is an unbalanced
+        Enter-LogScope / Exit-LogScope pair.
+
     .OUTPUTS
         System.Management.Automation.PSCustomObject with Memory, Host, File,
-        EventLog, and BufferCount members.
+        EventLog, BufferCount, and ScopeDepth members.
     #>
     [OutputType([pscustomobject])]
     param()
@@ -65,5 +73,6 @@ function Get-LogConfig {
             EventId      = $ctx.EventLog.EventId
         }
         BufferCount = $ctx.Buffer.Count
+        ScopeDepth  = $ctx.ScopeDepth
     }
 }

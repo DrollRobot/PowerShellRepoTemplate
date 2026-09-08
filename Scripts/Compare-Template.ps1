@@ -370,6 +370,8 @@ $script:Manifest = @(
     # versioned, refreshed by version. Its Set-LogConfig wiring lives in
     # Source\Suffix.ps1, which the child owns, so that file is not tracked.
     $WriteLogGate = @{ Gate = 'WriteLog'; BlindCopy = $true }
+    (New-Entry 'Source/Private/Lib/Write-log/Enter-LogScope.ps1' @WriteLogGate)
+    (New-Entry 'Source/Private/Lib/Write-log/Exit-LogScope.ps1' @WriteLogGate)
     (New-Entry 'Source/Private/Lib/Write-log/Get-LogConfig.ps1' @WriteLogGate)
     (New-Entry 'Source/Private/Lib/Write-log/Get-LogMessage.ps1' @WriteLogGate)
     (New-Entry 'Source/Private/Lib/Write-log/Register-LogEventSource.ps1' @WriteLogGate)
@@ -378,6 +380,7 @@ $script:Manifest = @(
     (New-Entry 'Source/Private/Lib/Write-log/Write-LogEvent.ps1' @WriteLogGate)
     (New-Entry 'Source/Private/Lib/Write-log/Write-LogEventBuffer.ps1' @WriteLogGate)
     (New-Entry 'Tests/Pester/Get-LogConfig.Tests.ps1' @WriteLogGate)
+    (New-Entry 'Tests/Pester/LogScope.Tests.ps1' @WriteLogGate)
     (New-Entry 'Tests/Pester/Get-LogMessage.Tests.ps1' @WriteLogGate)
     (New-Entry 'Tests/Pester/Set-LogConfig.Tests.ps1' @WriteLogGate)
     (New-Entry 'Tests/Pester/Write-Log.Tests.ps1' @WriteLogGate)

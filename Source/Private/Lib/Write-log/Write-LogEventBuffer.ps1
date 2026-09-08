@@ -1,6 +1,6 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.4.0'
 
 function Write-LogEventBuffer {
     <#
@@ -83,15 +83,25 @@ function Write-LogEventBuffer {
     # the same way Write-Log resolves an entry's Source. The caller is the
     # command whose finally block is flushing (e.g. the deployed script's
     # public function).
+    #
+    # Under Enter-LogScope/Exit-LogScope the stack no longer answers this: the
+    # frame above is Exit-LogScope, not the command the operator ran. Enter
+    # recorded the right name when it opened the run, so prefer that and fall
+    # back to the stack for callers that invoke this function directly.
     $caller = '<unknown>'
-    try {
-        $stack = Get-PSCallStack
-        if ($stack.Count -gt 1) {
-            $caller = $stack[1].Command
-        }
+    if ($ctx.ScopeCommand) {
+        $caller = $ctx.ScopeCommand
     }
-    catch {
-        $caller = '<unknown>'
+    else {
+        try {
+            $stack = Get-PSCallStack
+            if ($stack.Count -gt 1) {
+                $caller = $stack[1].Command
+            }
+        }
+        catch {
+            $caller = '<unknown>'
+        }
     }
 
     # Action is the verb of the calling command (Install-Adlumin -> Install);

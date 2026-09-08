@@ -1,6 +1,6 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.2.0'
+$ScriptVersion = '2.3.0'
 
 function Set-LogConfig {
     <#
@@ -218,6 +218,16 @@ function Set-LogConfig {
                 EventId      = 1000
             }
             RunStart   = Get-Date
+            # Reference count of open log scopes. Enter-LogScope increments,
+            # Exit-LogScope decrements and flushes the buffer on the return to
+            # zero, so nested commands share one event instead of emitting one
+            # each. Zero means no run is in progress.
+            ScopeDepth = 0
+            # Command that opened the outermost scope. Write-LogEventBuffer
+            # reports it as the run's action/script_name, because by flush time
+            # the call stack shows Exit-LogScope rather than the command that
+            # ran. Null when no scope is open.
+            ScopeCommand = $null
             Buffer     = New-Object -TypeName 'System.Collections.Generic.Queue[object]'
             HostColors = @{
                 Trace    = 'DarkGray'
