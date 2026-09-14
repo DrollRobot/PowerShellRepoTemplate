@@ -51,6 +51,15 @@ Run pester tests again on the built module:
 [Keep a Changelog](https://keepachangelog.com) format. Fetch that page for the
 current format rules; do not rely on training data.
 
+**Deviation from Keep a Changelog:** version headings end with a title after the
+date. Use this format in place of Keep a Changelog's `## [1.2.3] - 2026-01-31`:
+```markdown
+## [1.2.3] - 2026-01-31 - <title>
+```
+- `<title>` is a few words naming the release's main changes.
+- The release workflow publishes `v1.2.3 - <title>` as the GitHub release title and
+  the section below the heading as the release notes.
+
 1. **Collect commits** since the previous tag:
    ```powershell
    $prevTag = git describe --tags --abbrev=0
@@ -70,9 +79,9 @@ Do not mention: refactors, tests, lint, building docs, build tooling.
 - Detailed explanations belong in the commit message and the code, not the
    changelog.
 
-4. Prepend the new section immediately after the # Changelog heading,
-with today's date and the version about to be tagged. Don't rewrite or
-delete existing sections unless directly requested.
+4. Prepend the new section immediately after the # Changelog heading, headed
+with the version about to be tagged, today's date, and a title in the format
+above. Don't rewrite or delete existing sections unless directly requested.
 
 ## Hand off to user
 - The user will update manifest version, merge, tag, and push.

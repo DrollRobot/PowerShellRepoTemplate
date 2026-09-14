@@ -15,6 +15,7 @@
 #
 # To cut a release (see AGENTS.RELEASING.md for the full checklist):
 #   set Release.Enabled = $true in Scripts\setup.psd1   # once, when ready
+#   add a '## [1.2.3] - <date> - <title>' section to CHANGELOG.md
 #   git tag v1.2.3
 #   git push origin v1.2.3
 #
@@ -94,6 +95,30 @@ jobs:
           $v = '${{ github.ref_name }}'.TrimStart('v')
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      # The release title and notes come from this version's CHANGELOG.md
+      # section, headed '## [<version>] - <date> - <title>'.
+      - name: Read release notes from changelog
+        id: notes
+        shell: pwsh
+        run: |
+          $v = '${{ steps.ver.outputs.version }}'
+          $changelog = Get-Content -Path 'CHANGELOG.md' -Raw
+          # A section runs to the next heading, the link definitions, or the end of the file.
+          $pattern = '(?ms)^## \[' + [regex]::Escape($v) + '\] - \d{4}-\d{2}-\d{2} - ' +
+              '(?<title>[^\r\n]+)\r?\n(?<body>.*?)(?=^## |^\[[^\]]+\]: |\z)'
+          $section = [regex]::Match($changelog, $pattern)
+          if (-not $section.Success) {
+              throw "CHANGELOG.md has no '## [$v] - <date> - <title>' section."
+          }
+          # Wrapped entry lines are joined so each entry is a single line.
+          $joinPattern = '\r?\n +(?![-*+] |\d+\. )(?=\S)'
+          $notes = $section.Groups['body'].Value -replace $joinPattern, ' '
+          $notesPath = Join-Path -Path $env:RUNNER_TEMP -ChildPath 'release-notes.md'
+          Set-Content -Path $notesPath -Value $notes.Trim()
+          $title = "v$v - $($section.Groups['title'].Value.Trim())"
+          "title=$title" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "path=$notesPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       # Packaging below assumes an Output\ build, i.e. Source\Build.psd1 keeps
       # BuildToRoot = $false. A repo that builds to the root has its artifacts
       # committed already and needs a different packaging step.
@@ -129,12 +154,14 @@ jobs:
               Compress-Archive @archiveParams
           }
 
+      # The title goes through env so quotes in it cannot break the script.
       - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TITLE: ${{ steps.notes.outputs.title }}
+          RELEASE_NOTES_PATH: ${{ steps.notes.outputs.path }}
         run: |
-          $v = '${{ steps.ver.outputs.version }}'
           $assets = Get-ChildItem -Path 'Output' -File | Select-Object -ExpandProperty FullName
           $releaseArgs = @(
               'release'
@@ -143,6 +170,7 @@ jobs:
           )
           $releaseArgs += $assets
           $releaseArgs += '--title'
-          $releaseArgs += "v$v"
-          $releaseArgs += '--generate-notes'
+          $releaseArgs += $env:RELEASE_TITLE
+          $releaseArgs += '--notes-file'
+          $releaseArgs += $env:RELEASE_NOTES_PATH
           gh @releaseArgs
