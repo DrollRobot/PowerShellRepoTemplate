@@ -496,3 +496,158 @@ Describe 'Push-NewTagToMain duplicate-tag guard' -Tag 'integration', 'functional
         $MainLog | Should -Match 'Initial commit'
     }
 }
+
+Describe 'Test-TreeDirty' -Tag 'integration', 'functional' {
+    BeforeAll {
+        $RepoParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = "dirty-$([guid]::NewGuid().ToString('N'))"
+        }
+        $script:DirtyRepo = Join-Path @RepoParams
+        $script:DirtyFile = Join-Path -Path $script:DirtyRepo -ChildPath 'artifact.txt'
+        New-Item -ItemType Directory -Path $script:DirtyRepo -Force | Out-Null
+        Push-Location -LiteralPath $script:DirtyRepo
+        try {
+            & git init --initial-branch=main . *> $null
+            & git config user.email 'test@example.invalid'
+            & git config user.name 'Test'
+            Set-Content -LiteralPath $script:DirtyFile -Value 'built'
+            & git add -A
+            & git commit -m 'first' *> $null
+        }
+        finally {
+            Pop-Location
+        }
+    }
+
+    AfterAll {
+        Remove-Item -LiteralPath $script:DirtyRepo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'treats a tracked file regenerated with the same content as clean' -Tag 'regression' {
+        Push-Location -LiteralPath $script:DirtyRepo
+        try {
+            # Delete and regenerate the file as a root build does, then backdate
+            # it so its stat data differs from the index for certain, rather
+            # than only when the rewrite lands in a later second.
+            Remove-Item -LiteralPath $script:DirtyFile
+            Set-Content -LiteralPath $script:DirtyFile -Value 'built'
+            (Get-Item -LiteralPath $script:DirtyFile).LastWriteTime = (Get-Date).AddHours(-1)
+            Test-TreeDirty | Should -BeFalse
+        }
+        finally {
+            Pop-Location
+        }
+    }
+
+    It 'reports a tracked file with changed content as dirty' {
+        Push-Location -LiteralPath $script:DirtyRepo
+        try {
+            Set-Content -LiteralPath $script:DirtyFile -Value 'rebuilt'
+            Test-TreeDirty | Should -BeTrue
+        }
+        finally {
+            Pop-Location
+        }
+    }
+}
+
+Describe 'Push-NewTagToMain unchanged build' -Tag 'integration', 'functional', 'regression' {
+    BeforeAll {
+        $FixtureParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = "pntm-samebuild-$([guid]::NewGuid().ToString('N'))"
+        }
+        $script:FixtureRoot = Join-Path @FixtureParams
+        $script:OriginPath = Join-Path -Path $script:FixtureRoot -ChildPath 'origin.git'
+        $script:RepoPath = Join-Path -Path $script:FixtureRoot -ChildPath 'repo'
+        New-Item -ItemType Directory -Path $script:FixtureRoot -Force | Out-Null
+
+        & git init --bare --initial-branch=main $script:OriginPath *> $null
+        & git clone $script:OriginPath $script:RepoPath *> $null
+
+        Push-Location -LiteralPath $script:RepoPath
+        try {
+            & git config user.email 'test@example.invalid'
+            & git config user.name 'Test'
+            $ManifestDir = Join-Path -Path $script:RepoPath -ChildPath 'Source'
+            New-Item -ItemType Directory -Path $ManifestDir -Force | Out-Null
+            $ManifestPath = Join-Path -Path $ManifestDir -ChildPath 'Fixture.psd1'
+            $ManifestContent = @('@{', "    ModuleVersion = '1.0.0'", '}')
+            Set-Content -LiteralPath $ManifestPath -Value $ManifestContent
+            # A committed build artifact, and a Build.ps1 that deletes and
+            # regenerates it with the same content, backdated so its stat data
+            # is guaranteed to differ from the index.
+            $ArtifactPath = Join-Path -Path $script:RepoPath -ChildPath 'artifact.txt'
+            Set-Content -LiteralPath $ArtifactPath -Value 'built'
+            $BuildLines = @(
+                '$Artifact = Join-Path -Path $PSScriptRoot -ChildPath ''artifact.txt'''
+                'Remove-Item -LiteralPath $Artifact'
+                'Set-Content -LiteralPath $Artifact -Value ''built'''
+                '(Get-Item -LiteralPath $Artifact).LastWriteTime = (Get-Date).AddHours(-1)'
+            )
+            $BuildPath = Join-Path -Path $script:RepoPath -ChildPath 'Build.ps1'
+            Set-Content -LiteralPath $BuildPath -Value $BuildLines
+            & git add -A
+            & git commit -m 'Initial commit' *> $null
+            & git push origin main *> $null
+            & git checkout -b feature *> $null
+            $XParams = @{
+                LiteralPath = Join-Path -Path $script:RepoPath -ChildPath 'x.txt'
+                Value       = 'x'
+            }
+            Set-Content @XParams
+            & git add -A
+            & git commit -m 'work' *> $null
+            & git push -u origin feature *> $null
+        }
+        finally {
+            Pop-Location
+        }
+
+        $script:OriginalLocation = Get-Location
+        Set-Location -LiteralPath $script:RepoPath
+    }
+
+    AfterAll {
+        Set-Location -LiteralPath $script:OriginalLocation
+        $CleanupParams = @{
+            LiteralPath = $script:FixtureRoot
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
+        }
+        Remove-Item @CleanupParams
+    }
+
+    It 'skips the release commit and still tags when the build changes nothing' {
+        # -Version names the current version, so only the build could dirty the
+        # tree -- and it regenerates the artifact unchanged.
+        $OutFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-out.txt'
+        $ErrFile = Join-Path -Path $script:FixtureRoot -ChildPath 'child-err.txt'
+        $Params = @{
+            FilePath               = 'pwsh'
+            ArgumentList           = @(
+                '-NoProfile', '-NonInteractive', '-File', $script:Sut,
+                '-Version', '1.0.0', '-Yes'
+            )
+            WorkingDirectory       = $script:RepoPath
+            NoNewWindow            = $true
+            Wait                   = $true
+            PassThru               = $true
+            RedirectStandardOutput = $OutFile
+            RedirectStandardError  = $ErrFile
+        }
+        $Proc = Start-Process @Params
+        $StdErr = Get-Content -LiteralPath $ErrFile -Raw
+        $Proc.ExitCode | Should -Be 0 -Because "the child wrote: $StdErr"
+
+        $StdOut = Get-Content -LiteralPath $OutFile -Raw
+        $StdOut | Should -Match 'Nothing to commit; skipping'
+        $Tags = & git -C $script:RepoPath tag --list 'v1.0.0'
+        $Tags | Should -Not -BeNullOrEmpty
+        $MainLog = & git -C $script:RepoPath log main --oneline -1
+        $MainLog | Should -Match 'work'
+        $MainLog | Should -Not -Match 'Release'
+    }
+}

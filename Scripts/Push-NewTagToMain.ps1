@@ -118,7 +118,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.1.0'
+$ScriptVersion = '2.1.1'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
@@ -254,6 +254,26 @@ function Get-SyncStatus {
     return [pscustomobject]@{ Ahead = $ahead; Behind = $behind }
 }
 
+# Report whether tracked files differ from HEAD. 'git diff-index' is plumbing
+# that trusts the index's cached stat data, so a tracked file rewritten with the
+# same content -- e.g. a root build regenerating an unchanged artifact, or
+# writing LF where the checkout has CRLF -- reads as modified, and the release
+# commit then fails with "nothing to commit". Refreshing the index first
+# re-hashes those files; with -q it exits 0 even when some files are genuinely
+# modified. The exit code is checked directly so the result does not depend on
+# the caller's native error preference.
+function Test-TreeDirty {
+    git update-index -q --refresh | Out-Null
+    $global:LASTEXITCODE = 0
+    try {
+        git diff-index --quiet HEAD --
+    }
+    catch {
+        return $true
+    }
+    return ($LASTEXITCODE -ne 0)
+}
+
 # Locate the repo root via git, or $null if not in a working tree.
 function Get-RepoRoot {
     $top = Invoke-NativeOk git rev-parse --show-toplevel
@@ -386,19 +406,10 @@ Write-Section "Working tree status"
 Write-Run "git status --short --branch"
 git status --short --branch
 
-$treeClean = $true
-try {
-    git diff-index --quiet HEAD --
-}
-catch {
-    $treeClean = $false
-}
-if ($treeClean) {
-    Write-Host "  Working tree is clean." -ForegroundColor Green
-}
-else {
+if (Test-TreeDirty) {
     throw "Working tree is not clean; commit or stash changes first."
 }
+Write-Host "  Working tree is clean." -ForegroundColor Green
 
 # --- sync with origin -------------------------------------------------------
 
@@ -569,14 +580,9 @@ if ($buildScript) {
 # Commit when the version changed or when the build left tracked files dirty
 # (a root build regenerates committed artifacts; an output build touches only
 # the gitignored Output\ folder, leaving nothing to commit). The working tree
-# was verified clean at startup, so any dirtiness here is script-generated.
-$treeDirty = $false
-try {
-    git diff-index --quiet HEAD --
-}
-catch {
-    $treeDirty = $true
-}
+# was verified clean at startup, so any dirtiness here is script-generated. A
+# root build that regenerates its artifacts unchanged leaves nothing to commit.
+$treeDirty = Test-TreeDirty
 
 if ($versionChanged -or $treeDirty) {
     Write-Section "Step: commit release"
