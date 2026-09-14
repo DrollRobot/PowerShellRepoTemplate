@@ -22,7 +22,7 @@ param()
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.2.0'
 
 Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
 
@@ -354,6 +354,50 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
             'ExpandEnvironmentVariables\(\$LogPath\)'
             $Install | Should -Match $Pattern
             $Install | Should -Match 'Add-Content -Path \$ResolvedPath'
+        }
+
+        It 'writes the log to the expanded path rather than the literal one' {
+            # The assertion above reads the emitted source; this one runs it.
+            # Source alone cannot show where the log lands, and the failure is
+            # silent: an unexpanded %Name% is not an absolute path, so the log
+            # quietly appears under the working directory instead of erroring.
+            $Predicate = {
+                param($Node)
+                $Node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $Node.Name -eq 'Write-PackageLog'
+            }
+            $PackageAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                $InstallPath, [ref]$null, [ref]$null)
+            $Emitted = $PackageAst.FindAll($Predicate, $true)[0]
+            $Emitted | Should -Not -BeNullOrEmpty
+
+            $LogDirectory = Join-Path -Path $TestDrive -ChildPath 'expanded-logs'
+            $env:INTUNEPKG_TEST_LOGDIR = $LogDirectory
+            # Run from TestDrive so an unexpanded path leaves its debris here
+            # rather than in the repo the tests were started from.
+            Push-Location -Path $TestDrive
+            try {
+                . ([scriptblock]::Create($Emitted.Extent.Text))
+                $LogPath = '%INTUNEPKG_TEST_LOGDIR%\package.log'
+                $LogMaxBytes = 1048576
+                $LogScript = 'Install'
+                Write-PackageLog -Message 'expansion probe'
+            }
+            finally {
+                Pop-Location
+                $RemoveParams = @{
+                    LiteralPath = 'Env:\INTUNEPKG_TEST_LOGDIR'
+                    ErrorAction = 'SilentlyContinue'
+                }
+                Remove-Item @RemoveParams
+            }
+
+            $Written = Join-Path -Path $LogDirectory -ChildPath 'package.log'
+            Test-Path -LiteralPath $Written | Should -BeTrue
+            (Get-Content -LiteralPath $Written -Raw) | Should -Match 'expansion probe'
+            Test-Path -LiteralPath (
+                Join-Path -Path $TestDrive -ChildPath '%INTUNEPKG_TEST_LOGDIR%') |
+                Should -BeFalse
         }
 
         It 'never lets a log write failure fail the deployment' {
