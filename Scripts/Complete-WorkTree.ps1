@@ -3,11 +3,11 @@
 <#
 .SYNOPSIS
     Interactively complete a worktree: verify it is committed, push the branch,
-    and open a pull request against the integration branch from PR.md.
+    and open a pull request against the integration branch from .local/PR.md.
 
 .DESCRIPTION
     Picks up where the agent leaves off. Once the feature/fix is committed and a
-    PR description has been written to PR.md, this walks through the remaining
+    PR description has been written to .local/PR.md, this walks through the remaining
     steps one at a time. Before each action it shows what is about to happen and
     prompts for confirmation (y/n); answering 'n' aborts without taking the
     remaining steps. The output of every git and gh command is shown.
@@ -15,16 +15,16 @@
     The procedure:
       1. Confirm we are on a wt/ branch in a worktree (never the integration
          or release branch).
-      2. Verify the working tree is clean -- everything is committed. PR.md
+      2. Verify the working tree is clean -- everything is committed. .local/PR.md
          itself is exempt; it may stay uncommitted since it only feeds
          `gh pr create`.
       3. Resolve the PR base: the base recorded at worktree creation
          (branch.<branch>.prBase) if present, else the branch's upstream -- but
          only while it still names an integration branch, since `git push -u` repoints
          tracking to the branch itself. Refuses to target main.
-      4. Show the PR.md body and confirm the title.
+      4. Show the .local/PR.md body and confirm the title.
       5. Push the branch with -u.
-      6. Open the PR with `gh pr create --base <base> --body-file PR.md`.
+      6. Open the PR with `gh pr create --base <base> --body-file .local/PR.md`.
       7. Report the PR URL and stop. The worktree is NOT cleaned up -- that is
          left to the user (see Remove-WorkTree.ps1).
 
@@ -32,7 +32,7 @@
 
     Cross-device handoff (push on one device, open the PR on another):
       - On the device with the worktree, run with -PushPRToNotes. It verifies
-        and pushes the branch, then attaches PR.md (with the base and title) as
+        and pushes the branch, then attaches .local/PR.md (with the base and title) as
         a per-slug git note (refs/notes/pr-body-<slug>) and pushes that note to
         origin. The note rides on the commit, so it never appears in the PR
         diff; one ref per slug means concurrent PRs never collide. No PR is
@@ -57,7 +57,7 @@
     here.
 
 .PARAMETER BodyFile
-    Path to the PR body file. Defaults to PR.md at the worktree root. This file
+    Path to the PR body file. Defaults to .local/PR.md at the worktree root. This file
     does not need to be committed; it is exempt from the clean-tree check.
 
 .PARAMETER Draft
@@ -68,7 +68,7 @@
     still printed with the auto-answer so the transcript records each step.
 
 .PARAMETER PushPRToNotes
-    Device A: verify and push the branch, then attach PR.md (with base/title) as
+    Device A: verify and push the branch, then attach .local/PR.md (with base/title) as
     a per-slug 'pr-body-<slug>' git note and push it to origin. No PR created.
 
 .PARAMETER GHFromNotes
@@ -101,10 +101,10 @@
     Requirements:
       - PowerShell 7.4 or later.
       - Run from inside the worktree, on a wt/ branch with all work committed
-        (PR.md itself does not need to be committed).
+        (.local/PR.md itself does not need to be committed).
       - `git` and `gh` installed and authenticated (gh not needed for
         -PushPRToNotes or -WebFromNotes).
-      - A PR.md body file written by the agent at the worktree root.
+      - A .local/PR.md body file written by the agent at the worktree root.
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
@@ -115,7 +115,7 @@
 param(
     [string]$Title,
     [string]$Base,
-    [string]$BodyFile = 'PR.md',
+    [string]$BodyFile = '.local/PR.md',
     [switch]$Draft,
     [Alias('y')]
     [switch]$Yes,
@@ -131,7 +131,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.4'
+$ScriptVersion = '1.2.5'
 
 # The cross-device PR-body handoff stores one note per slug
 # (refs/notes/pr-body-<slug>) so concurrent PRs never share - or force-push
@@ -535,7 +535,7 @@ else { Join-Path -Path $repoRoot -ChildPath $BodyFile }
 
 if (-not (Test-Path -LiteralPath $bodyPath)) {
     $ErrMsg = "PR body file not found: $bodyPath. " +
-    'Have the agent write the PR description to PR.md first.'
+    'Have the agent write the PR description to .local/PR.md first.'
     throw $ErrMsg
 }
 $bodyText = Get-Content -Raw -LiteralPath $bodyPath
