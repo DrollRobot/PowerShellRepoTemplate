@@ -19,7 +19,7 @@ built artifacts in module root.
 | `destructive` | Dependency | Mutates state outside the test itself. Skipped by default. |
 | `local` | Destructive scope | Paired with `destructive`: mutates the host running Pester. Gated on `DISPOSABLE_ENVIRONMENT=1`. |
 | `remote` | Destructive scope | Paired with `destructive`: mutates an external target. Gated on `Tests\Confirm-RemoteDisposable.ps1` confirming it (not throwing). |
-| `slow` | Performance | Long-running. |
+| `slow` | Performance | Long-running. Skipped by the pre-push hook. |
 
 ## Writing tests
 - All new code should have unit and integration tests, and further tests
