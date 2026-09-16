@@ -12,18 +12,32 @@
     injected variable removed again after each test.
 
     The function is dot-sourced from Source\Private\Lib\ rather than reached
-    through the built module, so the tests run without a build.
+    through the built module, so the tests run without a build. It logs through
+    Write-Log, which only exists inside the module, so a no-op stub stands in
+    for it here -- covering the logger-present path, since the function's own
+    fallback shim is only defined when Write-Log cannot be resolved.
 #>
 # Template file version, read by Scripts\Compare-Template.ps1, which keeps a
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 
 
 Describe 'Resolve-EnvParameter' -Tag 'unit' {
 
     BeforeAll {
+        # The module's logger is not loaded here; swallow its calls.
+        function Write-Log {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSAvoidOverwritingBuiltInCmdlets', '',
+                Justification = 'Test stub standing in for the module logger.')]
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSReviewUnusedParameter', '',
+                Justification = 'The stub absorbs the logger arguments and discards them.')]
+            param($Level, $Message)
+        }
+
         $SourceRelative = Join-Path -Path '..\..\Source' -ChildPath 'Private\Lib'
         $SourceDir = Join-Path -Path $PSScriptRoot -ChildPath $SourceRelative
         . (Join-Path -Path $SourceDir -ChildPath 'Resolve-EnvParameter.ps1')
@@ -31,6 +45,7 @@ Describe 'Resolve-EnvParameter' -Tag 'unit' {
 
     AfterAll {
         Remove-Item -Path 'Function:\Resolve-EnvParameter' -ErrorAction SilentlyContinue
+        Remove-Item -Path 'Function:\Write-Log' -ErrorAction SilentlyContinue
     }
 
     AfterEach {
@@ -166,5 +181,18 @@ Describe 'Resolve-EnvParameter' -Tag 'unit' {
         $Resolved['TenantId'] | Should -Be 'tenant-from-global'
         $Resolved['ForceReinstall'] | Should -BeTrue
         $Resolved.ContainsKey('LogPath') | Should -BeFalse
+    }
+
+    It 'resolves without a logger when Write-Log cannot be found' {
+        # A project that declined the Write-Log library: a fresh process has no
+        # logger at all, so the function's own no-op shim has to stand in. Run
+        # out of process because this file's stub is visible in every scope here.
+        $ScriptPath = Join-Path -Path $SourceDir -ChildPath 'Resolve-EnvParameter.ps1'
+        $Command = ". '$ScriptPath'; " +
+        "`$env:env_TenantId = 'tenant-from-env'; " +
+        "(Resolve-EnvParameter -BoundParameters @{} -ParameterName 'TenantId')['TenantId']"
+        $Output = & pwsh -NoProfile -NonInteractive -Command $Command
+        $LASTEXITCODE | Should -Be 0
+        $Output | Should -Be 'tenant-from-env'
     }
 }

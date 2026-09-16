@@ -88,7 +88,28 @@ function Resolve-EnvParameter {
     # function so ModuleBuilder does not inline a module-scope assignment.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-    $ScriptVersion = '1.0.0'
+    $ScriptVersion = '1.1.0'
+
+    # The Write-Log library is an optional part of the template, so this helper
+    # cannot assume it exists. When it does not, a no-op shim scoped to this
+    # call stands in and the log calls below do nothing.
+    if (-not (Get-Command -Name 'Write-Log' -ErrorAction SilentlyContinue)) {
+        function Write-Log {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSAvoidOverwritingBuiltInCmdlets', '',
+                Justification = 'No-op stand-in for the optional Write-Log library.')]
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSReviewUnusedParameter', '',
+                Justification = 'The parameters only absorb the real logger''s arguments.')]
+            param($Level, $Message)
+        }
+    }
+
+    $msg = 'Resolve-EnvParameter parameters: ' +
+    "BoundParameters=$($BoundParameters.Keys -join ','); " +
+    "ParameterName=$($ParameterName -join ','); " +
+    "SwitchName=$($SwitchName -join ','); Scope=$($Scope -join ',')."
+    Write-Log -Level Trace -Message $msg
 
     if (-not $Scope) {
         # Get-Variable rather than $Script:EnvParameterScopes directly: under
@@ -102,13 +123,19 @@ function Resolve-EnvParameter {
         }
         $Override = Get-Variable @OverrideParams
         $Scope = if ($Override) { $Override } else { @('Global', 'Environment') }
+        $dbg = "No Scope supplied; searching $($Scope -join ', ') in that order."
+        Write-Log -Level Debug -Message $dbg
     }
 
     $Resolved = @{}
     $AllNames = @($ParameterName) + @($SwitchName) | Where-Object { $_ }
 
     foreach ($Name in $AllNames) {
-        if ($BoundParameters.ContainsKey($Name)) { continue }
+        if ($BoundParameters.ContainsKey($Name)) {
+            $dbg = "Parameter $Name was bound by the caller; not resolving it."
+            Write-Log -Level Debug -Message $dbg
+            continue
+        }
 
         $VariableName = "env_${Name}"
         $Value = $null
@@ -127,11 +154,17 @@ function Resolve-EnvParameter {
             }
             if (-not [string]::IsNullOrWhiteSpace($Candidate)) {
                 $Value = [string]$Candidate
+                $dbg = "Found injected $VariableName in the $Entry scope."
+                Write-Log -Level Debug -Message $dbg
                 break
             }
         }
 
-        if ($null -eq $Value) { continue }
+        if ($null -eq $Value) {
+            $dbg = "No injected $VariableName found in any searched scope."
+            Write-Log -Level Debug -Message $dbg
+            continue
+        }
 
         if ($SwitchName -contains $Name) {
             if ($Value -notin @('true', 'false')) {
