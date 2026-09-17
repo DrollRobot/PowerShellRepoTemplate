@@ -49,7 +49,4 @@
 SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=force DISPLAY= git commit
 ```
 
-- After committing, if we're in a non-main branch, push to origin:
-```bash
-git push origin develop
-```
+- After committing, push to origin.
