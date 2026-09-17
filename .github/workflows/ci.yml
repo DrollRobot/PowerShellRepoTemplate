@@ -33,9 +33,6 @@
 name: CI
 run-name: CI on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.actor }}
 
-# Every branch push, so breakage on develop or a feature branch shows up before
-# release. Tag pushes are skipped: release.yml owns v* tags. A branch with an
-# open PR runs twice (push + pull_request); the PR run tests the merge result.
 on:
   push:
     branches: ['**']
