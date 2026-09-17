@@ -84,4 +84,4 @@ with the version about to be tagged, today's date, and a title in the format
 above. Don't rewrite or delete existing sections unless directly requested.
 
 ## Hand off to user
-- The user will update manifest version, merge, tag, and push.
+- The user will run Push-NewTagToMain.ps1 to update version, merge, tag, push, etc..
