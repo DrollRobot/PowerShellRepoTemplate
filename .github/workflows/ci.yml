@@ -3,7 +3,7 @@
 # =============================================================================
 # This ci.yml is part of PowershellRepoTemplate, a starter repo scaffold.
 #
-# Purpose: Runs on every push and pull request to main. Blocks merges if
+# Purpose: Runs on every branch push and every pull request. Blocks merges if
 # syntax checks or NotLive Pester tests fail. Live tests (tagged 'live') and
 # Destructive tests (tagged 'destructive') are intentionally excluded: Live
 # needs credentials this runner does not have, and Destructive requires a
@@ -33,11 +33,13 @@
 name: CI
 run-name: CI on ${{ github.ref_name }} ${{ github.event_name }} by @${{ github.actor }}
 
+# Every branch push, so breakage on develop or a feature branch shows up before
+# release. Tag pushes are skipped: release.yml owns v* tags. A branch with an
+# open PR runs twice (push + pull_request); the PR run tests the merge result.
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
