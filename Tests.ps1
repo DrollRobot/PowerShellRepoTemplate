@@ -233,7 +233,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.4.0'
+$ScriptVersion = '1.4.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -336,7 +336,7 @@ $ManifestPath = if ($Built) {
         }
     }
 } else {
-    Join-Path -Path $PSScriptRoot -ChildPath "source\$ModuleName.psd1"
+    Join-Path -Path $PSScriptRoot -ChildPath "Source\$ModuleName.psd1"
 }
 if ($ManifestPath -and (Test-Path $ManifestPath)) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -352,8 +352,8 @@ else {
     throw $ErrMsg
 }
 
-$TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests'
-$PesterTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'tests\pester'
+$TestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'Tests'
+$PesterTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath 'Tests\Pester'
 $LocalTestsFolder = Join-Path -Path $PSScriptRoot -ChildPath '.local\tests'
 
 # Where Pester looks: the whole pester folder by default, or the -Path target
@@ -370,7 +370,7 @@ $PesterTarget = if ($PSBoundParameters.ContainsKey('Path')) {
 # Output\. The checks match these names ROOT-ANCHORED, so excluding the built copies
 # at the root never also hides the authoritative source under Source\ (which shares
 # those folder names).
-$BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'source\Build.psd1'
+$BuildPsd1Path = Join-Path -Path $PSScriptRoot -ChildPath 'Source\Build.psd1'
 $BuildConfig = Import-PowerShellDataFile -Path $BuildPsd1Path
 $CopyPaths = if ($BuildConfig.ContainsKey('CopyPaths')) { $BuildConfig.CopyPaths } else { @() }
 $CopiedFolderNames = @($CopyPaths | ForEach-Object { Split-Path -Path $_ -Leaf })
