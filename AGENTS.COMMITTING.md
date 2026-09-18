@@ -6,6 +6,10 @@
 - We should never be doing active work in the main branch. If we're in the main
    branch, do not commit or push. Alert the user.
 
+- One logical change per commit -- its code, tests, docs, changelog entry, and
+   regenerated artifacts together. Split only when the parts are independently
+   revertable and independently meaningful.
+
 - Commit messages should follow Conventional Commits format:
    https://www.conventionalcommits.org/en/v1.0.0/
    And qoomon's commit message style guide:
@@ -16,7 +20,7 @@
    (overwrite any existing contents) open the file in code, and wait for the
    user to approve.
 
-   Example:
+   Example, showing two unrelated changes:
    ```
    --- <use --- to divide commits>
    AGENTS.md <use relative file paths>
