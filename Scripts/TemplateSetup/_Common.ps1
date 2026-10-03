@@ -44,6 +44,11 @@ $script:TextExtensions = @(
 )
 # Folders never scanned, regardless of depth.
 $script:ExcludedFolders = @('.git', '.local', 'Output', '.staging', 'site')
+# Matches a path that runs through an excluded folder. Either separator counts, so
+# the match holds for Windows and Unix paths alike; test it against the full path
+# plus a trailing separator.
+$script:ExcludedFolderPattern = ($script:ExcludedFolders |
+        ForEach-Object { '[\\/]' + [regex]::Escape($_) + '[\\/]' }) -join '|'
 
 # --- output helpers ---------------------------------------------------------
 
@@ -100,9 +105,7 @@ function Confirm-Step {
 # Get-Content -Raw's $null-for-empty-file quirk in every caller.
 function Get-TemplateTextFile {
     param([Parameter(Mandatory)][string]$RepoRoot)
-    $ExcludePattern = ($script:ExcludedFolders |
-            ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
     Get-ChildItem -Path $RepoRoot -Recurse -File |
         Where-Object { $_.Extension -in $script:TextExtensions -and $_.Length -gt 0 } |
-        Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern }
+        Where-Object { "$($_.FullName)/" -notmatch $script:ExcludedFolderPattern }
 }

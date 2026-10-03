@@ -97,7 +97,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.9.0'
+$ScriptVersion = '2.9.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -367,11 +367,9 @@ function Invoke-RenameProject {
     $RenameTargets = @(Get-TemplateTextFile -RepoRoot $script:RepoRoot | Where-Object {
             (Get-Content -Path $_.FullName -Raw) -match [regex]::Escape($script:TemplateName)
         })
-    $ExcludePattern = ($script:ExcludedFolders |
-            ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
     $FileRenames = @(Get-ChildItem -Path $script:RepoRoot -Recurse -File |
             Where-Object { $_.Name -match [regex]::Escape($script:TemplateName) } |
-            Where-Object { "$($_.FullName)\" -notmatch $ExcludePattern })
+            Where-Object { "$($_.FullName)/" -notmatch $script:ExcludedFolderPattern })
 
     Write-Info 'Rename project' "'$($script:TemplateName)' -> '$Name'"
     Write-Host "    Replace the template name in $($RenameTargets.Count) file(s)"
