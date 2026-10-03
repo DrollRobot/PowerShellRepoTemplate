@@ -10,7 +10,7 @@
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 InModuleScope 'PowershellRepoTemplate' {
 
@@ -98,7 +98,11 @@ InModuleScope 'PowershellRepoTemplate' {
         It 'reports a failed file write without disrupting the caller' -Tag 'regression' {
             $ctx = (Get-Variable -Name LogContext -Scope Script).Value
             $ctx.File.Enabled = $true
-            $ctx.File.Path = 'Z:\does\not\exist\x.log'
+            # A regular file where the log's folder should be: no platform can
+            # create the log beneath it, and nothing lands outside $TestDrive.
+            $blocker = Join-Path -Path $TestDrive -ChildPath 'not-a-folder'
+            Set-Content -LiteralPath $blocker -Value 'x'
+            $ctx.File.Path = Join-Path -Path $blocker -ChildPath 'x.log'
             $ctx.Host.Enabled = $false
             $writeParams = @{
                 Level         = 'Error'
