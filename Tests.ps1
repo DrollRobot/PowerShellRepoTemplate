@@ -165,7 +165,7 @@
     Runs PSScriptAnalyzer against just the Source\Public folder.
 
 .EXAMPLE
-    .\Tests.ps1 NotLive -Path .\tests\pester\Get-Script.Tests.ps1
+    .\Tests.ps1 NotLive -Path .\Tests\Pester\Get-Script.Tests.ps1
     Runs one NotLive Pester test file.
 
 .EXAMPLE
@@ -233,7 +233,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.4.3'
+$ScriptVersion = '1.4.4'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
