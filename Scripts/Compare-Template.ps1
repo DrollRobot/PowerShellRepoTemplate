@@ -31,7 +31,7 @@
 
 .PARAMETER TemplatePath
     Path to the template checkout. Defaults to a sibling folder with the
-    template's name, next to the child repo.
+    template's name (in any letter case), next to the child repo.
 
 .PARAMETER Diff
     Open each differing non-versioned file as a side-by-side diff (see -DiffTool),
@@ -116,7 +116,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.13.0'
+$ScriptVersion = '2.13.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -938,6 +938,24 @@ function Get-ChildOrigin {
     return ($url | Select-Object -First 1).Trim()
 }
 
+# The template checkout beside the child repo, or $null when there is none. The
+# folder name is matched case-insensitively: the setup token and a clone of the
+# GitHub repo differ only by case, which matters on a case-sensitive filesystem.
+# An exact-case match wins when both spellings exist.
+function Find-TemplateCheckout {
+    param([Parameter(Mandatory)][string]$ParentDir)
+    $FunctionName = $MyInvocation.MyCommand.Name
+    $candidates = @(
+        Get-ChildItem -LiteralPath $ParentDir -Directory -ErrorAction SilentlyContinue |
+            Where-Object Name -eq $script:TemplateName
+    )
+    Write-Trace "${FunctionName}: $($candidates.Count) candidate(s) in $ParentDir"
+    if ($candidates.Count -eq 0) { return $null }
+    $exact = @($candidates | Where-Object Name -ceq $script:TemplateName)
+    if ($exact.Count -gt 0) { return $exact[0].FullName }
+    return $candidates[0].FullName
+}
+
 
 # --- feature gating ----------------------------------------------------------
 
@@ -1040,12 +1058,12 @@ $childRoot = (Resolve-Path -LiteralPath (Split-Path -Path $PSScriptRoot -Parent)
 
 if (-not $TemplatePath) {
     $parentDir = Split-Path -Path $childRoot -Parent
-    $sibling = Join-Path -Path $parentDir -ChildPath $script:TemplateName
-    if (-not (Test-Path -LiteralPath $sibling)) {
+    $TemplatePath = Find-TemplateCheckout -ParentDir $parentDir
+    if (-not $TemplatePath) {
+        $sibling = Join-Path -Path $parentDir -ChildPath $script:TemplateName
         Stop-Script ("No template checkout found at '$sibling'. " +
             'Pass -TemplatePath with the template''s location.')
     }
-    $TemplatePath = $sibling
 }
 $templateRoot = (Resolve-Path -LiteralPath $TemplatePath).Path
 

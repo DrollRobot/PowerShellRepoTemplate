@@ -699,3 +699,57 @@ Describe 'Get-VersionNote' -Tag 'unit', 'functional' {
         Get-VersionNote @params | Should -Match 'without a version bump'
     }
 }
+
+Describe 'Find-TemplateCheckout' -Tag 'integration', 'functional' {
+    BeforeEach {
+        $ScratchParams = @{
+            Path      = [System.IO.Path]::GetTempPath()
+            ChildPath = [System.IO.Path]::GetRandomFileName()
+        }
+        $script:ParentDir = Join-Path @ScratchParams
+        New-Item -ItemType Directory -Path $script:ParentDir -Force | Out-Null
+    }
+    AfterEach {
+        $RemoveParams = @{
+            LiteralPath = $script:ParentDir
+            Recurse     = $true
+            Force       = $true
+            ErrorAction = 'SilentlyContinue'
+        }
+        Remove-Item @RemoveParams
+    }
+
+    It 'finds a sibling spelled exactly like the template' {
+        $dir = Join-Path -Path $script:ParentDir -ChildPath $script:TemplateToken
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Find-TemplateCheckout -ParentDir $script:ParentDir | Should -Be $dir
+    }
+    It 'finds a sibling whose name differs only by case' {
+        $name = $script:TemplateToken.ToUpperInvariant()
+        $dir = Join-Path -Path $script:ParentDir -ChildPath $name
+        New-Item -ItemType Directory -Path $dir | Out-Null
+        Find-TemplateCheckout -ParentDir $script:ParentDir | Should -Be $dir
+    }
+    It 'prefers the exact-case sibling when both spellings exist' {
+        $upperName = $script:TemplateToken.ToUpperInvariant()
+        $upper = Join-Path -Path $script:ParentDir -ChildPath $upperName
+        New-Item -ItemType Directory -Path $upper | Out-Null
+        $exact = Join-Path -Path $script:ParentDir -ChildPath $script:TemplateToken
+        if (Test-Path -LiteralPath $exact) {
+            Set-ItResult -Skipped -Because 'the filesystem is case-insensitive'
+            return
+        }
+        New-Item -ItemType Directory -Path $exact | Out-Null
+        Find-TemplateCheckout -ParentDir $script:ParentDir | Should -Be $exact
+    }
+    It 'ignores a file with the template name' {
+        $file = Join-Path -Path $script:ParentDir -ChildPath $script:TemplateToken
+        Set-Content -LiteralPath $file -Value 'not a checkout'
+        Find-TemplateCheckout -ParentDir $script:ParentDir | Should -BeNullOrEmpty
+    }
+    It 'returns null when no sibling matches' {
+        $other = Join-Path -Path $script:ParentDir -ChildPath 'SomethingElse'
+        New-Item -ItemType Directory -Path $other | Out-Null
+        Find-TemplateCheckout -ParentDir $script:ParentDir | Should -BeNullOrEmpty
+    }
+}
