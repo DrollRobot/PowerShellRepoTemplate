@@ -233,7 +233,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.4.2'
+$ScriptVersion = '1.4.3'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -616,13 +616,17 @@ try {
             # rendered here instead: each lint test throws its findings as the
             # exception message, one 'path Line:N detail' per line, so the report
             # is the same terse, greppable shape the standalone checks produce.
-            $LintSplat = @{
-                Container = $LintContainers
-                TagFilter = 'lint'
-                PassThru  = $true
-                Output    = 'None'
-            }
-            $LintResult = Invoke-Pester @LintSplat
+            # Every lint check drives its It blocks from a -ForEach file list, so a
+            # -Path holding only excluded files (built artifacts, CopyPaths folders)
+            # leaves that list empty. Pester treats an empty ForEach as a container
+            # error by default, which would fail the run with nothing to report.
+            $LintConfig = New-PesterConfiguration
+            $LintConfig.Run.Container = $LintContainers
+            $LintConfig.Run.PassThru = $true
+            $LintConfig.Run.FailOnNullOrEmptyForEach = $false
+            $LintConfig.Filter.Tag = 'lint'
+            $LintConfig.Output.Verbosity = 'None'
+            $LintResult = Invoke-Pester -Configuration $LintConfig
 
             $LintFindings = [System.Collections.Generic.List[string]]::new()
             foreach ($FailedTest in $LintResult.Failed) {
