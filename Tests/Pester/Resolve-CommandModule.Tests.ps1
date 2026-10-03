@@ -56,7 +56,7 @@ BeforeAll {
     $RepoRoot = (Resolve-Path (Join-Path @RepoRootParams)).Path
     $HostManifestParams = @{
         Path      = $RepoRoot
-        ChildPath = 'source\PowershellRepoTemplate.psd1'
+        ChildPath = 'Source\PowershellRepoTemplate.psd1'
     }
     $HostManifest = (Resolve-Path (Join-Path @HostManifestParams)).Path
     Import-Module $HostManifest -Force

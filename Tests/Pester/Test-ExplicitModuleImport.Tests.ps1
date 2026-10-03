@@ -30,7 +30,7 @@ BeforeAll {
     $script:RepoRoot = (Resolve-Path (Join-Path @RepoRootParams)).Path
     $ManifestParams = @{
         Path      = $script:RepoRoot
-        ChildPath = 'source\PowershellRepoTemplate.psd1'
+        ChildPath = 'Source\PowershellRepoTemplate.psd1'
     }
     $script:HostManifest = (Resolve-Path (Join-Path @ManifestParams)).Path
 

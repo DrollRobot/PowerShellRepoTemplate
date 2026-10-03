@@ -163,8 +163,9 @@ Describe 'Get-TemplateSetupTarget' -Tag 'unit', 'functional' {
         $Targets = @(Get-TemplateSetupTarget -RepoRoot $script:Scratch)
 
         $Targets | Should -HaveCount 2
-        $Targets[0] | Should -Be 'Tests\Pester\Set-ModuleManifest.Tests.ps1'
-        $Targets[-1] | Should -Be 'Scripts\TemplateSetup'
+        $Targets[0] -replace '\\', '/' |
+            Should -Be 'Tests/Pester/Set-ModuleManifest.Tests.ps1'
+        $Targets[-1] -replace '\\', '/' | Should -Be 'Scripts/TemplateSetup'
     }
 
     It 'lists the folder alone when no step script has a test' {

@@ -13,7 +13,7 @@
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 
 Describe 'ConvertTo-ScriptVariant' -Tag 'unit' {
@@ -104,7 +104,8 @@ Describe 'ConvertTo-ScriptVariant' -Tag 'unit' {
         }
 
         It 'writes BaseName-VariantName.ps1 into Destination' {
-            $Script:OutPath | Should -BeLike '*\Out\Install-Thing-acme.ps1'
+            $Script:OutPath -replace '\\', '/' |
+                Should -BeLike '*/Out/Install-Thing-acme.ps1'
             Test-Path -Path $Script:OutPath | Should -BeTrue
         }
 
