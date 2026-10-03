@@ -65,6 +65,14 @@ jobs:
         shell: pwsh
         run: Install-Module Pester, PSScriptAnalyzer, ModuleBuilder -Force -Scope CurrentUser -SkipPublisherCheck
 
+      # Importing the module runs Confirm-Dependency.ps1, which aborts the import when
+      # any module in RequiredModules.psd1 is missing. Tests.ps1 imports it for every step.
+      # Skipped in a child that declined the dependency scripts.
+      - name: Install module dependencies
+        if: hashFiles('Source/ScriptsToProcess/Install-Dependency.ps1') != ''
+        shell: pwsh
+        run: .\Source\ScriptsToProcess\Install-Dependency.ps1 -Force
+
       - name: Lint checks
         shell: pwsh
         run: >
