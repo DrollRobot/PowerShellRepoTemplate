@@ -33,7 +33,10 @@
     None. Progress and a per-module status line are written to the host.
 
 .NOTES
-Version 2.0.0
+Version 2.0.1
+2.0.1 - Status lines now show the installed version instead of the declared constraint,
+        so a ModuleVersion (minimum) floor is no longer mistaken for the version that
+        was installed. The constraint still appears on MISSING and OUTDATED lines.
 2.0.0 - BREAKING: -Check and -Quiet removed, along with the hard-coded fallback module
         list. The module list now comes from the sibling RequiredModules.psd1 instead of
         a .psd1 discovered in $PSScriptRoot -- which never resolved once the script was
@@ -63,7 +66,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.0.0'
+$ScriptVersion = '2.0.1'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -268,10 +271,10 @@ foreach ($R in $Plan) {
     # --- Report ----------------------------------------------------------
     if ($R.IsGraph -and $GraphMismatch) {
         if ($null -ne $R.InstalledMax -and $R.InstalledMax -lt $GraphMax) {
-            $Status = "Graph version mismatch ($($R.InstalledMax))"
+            $Status = "Graph version mismatch (expected $GraphMax)"
         }
         else {
-            $Status = "OK ($($R.InstalledMax))"
+            $Status = 'OK'
         }
     }
     elseif ($Locked -contains $R.Name) {
@@ -280,7 +283,7 @@ foreach ($R in $Plan) {
     elseif (-not $R.Satisfied) {
         # Installed but below the declared requirement is distinct from absent.
         $Status = if ($null -ne $R.InstalledMax) {
-            "OUTDATED ($($R.InstalledMax))"
+            "OUTDATED (need $($R.VersionLabel))"
         } else { 'MISSING' }
         $AnyMissing = $true
     }
@@ -288,8 +291,11 @@ foreach ($R in $Plan) {
         $Status = 'OK'
     }
 
+    # Show the version actually installed; fall back to the declared constraint
+    # when nothing is installed.
+    $Shown = if ($null -ne $R.InstalledMax) { $R.InstalledMax } else { $R.VersionLabel }
     $Color = if ($Status -like 'OK*') { @{} } else { $Yellow }
-    Write-Host @Color "    $($R.Name) $($R.VersionLabel) -- $Status"
+    Write-Host @Color "    $($R.Name) $Shown -- $Status"
 }
 
 # --- Recommendation / summary --------------------------------------------
