@@ -20,7 +20,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.2'
+$ScriptVersion = '1.0.3'
 
 # Folder names to exclude from scanning. Any file under a matching folder is skipped.
 $ExcludedFolders = @(
@@ -62,7 +62,9 @@ $files = foreach ($Item in $Path) {
 $files = $files |
     Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
     Where-Object {
-        $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName)
+        # Exclusions are written with '\'; GetRelativePath returns '/' off
+        # Windows, so normalize before matching.
+        $Rel = [System.IO.Path]::GetRelativePath($ScanBase, $_.FullName).Replace('/', '\')
         (-not ($ExcludedFiles -contains $Rel)) -and
         (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }

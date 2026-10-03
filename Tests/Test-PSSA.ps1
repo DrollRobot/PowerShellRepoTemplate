@@ -58,7 +58,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.3'
+$ScriptVersion = '1.0.4'
 
 # All analyzer configuration lives here.
 # PSScriptAnalyzer reads: ExcludeRules, Rules (and any other native keys).
@@ -78,6 +78,14 @@ $AnalyzerSettings = @{
     }
 }
 
+# Repo-relative paths, as this script's exclusions and suppression keys spell them:
+# with '\'. GetRelativePath returns '/' off Windows, so every path is normalized to
+# this form before it is compared, and the same config matches on every platform.
+function ConvertTo-ConfigPath {
+    param([Parameter(Mandatory)][AllowEmptyString()][string] $Path)
+    return $Path.Replace('/', '\')
+}
+
 # Per-file rule suppressions. Key: path relative to the repo root. Value: array
 # of rule names to suppress. Generic entries are computed below; project-specific
 # entries are supplied via PreTests.ps1 ($Global:Dev_PSSAConfig.PerFileSuppressions).
@@ -94,7 +102,8 @@ $GciManifest = @{
 $SrcManifest = Get-ChildItem @GciManifest |
     Where-Object Name -ne 'Build.psd1' | Select-Object -First 1
 if ($SrcManifest) {
-    $ManifestRel = [System.IO.Path]::GetRelativePath($RepoRoot, $SrcManifest.FullName)
+    $ManifestRel = ConvertTo-ConfigPath (
+        [System.IO.Path]::GetRelativePath($RepoRoot, $SrcManifest.FullName))
     $PerFileSuppressions[$ManifestRel] = @('PSUseToExportFieldsInManifest')
 }
 
@@ -118,12 +127,14 @@ if ($Global:Dev_PSSAConfig) {
     }
     if ($Global:Dev_PSSAConfig.PerFileSuppressions) {
         foreach ($Key in $Global:Dev_PSSAConfig.PerFileSuppressions.Keys) {
-            $PerFileSuppressions[$Key] = $Global:Dev_PSSAConfig.PerFileSuppressions[$Key]
+            $Rules = $Global:Dev_PSSAConfig.PerFileSuppressions[$Key]
+            $PerFileSuppressions[(ConvertTo-ConfigPath $Key)] = $Rules
         }
     }
     if ($Global:Dev_PSSAConfig.PerPathSuppressions) {
         foreach ($Key in $Global:Dev_PSSAConfig.PerPathSuppressions.Keys) {
-            $PerPathSuppressions[$Key] = $Global:Dev_PSSAConfig.PerPathSuppressions[$Key]
+            $Rules = $Global:Dev_PSSAConfig.PerPathSuppressions[$Key]
+            $PerPathSuppressions[(ConvertTo-ConfigPath $Key)] = $Rules
         }
     }
 }
@@ -195,7 +206,7 @@ if ($AutoFormat) {
     $FormatFiles = Get-ChildItem @GetChildParams |
         Where-Object Extension -in '.ps1', '.psm1', '.psd1' |
         Where-Object {
-            $Rel = [System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName)
+            $Rel = ConvertTo-ConfigPath ([System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName))
             (-not ($ExcludedFiles -contains $Rel)) -and
             (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
         }
@@ -270,7 +281,7 @@ try {
     }
     # Exclude built artifacts and copy-path folders -- source files are already scanned.
     $Results = $Results | Where-Object {
-        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.ScriptPath)
+        $Rel = ConvertTo-ConfigPath ([System.IO.Path]::GetRelativePath($Path, $_.ScriptPath))
         (-not ($ExcludedFiles -contains $Rel)) -and
         (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
@@ -278,7 +289,8 @@ try {
     if ($PerFileSuppressions.Count -gt 0 -or $PerPathSuppressions.Count -gt 0) {
         $BeforeCount = ($Results | Measure-Object).Count
         $Results = $Results | Where-Object {
-            $Rel = [System.IO.Path]::GetRelativePath($RepoRoot, $_.ScriptPath)
+            $RelFromRoot = [System.IO.Path]::GetRelativePath($RepoRoot, $_.ScriptPath)
+            $Rel = ConvertTo-ConfigPath $RelFromRoot
             $IsFileSuppressed = $PerFileSuppressions.ContainsKey($Rel) -and
             ($PerFileSuppressions[$Rel] -contains $_.RuleName)
 

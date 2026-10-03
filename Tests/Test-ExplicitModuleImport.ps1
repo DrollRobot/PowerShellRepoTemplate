@@ -36,7 +36,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.0.2'
 
 # import helper functions from the Scripts folder.
 . (Join-Path -Path $PSScriptRoot -ChildPath '..\Scripts\Find-ScriptCommand.ps1')
@@ -116,7 +116,9 @@ if ($Recurse) {
 $files = Get-ChildItem @GetChildParams |
     Where-Object Extension -eq '.ps1' |
     Where-Object {
-        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName)
+        # Exclusions are written with '\'; GetRelativePath returns '/' off
+        # Windows, so normalize before matching.
+        $Rel = [System.IO.Path]::GetRelativePath($Path, $_.FullName).Replace('/', '\')
         (-not ($ExcludedFiles -contains $Rel)) -and
         (-not ($ExcludedFolders | Where-Object { $Rel -like "$_\*" }))
     }
