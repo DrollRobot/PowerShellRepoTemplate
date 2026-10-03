@@ -3,7 +3,7 @@
 # this file, so the assignment lands in the caller's scope; nothing reads it there.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 # global: so ModuleBuilder's Invoke-ScriptGenerator can find it after Build.ps1
 # dot-sources this file.
@@ -340,6 +340,21 @@ function global:ConvertTo-IntuneWinPackage {
                     "'$IntuneWinAppUtilPath' was not found.")
             }
             $ResolvedTool = (Resolve-Path -Path $IntuneWinAppUtilPath).ProviderPath
+            # Off Windows a file without the execute bit is not run: PowerShell hands
+            # it to the desktop's file opener instead. Refuse it before that happens.
+            if (-not $IsWindows) {
+                $Mode = [System.IO.File]::GetUnixFileMode($ResolvedTool)
+                if (-not ($Mode -band [System.IO.UnixFileMode]::UserExecute)) {
+                    throw ("ConvertTo-IntuneWinPackage: IntuneWinAppUtilPath " +
+                        "'$ResolvedTool' is not executable on this platform.")
+                }
+            }
+        } elseif (-not $IsWindows) {
+            # IntuneWinAppUtil.exe is a Windows program, so neither finding nor
+            # downloading it helps here: it would be opened, not run.
+            throw ('ConvertTo-IntuneWinPackage: IntuneWinAppUtil.exe runs only on ' +
+                'Windows. Build Intune packages on Windows, or pass ' +
+                'IntuneWinAppUtilPath to a packaging tool that runs here.')
         } else {
             $ToolCommand = Get-Command -Name 'IntuneWinAppUtil.exe' -ErrorAction Ignore
             if ($ToolCommand) {

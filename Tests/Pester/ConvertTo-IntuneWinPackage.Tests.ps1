@@ -23,7 +23,7 @@ param()
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.1'
+$ScriptVersion = '1.2.2'
 
 Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
 
@@ -683,6 +683,34 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
                     IntuneWinAppUtilPath = 'Q:\Nope\IntuneWinAppUtil.exe'
                 }
             } | Should -Throw -ExpectedMessage '*IntuneWinAppUtilPath*'
+        }
+
+        It 'refuses a packaging tool that is not executable off Windows' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'Windows runs files by extension'
+                return
+            }
+            $Plain = Join-Path -Path $FixtureRoot -ChildPath 'NotExecutable.cmd'
+            Set-Content -Path $Plain -Value '@echo off'
+            {
+                Invoke-IntunePackager -Override @{
+                    Destination          = 'PlainOut'
+                    IntuneWinAppUtilPath = $Plain
+                }
+            } | Should -Throw -ExpectedMessage '*not executable on this platform*'
+        }
+
+        It 'refuses to look for IntuneWinAppUtil.exe off Windows' {
+            if ($IsWindows) {
+                Set-ItResult -Skipped -Because 'the search and download are Windows-only'
+                return
+            }
+            {
+                Invoke-IntunePackager -Override @{
+                    Destination          = 'NoSearchOut'
+                    IntuneWinAppUtilPath = $null
+                }
+            } | Should -Throw -ExpectedMessage '*runs only on Windows*'
         }
 
         It 'throws when the packaging tool exits nonzero' {
