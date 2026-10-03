@@ -116,7 +116,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.13.1'
+$ScriptVersion = '2.13.2'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -501,11 +501,13 @@ function Get-SchemaVersion {
     return $null
 }
 
-# Parse a GitHub owner from a remote URL (SSH or HTTPS forms). Non-GitHub
-# remotes yield $null.
+# Parse a GitHub owner from a remote URL (SSH or HTTPS forms). The host must be
+# github.com or an SSH config alias whose name starts with 'github', such as
+# git@github_work:owner/repo.git; it is anchored after '@' or '//' so a 'github'
+# path segment on another host cannot match. Other remotes yield $null.
 function Get-OwnerFromUrl {
     param([Parameter(Mandatory)][string]$Url)
-    if ($Url -match 'github\.com[:/]([A-Za-z0-9-]+)/') {
+    if ($Url -match '(?:^|@|//)(?:[^@/:]+\.)?github[^@/:]*[:/]([A-Za-z0-9-]+)/') {
         return $Matches[1]
     }
     return $null

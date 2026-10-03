@@ -131,6 +131,19 @@ Describe 'Get-OwnerFromUrl' -Tag 'unit', 'functional' {
     It 'returns null for a non-GitHub remote' {
         Get-OwnerFromUrl 'https://gitlab.com/octocat/my-repo.git' | Should -BeNullOrEmpty
     }
+    It 'parses an SSH config host alias' {
+        Get-OwnerFromUrl 'git@github_work:octocat/my-repo.git' | Should -Be 'octocat'
+    }
+    It 'parses an ssh:// GitHub URL' {
+        Get-OwnerFromUrl 'ssh://git@github.com/octocat/my-repo.git' | Should -Be 'octocat'
+    }
+    It 'returns null for a github path segment on another host' {
+        $url = 'https://gitlab.com/github-mirror/my-repo.git'
+        Get-OwnerFromUrl $url | Should -BeNullOrEmpty
+    }
+    It 'returns null for a host that only contains github' {
+        Get-OwnerFromUrl 'git@notgithub.com:octocat/my-repo.git' | Should -BeNullOrEmpty
+    }
 }
 
 Describe 'Remove-TemplateBanner' -Tag 'unit', 'functional' {
