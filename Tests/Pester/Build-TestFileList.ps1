@@ -10,7 +10,7 @@
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.1.1'
 
 function Build-TestFileList {
     <#
@@ -66,7 +66,8 @@ function Build-TestFileList {
             $ExcludeFiles.Add($Full)
         }
         else {
-            $ExcludeDirs.Add($Full.TrimEnd('\') + '\')
+            $Separator = [System.IO.Path]::DirectorySeparatorChar
+            $ExcludeDirs.Add($Full.TrimEnd('\', '/') + $Separator)
         }
     }
 
