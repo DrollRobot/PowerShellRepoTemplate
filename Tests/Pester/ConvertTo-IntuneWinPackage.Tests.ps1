@@ -4,8 +4,9 @@
 
 .DESCRIPTION
     Exercises the generator against a fake built module, a trivial payload,
-    and a stub packaging tool (a .cmd standing in for IntuneWinAppUtil.exe),
-    so no scheduled task, registry, or Intune infrastructure is touched.
+    and a stub packaging tool standing in for IntuneWinAppUtil.exe (a .cmd on
+    Windows, an executable sh script elsewhere), so no scheduled task,
+    registry, or Intune infrastructure is touched.
     Verifies the emitted package layout, that the generated Install,
     Uninstall, and Detect scripts parse and carry the expected baked-in
     constants (version, build id, task, registry key, payload hash), that
@@ -22,7 +23,7 @@ param()
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.2.1'
 
 Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
 
@@ -58,23 +59,49 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
         )
         $PayloadSourceHash = (Get-FileHash -Path $PayloadSource -Algorithm SHA256).Hash
 
+        # Writes one stub tool: a .cmd on Windows, an executable sh script
+        # elsewhere. A .cmd cannot run off Windows -- invoking one there hands it
+        # to the desktop's file opener, which opens it in an editor instead.
+        function New-StubTool {
+            # Writes a fixture under $TestDrive; -WhatIf would add nothing.
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+                'PSUseShouldProcessForStateChangingFunctions', '')]
+            param(
+                [string]$Name,
+                [string[]]$CmdLines,
+                [string[]]$ShLines
+            )
+            if ($IsWindows) {
+                $ToolPath = Join-Path -Path $FixtureRoot -ChildPath "$Name.cmd"
+                Set-Content -Path $ToolPath -Value (@('@echo off') + $CmdLines)
+            } else {
+                $ToolPath = Join-Path -Path $FixtureRoot -ChildPath "$Name.sh"
+                Set-Content -Path $ToolPath -Value (@('#!/bin/sh') + $ShLines)
+                $ExecMode = [System.IO.UnixFileMode]'UserRead, UserWrite, UserExecute'
+                [System.IO.File]::SetUnixFileMode($ToolPath, $ExecMode)
+            }
+            $ToolPath
+        }
+
         # Stub Win32 Content Prep Tool: arg 6 is the -o output directory.
-        $StubTool = Join-Path -Path $FixtureRoot -ChildPath 'IntuneWinStub.cmd'
-        Set-Content -Path $StubTool -Value @(
-            '@echo off'
-            'echo stub-package > "%~6\Install.intunewin"'
-            'exit /b 0'
-        )
-        $FailTool = Join-Path -Path $FixtureRoot -ChildPath 'IntuneWinFail.cmd'
-        Set-Content -Path $FailTool -Value @(
-            '@echo off'
-            'exit /b 7'
-        )
-        $SilentTool = Join-Path -Path $FixtureRoot -ChildPath 'IntuneWinSilent.cmd'
-        Set-Content -Path $SilentTool -Value @(
-            '@echo off'
-            'exit /b 0'
-        )
+        $StubParams = @{
+            Name     = 'IntuneWinStub'
+            CmdLines = @('echo stub-package > "%~6\Install.intunewin"', 'exit /b 0')
+            ShLines  = @('echo stub-package > "$6/Install.intunewin"', 'exit 0')
+        }
+        $StubTool = New-StubTool @StubParams
+        $FailParams = @{
+            Name     = 'IntuneWinFail'
+            CmdLines = @('exit /b 7')
+            ShLines  = @('exit 7')
+        }
+        $FailTool = New-StubTool @FailParams
+        $SilentParams = @{
+            Name     = 'IntuneWinSilent'
+            CmdLines = @('exit /b 0')
+            ShLines  = @('exit 0')
+        }
+        $SilentTool = New-StubTool @SilentParams
 
         $ModuleAst = [System.Management.Automation.Language.Parser]::ParseFile(
             $PsmPath, [ref]$null, [ref]$null)
