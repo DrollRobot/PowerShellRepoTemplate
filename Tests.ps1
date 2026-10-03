@@ -233,7 +233,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.4.1'
+$ScriptVersion = '1.4.2'
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -342,6 +342,12 @@ if ($ManifestPath -and (Test-Path $ManifestPath)) {
     $ModuleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $RelManifestPath = [System.IO.Path]::GetRelativePath($PSScriptRoot, $ManifestPath)
     Write-Host "Loading module from: $RelManifestPath" -ForegroundColor Cyan
+    # Drop copies already loaded from a different path. Import-Module -Force
+    # only reloads the same path, so alternating between -Built and source in
+    # one session would leave two copies loaded and break Pester's
+    # InModuleScope.
+    Get-Module -Name $ModuleName -All |
+        Remove-Module -Force -ErrorAction SilentlyContinue
     Import-Module $ManifestPath -Force
     $ModuleStopwatch.Stop()
     Write-Host "Module loaded in $($ModuleStopwatch.Elapsed.TotalSeconds)s." -ForegroundColor Cyan
