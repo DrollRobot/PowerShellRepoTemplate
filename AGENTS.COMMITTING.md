@@ -48,5 +48,3 @@
 ```bash
 SSH_ASKPASS=/bin/false SSH_ASKPASS_REQUIRE=force DISPLAY= git commit
 ```
-
-- After committing, push to origin.
