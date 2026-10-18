@@ -23,7 +23,7 @@ param()
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.2.2'
+$ScriptVersion = '1.4.0'
 
 Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
 
@@ -139,9 +139,10 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
         function Get-EmittedDetect {
             param(
                 [string]$OutName,
-                [string]$Package = 'MyPayload'
+                [string]$Package = 'MyPayload',
+                [string]$Version = '1.2.3'
             )
-            $RelPath = "$OutName\$Package\Detect.ps1"
+            $RelPath = "$OutName\$Package\Detect-MyPayload-$Version.ps1"
             Get-Content -Raw -Path (Join-Path -Path $ModuleDir -ChildPath $RelPath)
         }
 
@@ -164,7 +165,7 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
             $SourceDir = Join-Path -Path $PackageRoot -ChildPath 'Source'
             $InstallPath = Join-Path -Path $SourceDir -ChildPath 'Install.ps1'
             $UninstallPath = Join-Path -Path $SourceDir -ChildPath 'Uninstall.ps1'
-            $DetectPath = Join-Path -Path $PackageRoot -ChildPath 'Detect.ps1'
+            $DetectPath = Join-Path -Path $PackageRoot -ChildPath 'Detect-MyPayload-1.2.3.ps1'
             $Install = Get-Content -Path $InstallPath -Raw
             $Uninstall = Get-Content -Path $UninstallPath -Raw
             $Detect = Get-Content -Path $DetectPath -Raw
@@ -182,13 +183,17 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
                 Should -Be $PayloadSourceHash
         }
 
-        It 'keeps Detect.ps1 outside the packaged Source folder' {
+        It 'keeps the detection script outside the packaged Source folder' {
             $DetectPath | Should -Exist
-            Join-Path -Path $SourceDir -ChildPath 'Detect.ps1' | Should -Not -Exist
+            Get-ChildItem -Path $SourceDir -Filter 'Detect*.ps1' | Should -BeNullOrEmpty
         }
 
-        It 'renames the tool output to the package name .intunewin' {
-            Join-Path -Path $PackageRoot -ChildPath 'MyPayload.intunewin' |
+        It 'emits no unversioned Detect.ps1' {
+            Join-Path -Path $PackageRoot -ChildPath 'Detect.ps1' | Should -Not -Exist
+        }
+
+        It 'renames the tool output to the payload name and version .intunewin' {
+            Join-Path -Path $PackageRoot -ChildPath 'MyPayload-1.2.3.intunewin' |
                 Should -Exist
             Join-Path -Path $PackageRoot -ChildPath 'Install.intunewin' |
                 Should -Not -Exist
@@ -491,7 +496,7 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
         It 'uses a rooted Destination as-is' {
             $Rooted = Join-Path -Path $TestDrive -ChildPath 'RootedOut'
             Invoke-IntunePackager -Override @{ Destination = $Rooted }
-            $Detect = Join-Path -Path $Rooted -ChildPath 'MyPayload\Detect.ps1'
+            $Detect = Join-Path -Path $Rooted -ChildPath 'MyPayload\Detect-MyPayload-1.2.3.ps1'
             Test-Path -Path $Detect | Should -BeTrue
         }
 
@@ -561,13 +566,26 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
             $Detect | Should -Not -Match 'Task\.Actions'
         }
 
-        It 'names the package folder and .intunewin after PackageName' {
+        It 'names the package folder after PackageName' {
             Invoke-IntunePackager -Override @{
                 Destination = 'NameOut'
                 PackageName = 'CustomName'
             }
-            $RelPackage = 'NameOut\CustomName\CustomName.intunewin'
-            Join-Path -Path $ModuleDir -ChildPath $RelPackage | Should -Exist
+            Join-Path -Path $ModuleDir -ChildPath 'NameOut\CustomName' |
+                Should -Exist
+        }
+
+        It 'names the uploaded files after the payload and Version' {
+            Invoke-IntunePackager -Override @{
+                Destination = 'UploadNameOut'
+                PackageName = 'CustomName'
+                Version     = '9.9.9'
+            }
+            $PackageRoot = Join-Path -Path $ModuleDir -ChildPath 'UploadNameOut\CustomName'
+            Join-Path -Path $PackageRoot -ChildPath 'Detect-MyPayload-9.9.9.ps1' |
+                Should -Exist
+            Join-Path -Path $PackageRoot -ChildPath 'MyPayload-9.9.9.intunewin' |
+                Should -Exist
         }
 
         It 'emits an hourly repetition trigger' {
@@ -800,7 +818,7 @@ Describe 'ConvertTo-IntuneWinPackage' -Tag 'unit' {
             $PackageRoot = Join-Path -Path $ModuleDir -ChildPath 'MarkerOut\MyPayload'
             $Emitted = @(
                 Join-Path -Path $PackageRoot -ChildPath 'Source\Install.ps1'
-                Join-Path -Path $PackageRoot -ChildPath 'Detect.ps1'
+                Join-Path -Path $PackageRoot -ChildPath 'Detect-MyPayload-1.2.3.ps1'
                 Join-Path -Path $PackageRoot -ChildPath 'Source\Uninstall.ps1'
             )
             foreach ($ScriptPath in $Emitted) {

@@ -133,7 +133,7 @@ jobs:
       #   run: |
       #     $sources = Get-ChildItem -Path 'Output' -Directory -Recurse -Filter 'Source' |
       #         Where-Object {
-      #             Test-Path -Path (Join-Path -Path $_.Parent.FullName -ChildPath 'Detect.ps1')
+      #             Test-Path -Path (Join-Path -Path $_.Parent.FullName -ChildPath 'Detect-*.ps1')
       #         }
       #     foreach ($source in $sources) {
       #         Remove-Item -Path $source.FullName -Recurse -Force

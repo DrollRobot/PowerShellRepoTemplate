@@ -13,7 +13,7 @@
     SHA256 equals the hash baked in at build time, and the scheduled task
     exists, is enabled, and runs as SYSTEM. Every package setting is baked in
     at build time and every build carries a new id, so uploading a new
-    package and its Detect.ps1 reinstalls on every device. With a Required
+    package and its detection script reinstalls on every device. With a Required
     assignment, any failed check makes Intune reinstall the app on its next
     check-in: that is the self-healing loop, and it is eventual (roughly
     every 8 hours), not instant.
@@ -35,7 +35,7 @@
     in the detection rule.
 
 .EXAMPLE
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Detect.ps1
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Detect-MyPayload-1.2.3.ps1
 
     Prints 'Detected' when the deployment is intact; prints nothing when it
     needs a reinstall.
@@ -50,7 +50,7 @@ param()
 # child repo's copy of this template in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.0.1'
 
 $ErrorActionPreference = 'Stop'
 

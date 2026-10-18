@@ -3,7 +3,7 @@
 # this file, so the assignment lands in the caller's scope; nothing reads it there.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.2.0'
 
 # global: so ModuleBuilder's Invoke-ScriptGenerator can find it after Build.ps1
 # dot-sources this file.
@@ -24,9 +24,11 @@ function global:ConvertTo-IntuneWinPackage {
                                         a SYSTEM scheduled task
                     Uninstall.ps1       removes them
                     <Payload>.ps1       the payload, copied verbatim
-                Detect.ps1              Intune custom detection script,
+                Detect-<Payload>-<Version>.ps1
+                                        Intune custom detection script,
                                         uploaded separately
-                <PackageName>.intunewin Source\ packaged by the Content Prep
+                <Payload>-<Version>.intunewin
+                                        Source\ packaged by the Content Prep
                                         Tool
 
         Install, Uninstall, and Detect are templates under
@@ -47,7 +49,7 @@ function global:ConvertTo-IntuneWinPackage {
         time, and the scheduled task exists, is enabled, and runs as SYSTEM.
         Every package setting is baked in at build time, so any change means a
         rebuild, a new build id, and a reinstall on every device once the new
-        package and Detect.ps1 are uploaded. The hex suffix comes from
+        package and detection script are uploaded. The hex suffix comes from
         $env:MODULEBUILD_ID, which Build.ps1 sets once per run so every package
         from one run shares it; a fresh GUID is used when it is unset.
 
@@ -87,9 +89,8 @@ function global:ConvertTo-IntuneWinPackage {
         directory, task name, task folder, and registry key.
 
     .PARAMETER PackageName
-        Name of the package; also the default basis for the task name and
-        registry key, and the base name of the emitted .intunewin. Defaults
-        to the payload file's base name.
+        Name of the package folder; also the default basis for the task name
+        and registry key. Defaults to the payload file's base name.
 
     .PARAMETER Version
         Version stamped into the package and prefixed to the build id.
@@ -584,7 +585,11 @@ $LogScript = '{{LOG_SCRIPT}}'
         # --- Write and validate the generated scripts -----------------------
         $InstallScript = Join-Path -Path $SourceDir -ChildPath 'Install.ps1'
         $UninstallScript = Join-Path -Path $SourceDir -ChildPath 'Uninstall.ps1'
-        $DetectScript = Join-Path -Path $PackageRoot -ChildPath 'Detect.ps1'
+        # The two uploaded files carry the payload name and version, so a copy
+        # from another build stands out.
+        $PayloadBaseName = [System.IO.Path]::GetFileNameWithoutExtension($PayloadFile)
+        $UploadBaseName = "$PayloadBaseName-$Version"
+        $DetectScript = Join-Path -Path $PackageRoot -ChildPath "Detect-$UploadBaseName.ps1"
         $Generated = @{
             $InstallScript   = $InstallContent
             $UninstallScript = $UninstallContent
@@ -621,7 +626,7 @@ $LogScript = '{{LOG_SCRIPT}}'
             throw ("ConvertTo-IntuneWinPackage: IntuneWinAppUtil exited 0 but " +
                 "produced no package at $RawPackage.")
         }
-        $FinalPackage = Join-Path -Path $PackageRoot -ChildPath "$PackageName.intunewin"
+        $FinalPackage = Join-Path -Path $PackageRoot -ChildPath "$UploadBaseName.intunewin"
         if ($FinalPackage -ne $RawPackage) {
             Move-Item -Path $RawPackage -Destination $FinalPackage -Force
         }
