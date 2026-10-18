@@ -3,7 +3,7 @@
 # this file, so the assignment lands in the caller's scope; nothing reads it there.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 
 function global:ConvertTo-StandaloneScript {
     <#
@@ -19,6 +19,12 @@ function global:ConvertTo-StandaloneScript {
           * the target function's comment-based help and param block are
             hoisted, so the script exposes the same parameters and help as
             the function it wraps;
+          * a short block drops PowerShell 7's module folders from
+            PSModulePath when the script runs in Windows PowerShell. Started
+            by a program running under PowerShell 7, Windows PowerShell
+            inherits those folders, picks up PowerShell 7's copies of
+            commands such as Get-AuthenticodeSignature, and cannot load
+            them. The block does nothing in PowerShell 7;
           * the entire built .psm1 follows verbatim -- function definitions,
             classes, and top-level initialization code (such as this module's
             Suffix.ps1 statements) run in the script scope in the exact order
@@ -360,6 +366,40 @@ function global:ConvertTo-StandaloneScript {
             Write-Warning "Overwriting existing script $OutputPath"
         }
 
+        # Emitted between the param block (which must come first) and the
+        # module body, so it runs before anything loads a module.
+        $ModulePathFix = @'
+#region PowerShell 7 module folders
+# Windows PowerShell started by a program running under PowerShell 7 inherits
+# PowerShell 7's module folders, picks up PowerShell 7's copies of commands such
+# as Get-AuthenticodeSignature, and cannot load them. Drop the folders
+# PowerShell 7 drops when it starts Windows PowerShell itself: its install's
+# Modules folder (pwsh.exe sits beside it) and its per-user and all-users module
+# folders. Uses .NET calls only: until the path is fixed, a cmdlet that loads on
+# first use could fail the same way.
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+    & {
+        $Pwsh7Folders = @(
+            "$([Environment]::GetFolderPath('MyDocuments'))\PowerShell\Modules"
+            "$env:ProgramFiles\PowerShell\Modules"
+        )
+        $env:PSModulePath = @(
+            foreach ($Folder in ($env:PSModulePath -split ';')) {
+                $Trimmed = $Folder.TrimEnd('\')
+                if (-not $Trimmed -or $Pwsh7Folders -contains $Trimmed) { continue }
+                $Slash = $Trimmed.LastIndexOf('\')
+                if ($Slash -gt 0 -and
+                    [System.IO.File]::Exists($Trimmed.Substring(0, $Slash) + '\pwsh.exe')) {
+                    continue
+                }
+                $Folder
+            }
+        ) -join ';'
+    }
+}
+#endregion
+'@
+
         # The module body is emitted untrimmed so the built .psm1 appears in
         # the script byte-for-byte (tests assert containment); its trailing
         # newline separates it from the closing invocation.
@@ -369,6 +409,8 @@ function global:ConvertTo-StandaloneScript {
             ''
             $HelpBlock
             $HoistedParams
+            ''
+            $ModulePathFix
             ''
             $ModuleContent
             $Invocation

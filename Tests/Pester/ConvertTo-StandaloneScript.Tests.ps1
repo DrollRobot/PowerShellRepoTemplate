@@ -8,12 +8,16 @@
     is inlined verbatim, and Defaults are baked into the param block and
     forwarded to the wrapped function with the documented precedence
     (argument, then EnvResolver-injected value, then baked default).
+
+    The integration tests run an emitted script in Windows PowerShell with
+    PowerShell 7's module folders in PSModulePath, and check that it drops
+    them and runs Windows PowerShell's own Get-AuthenticodeSignature.
 #>
 # Template file version, read by Scripts\Compare-Template.ps1, which keeps a
 # child repo's copy of this test in sync by version.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.2.0'
 
 
 Describe 'ConvertTo-StandaloneScript' -Tag 'unit' {
@@ -106,6 +110,14 @@ Describe 'ConvertTo-StandaloneScript' -Tag 'unit' {
             $Script:PlainText.Contains((Get-Content -Path $PsmPath -Raw)) | Should -BeTrue
         }
 
+        It 'puts the PSModulePath fix between the param block and the module body' {
+            $Region = '#region PowerShell 7 module folders'
+            $FixStart = $Script:PlainText.IndexOf($Region)
+            $FixStart | Should -BeGreaterThan $Script:PlainText.IndexOf('[string] $LogPath')
+            $FixStart | Should -BeLessThan $Script:PlainText.IndexOf('# Stand-in env resolver')
+            $Script:PlainText.LastIndexOf($Region) | Should -Be $FixStart
+        }
+
         It 'ends with a plain splat and no Baked defaults block' {
             $Script:PlainText | Should -Not -Match 'Baked defaults'
             $Script:PlainText.TrimEnd() | Should -BeLike '*Install-Thing @PSBoundParameters'
@@ -187,6 +199,120 @@ Describe 'ConvertTo-StandaloneScript' -Tag 'unit' {
         It 'rejects a default for a parameter the function does not have' {
             { Invoke-Generator @{ Destination = 'Bad'; Defaults = @{ Nope = 'x' } } } |
                 Should -Throw "*no parameter 'Nope'*"
+        }
+    }
+}
+
+# Windows PowerShell exists only on Windows.
+Describe 'ConvertTo-StandaloneScript under Windows PowerShell' -Skip:(-not $IsWindows) -Tag @(
+    'integration', 'regression'
+) {
+
+    BeforeAll {
+        $GeneratorRelative = Join-Path -Path '..\..\Build' -ChildPath 'Generators'
+        $GeneratorDir = Join-Path -Path $PSScriptRoot -ChildPath $GeneratorRelative
+        . (Join-Path -Path $GeneratorDir -ChildPath 'ConvertTo-StandaloneScript.ps1')
+
+        $ModuleDir = Join-Path -Path $TestDrive -ChildPath 'ProbeModule'
+        $null = New-Item -Path $ModuleDir -ItemType Directory -Force
+
+        # Reports where Get-AuthenticodeSignature loads from, and whether it works.
+        $PsmPath = Join-Path -Path $ModuleDir -ChildPath 'ProbeModule.psm1'
+        Set-Content -Path $PsmPath -Value @(
+            'function Get-ModuleProbe {'
+            '    <#'
+            '    .SYNOPSIS'
+            '        Fake entry point.'
+            '    #>'
+            '    [CmdletBinding()]'
+            '    param()'
+            '    $Exe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"'
+            '    "PATH=$env:PSModulePath"'
+            '    "BASE=$((Get-Command -Name Get-AuthenticodeSignature).Module.ModuleBase)"'
+            '    "STATUS=$((Get-AuthenticodeSignature -FilePath $Exe).Status)"'
+            '}'
+        )
+        Set-Content -Path (Join-Path -Path $ModuleDir -ChildPath 'ProbeModule.psd1') -Value @(
+            '@{'
+            "    RootModule    = 'ProbeModule.psm1'"
+            "    ModuleVersion = '1.0.0'"
+            "    GUID          = '22222222-3333-4444-5555-666666666666'"
+            '}'
+        )
+        $GeneratorParams = @{
+            ScriptModule = [System.Management.Automation.Language.Parser]::ParseFile(
+                $PsmPath, [ref]$null, [ref]$null)
+            Path         = $PsmPath
+            FunctionName = 'Get-ModuleProbe'
+            Guid         = '0b6f2f6e-1d1c-4c55-9a43-2f0d6f6d6b11'
+            Destination  = 'Out'
+        }
+        ConvertTo-StandaloneScript @GeneratorParams 3> $null
+        $ProbeScript = Join-Path -Path $ModuleDir -ChildPath 'Out\Get-ModuleProbe.ps1'
+
+        # PowerShell 7's three module folders first, as a program running under
+        # PowerShell 7 passes them on; then a folder that only looks like one;
+        # then Windows PowerShell's own.
+        $Documents = [Environment]::GetFolderPath('MyDocuments')
+        $Pwsh7Folders = @(
+            Join-Path -Path $Documents -ChildPath 'PowerShell\Modules'
+            Join-Path -Path $env:ProgramFiles -ChildPath 'PowerShell\Modules'
+            Join-Path -Path $PSHOME -ChildPath 'Modules'
+        )
+        $CustomFolder = Join-Path -Path $TestDrive -ChildPath 'PowerShell\Modules'
+        $null = New-Item -Path $CustomFolder -ItemType Directory -Force
+        $WinPSHome = Join-Path -Path $env:SystemRoot -ChildPath 'System32\WindowsPowerShell\v1.0'
+        $WinPSFolders = @(
+            Join-Path -Path $env:ProgramFiles -ChildPath 'WindowsPowerShell\Modules'
+            Join-Path -Path $WinPSHome -ChildPath 'Modules'
+        )
+
+        # Started through .NET rather than & powershell.exe: PowerShell 7 drops
+        # its own folders when it starts powershell.exe itself, which would hide
+        # the problem.
+        $PowerShellExe = Join-Path -Path $WinPSHome -ChildPath 'powershell.exe'
+        $StartInfo = [System.Diagnostics.ProcessStartInfo]::new($PowerShellExe)
+        $StartInfo.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass ' +
+        "-File `"$ProbeScript`""
+        $StartInfo.UseShellExecute = $false
+        $StartInfo.RedirectStandardOutput = $true
+        $StartInfo.RedirectStandardError = $true
+        $StartInfo.Environment['PSModulePath'] = @(
+            $Pwsh7Folders + $CustomFolder + $WinPSFolders) -join ';'
+        $Process = [System.Diagnostics.Process]::Start($StartInfo)
+        $ErrorTask = $Process.StandardError.ReadToEndAsync()
+        $Output = $Process.StandardOutput.ReadToEnd()
+        $Process.WaitForExit()
+        $Script:ProbeErrors = $ErrorTask.Result
+
+        $Script:Probe = @{}
+        foreach ($Line in ($Output -split "`r?`n")) {
+            if ($Line -match '^(?<Key>PATH|BASE|STATUS)=(?<Value>.*)$') {
+                $Script:Probe[$Matches.Key] = $Matches.Value
+            }
+        }
+        $Script:ProbePath = @($Script:Probe['PATH'] -split ';')
+    }
+
+    AfterAll {
+        Remove-Item -Path 'Function:\ConvertTo-StandaloneScript' -ErrorAction SilentlyContinue
+    }
+
+    It 'runs Windows PowerShell''s own Get-AuthenticodeSignature' {
+        $Script:ProbeErrors | Should -BeNullOrEmpty
+        $Script:Probe['STATUS'] | Should -Be 'Valid'
+        $Script:Probe['BASE'] | Should -BeLike "$WinPSHome*"
+    }
+
+    It 'drops PowerShell 7 module folders' {
+        foreach ($Folder in $Pwsh7Folders) {
+            $Script:ProbePath | Should -Not -Contain $Folder
+        }
+    }
+
+    It 'keeps every other module folder' {
+        foreach ($Folder in (@($CustomFolder) + $WinPSFolders)) {
+            $Script:ProbePath | Should -Contain $Folder
         }
     }
 }
