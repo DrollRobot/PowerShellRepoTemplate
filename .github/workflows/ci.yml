@@ -61,9 +61,53 @@ jobs:
           pip install "detect-secrets==$env:DETECT_SECRETS_VERSION"
           detect-secrets-hook --baseline .secrets.baseline @(git ls-files)
 
+      # Install-PSResource (PSResourceGet ships with PowerShell 7.4+) talks to the
+      # gallery's newer API, which has been steadier than PowerShellGet 2.x, and
+      # the retry loop rides out the gallery's intermittent 5xx responses and
+      # failed downloads. A module the runner image already ships at a usable
+      # version is not fetched at all.
       - name: Install PowerShell modules
         shell: pwsh
-        run: Install-Module Pester, PSScriptAnalyzer, ModuleBuilder -Force -Scope CurrentUser -SkipPublisherCheck
+        run: |
+          $Required = @(
+              @{ Name = 'Pester'; MinimumVersion = '6.0.0' }
+              @{ Name = 'PSScriptAnalyzer'; MinimumVersion = '1.0.0' }
+              @{ Name = 'ModuleBuilder'; MinimumVersion = '3.0.0' }
+          )
+          foreach ($Module in $Required) {
+              $Have = @(Get-Module -ListAvailable -Name $Module.Name |
+                  Where-Object { $_.Version -ge [version]$Module.MinimumVersion } |
+                  Sort-Object Version -Descending)
+              if ($Have.Count -gt 0) {
+                  Write-Host "$($Module.Name) $($Have[0].Version) is preinstalled"
+                  continue
+              }
+              $InstallParams = @{
+                  Name            = $Module.Name
+                  Version         = "[$($Module.MinimumVersion),)"
+                  Scope           = 'CurrentUser'
+                  TrustRepository = $true
+                  ErrorAction     = 'Stop'
+              }
+              $Installed = $false
+              foreach ($Attempt in 1..5) {
+                  try {
+                      Install-PSResource @InstallParams
+                      $Installed = $true
+                      break
+                  }
+                  catch {
+                      Write-Warning ("Attempt $Attempt to install $($Module.Name) failed: " +
+                          $_.Exception.Message)
+                      Start-Sleep -Seconds (15 * $Attempt)
+                  }
+              }
+              if (-not $Installed) {
+                  throw "Could not install $($Module.Name) after 5 attempts"
+              }
+              $Now = @(Get-Module -ListAvailable -Name $Module.Name | Sort-Object Version -Descending)
+              Write-Host "Installed $($Module.Name) $($Now[0].Version)"
+          }
 
       # Importing the module runs Confirm-Dependency.ps1, which aborts the import when
       # any module in RequiredModules.psd1 is missing. Tests.ps1 imports it for every step.
