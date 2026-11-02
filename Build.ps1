@@ -31,11 +31,11 @@
     Linting and testing are intentionally NOT handled here - this script is dedicated to
     building. Run those from their own scripts.
 
-    If a PreBuild.ps1 script exists in the repo root it is invoked automatically
+    If a Build\PreBuild.ps1 script exists it is invoked automatically
     before the ModuleBuilder step. Use it for project-specific tasks such as generating
     files that must be present in the source tree before the build runs.
 
-    If a PostBuild.ps1 script exists in the repo root it is invoked automatically
+    If a Build\PostBuild.ps1 script exists it is invoked automatically
     after the ModuleBuilder step. Use it for project-specific tasks that depend on
     the finished build output (e.g. copying extra files, updating docs).
 
@@ -83,7 +83,7 @@ param(
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.1.0'
+$ScriptVersion = '2.1.1'
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = $PSScriptRoot
