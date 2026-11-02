@@ -65,7 +65,9 @@ jobs:
       # gallery's newer API, which has been steadier than PowerShellGet 2.x, and
       # the retry loop rides out the gallery's intermittent 5xx responses and
       # failed downloads. A module the runner image already ships at a usable
-      # version is not fetched at all.
+      # version is not fetched at all. Anything else installs at its newest version:
+      # a version range resolved ModuleBuilder to 3.2.5, which cannot load because
+      # the gallery does not list its Configuration dependency.
       - name: Install PowerShell modules
         shell: pwsh
         run: |
@@ -84,7 +86,6 @@ jobs:
               }
               $InstallParams = @{
                   Name            = $Module.Name
-                  Version         = "[$($Module.MinimumVersion),)"
                   Scope           = 'CurrentUser'
                   TrustRepository = $true
                   ErrorAction     = 'Stop'

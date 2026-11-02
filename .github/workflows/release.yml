@@ -74,7 +74,10 @@ jobs:
       # failed downloads. A module the runner image already ships at a usable
       # version is not fetched at all. Build.ps1 wants a PowerShellGet 2.x for
       # the standalone-script generator (3.x dropped Update-ScriptFileInfo), and
-      # the image ships 2.2.5, so that one is normally skipped.
+      # the image ships 2.2.5, so that one is normally skipped. Only a module with a
+      # maximum gets a version range; the rest install at their newest version,
+      # because a range resolved ModuleBuilder to 3.2.5, which cannot load: the
+      # gallery does not list its Configuration dependency.
       - name: Install PowerShell modules
         shell: pwsh
         run: |
@@ -94,13 +97,14 @@ jobs:
                   Write-Host "$($Module.Name) $($Have[0].Version) is preinstalled"
                   continue
               }
-              $Range = if ($Maximum) { "[$Minimum,$Maximum]" } else { "[$Minimum,)" }
               $InstallParams = @{
                   Name            = $Module.Name
-                  Version         = $Range
                   Scope           = 'CurrentUser'
                   TrustRepository = $true
                   ErrorAction     = 'Stop'
+              }
+              if ($Maximum) {
+                  $InstallParams.Version = "[$Minimum,$Maximum]"
               }
               $Installed = $false
               foreach ($Attempt in 1..5) {
