@@ -552,6 +552,237 @@ Describe 'Test-TreeDirty' -Tag 'integration', 'functional' {
     }
 }
 
+Describe 'Find-TagHook' -Tag 'unit', 'functional' {
+    BeforeAll {
+        $RootParams = @{
+            Path      = $script:ScratchDir
+            ChildPath = "findhook-$([guid]::NewGuid().ToString('N'))"
+        }
+        $script:HookRepo = Join-Path @RootParams
+        $BuildDir = Join-Path -Path $script:HookRepo -ChildPath 'Build'
+        New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
+        $script:PreTagPath = Join-Path -Path $BuildDir -ChildPath 'PreTag.ps1'
+        Set-Content -LiteralPath $script:PreTagPath -Value '# hook'
+    }
+
+    It 'returns the path of a hook in the Build folder' {
+        Find-TagHook -RepoRoot $script:HookRepo -Name 'PreTag' | Should -Be $script:PreTagPath
+    }
+
+    It 'returns nothing when the repo does not have the hook' {
+        Find-TagHook -RepoRoot $script:HookRepo -Name 'PostTag' | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Invoke-TagHook' -Tag 'unit', 'functional' {
+    BeforeAll {
+        function Write-HookScript {
+            param([string[]]$Body)
+            $HookParams = @{
+                Path      = $script:ScratchDir
+                ChildPath = "hook-$([guid]::NewGuid().ToString('N')).ps1"
+            }
+            $HookPath = Join-Path @HookParams
+            Set-Content -LiteralPath $HookPath -Value $Body
+            return $HookPath
+        }
+    }
+
+    AfterEach {
+        $global:LASTEXITCODE = 0
+    }
+
+    It 'passes the version to the hook' {
+        $Hook = Write-HookScript -Body @('param([string]$Version)', 'Write-Output "got $Version"')
+        Invoke-TagHook -Path $Hook -Version '1.2.3' 6>$null | Should -Be 'got 1.2.3'
+    }
+
+    It 'throws naming the exit code when the hook exits non-zero' {
+        $Hook = Write-HookScript -Body @('param([string]$Version)', 'exit 3')
+        { Invoke-TagHook -Path $Hook -Version '1.2.3' 6>$null } |
+            Should -Throw '*exited with code 3*'
+    }
+
+    It 'lets an exception thrown by the hook through' {
+        $Hook = Write-HookScript -Body @('param([string]$Version)', "throw 'hook broke'")
+        { Invoke-TagHook -Path $Hook -Version '1.2.3' 6>$null } | Should -Throw '*hook broke*'
+    }
+
+    It 'ignores an exit code left over from an earlier command' {
+        $Hook = Write-HookScript -Body @('param([string]$Version)')
+        $global:LASTEXITCODE = 9
+        { Invoke-TagHook -Path $Hook -Version '1.2.3' 6>$null } | Should -Not -Throw
+    }
+}
+
+Describe 'Push-NewTagToMain hooks' -Tag 'integration', 'functional' {
+    BeforeAll {
+        # A hook that records what the repo looks like when it runs, in a file
+        # outside the repo so the release's clean-tree handling never sees it.
+        $script:RecordingHook = @(
+            'param([string]$Version)'
+            '$Record = @{'
+            '    Version      = $Version'
+            '    Branch       = git branch --show-current'
+            '    Head         = git rev-parse HEAD'
+            '    LocalTag     = git tag --list "v$Version"'
+            '    RemoteTag    = git ls-remote --tags origin "v$Version"'
+            '    RemoteSource = (git ls-remote origin refs/heads/feature) -replace "\s.*", ""'
+            '    MergedToMain = git branch --merged main --list feature'
+            '}'
+            '$Name = [System.IO.Path]::GetFileNameWithoutExtension($PSCommandPath)'
+            '$OutPath = Join-Path -Path $PSScriptRoot -ChildPath "..\..\$Name.json"'
+            '$Record | ConvertTo-Json | Set-Content -LiteralPath $OutPath'
+        )
+
+        # Builds a throwaway repo with a local bare repo as origin, and the given
+        # hooks committed to its 'feature' branch. Returns the repo's path.
+        function Initialize-HookFixture {
+            param([string[]]$PreTag, [string[]]$PostTag)
+            $FixtureParams = @{
+                Path      = $script:ScratchDir
+                ChildPath = "pntm-hooks-$([guid]::NewGuid().ToString('N'))"
+            }
+            $Root = Join-Path @FixtureParams
+            $Origin = Join-Path -Path $Root -ChildPath 'origin.git'
+            $Repo = Join-Path -Path $Root -ChildPath 'repo'
+            New-Item -ItemType Directory -Path $Root -Force | Out-Null
+
+            & git init --bare --initial-branch=main $Origin *> $null
+            & git clone $Origin $Repo *> $null
+
+            Push-Location -LiteralPath $Repo
+            try {
+                & git config user.email 'test@example.invalid'
+                & git config user.name 'Test'
+                $ManifestDir = Join-Path -Path $Repo -ChildPath 'Source'
+                New-Item -ItemType Directory -Path $ManifestDir -Force | Out-Null
+                $ManifestPath = Join-Path -Path $ManifestDir -ChildPath 'Fixture.psd1'
+                $ManifestContent = @('@{', "    ModuleVersion = '1.0.0'", '}')
+                Set-Content -LiteralPath $ManifestPath -Value $ManifestContent
+                & git add -A
+                & git commit -m 'Initial commit' *> $null
+                & git push origin main *> $null
+                & git checkout -b feature *> $null
+
+                $BuildDir = Join-Path -Path $Repo -ChildPath 'Build'
+                New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
+                if ($PreTag) {
+                    $PreTagPath = Join-Path -Path $BuildDir -ChildPath 'PreTag.ps1'
+                    Set-Content -LiteralPath $PreTagPath -Value $PreTag
+                }
+                if ($PostTag) {
+                    $PostTagPath = Join-Path -Path $BuildDir -ChildPath 'PostTag.ps1'
+                    Set-Content -LiteralPath $PostTagPath -Value $PostTag
+                }
+                $XPath = Join-Path -Path $Repo -ChildPath 'x.txt'
+                Set-Content -LiteralPath $XPath -Value 'x'
+                & git add -A
+                & git commit -m 'work' *> $null
+                & git push -u origin feature *> $null
+            }
+            finally {
+                Pop-Location
+            }
+            return $Repo
+        }
+
+        # Runs a patch release of the fixture repo in a child pwsh.
+        function Invoke-HookRelease {
+            param([Parameter(Mandatory)][string]$RepoPath)
+            $Root = Split-Path -Path $RepoPath -Parent
+            $OutFile = Join-Path -Path $Root -ChildPath 'child-out.txt'
+            $ErrFile = Join-Path -Path $Root -ChildPath 'child-err.txt'
+            $Params = @{
+                FilePath               = 'pwsh'
+                ArgumentList           = @(
+                    '-NoProfile', '-NonInteractive', '-File', $script:Sut,
+                    '-Bump', 'patch', '-Yes'
+                )
+                WorkingDirectory       = $RepoPath
+                NoNewWindow            = $true
+                Wait                   = $true
+                PassThru               = $true
+                RedirectStandardOutput = $OutFile
+                RedirectStandardError  = $ErrFile
+            }
+            $Proc = Start-Process @Params
+            return [pscustomobject]@{
+                ExitCode = $Proc.ExitCode
+                StdOut   = Get-Content -LiteralPath $OutFile -Raw
+                StdErr   = Get-Content -LiteralPath $ErrFile -Raw
+            }
+        }
+
+        function Read-HookRecord {
+            param(
+                [Parameter(Mandatory)][string]$RepoPath,
+                [Parameter(Mandatory)][string]$Name
+            )
+            $Root = Split-Path -Path $RepoPath -Parent
+            $RecordPath = Join-Path -Path $Root -ChildPath "$Name.json"
+            return Get-Content -LiteralPath $RecordPath -Raw | ConvertFrom-Json
+        }
+    }
+
+    It 'runs PreTag before the merge and PostTag after every push, with the new version' {
+        $HookParams = @{
+            PreTag  = $script:RecordingHook
+            PostTag = $script:RecordingHook
+        }
+        $Repo = Initialize-HookFixture @HookParams
+        $Result = Invoke-HookRelease -RepoPath $Repo
+        $Result.ExitCode | Should -Be 0 -Because "the child wrote: $($Result.StdErr)"
+
+        $Pre = Read-HookRecord -RepoPath $Repo -Name 'PreTag'
+        $Pre.Version | Should -Be '1.0.1'
+        $Pre.Branch | Should -Be 'feature'
+        $Pre.LocalTag | Should -BeNullOrEmpty
+        $Pre.MergedToMain | Should -BeNullOrEmpty
+
+        # The source branch has fast-forwarded to the tag, so a hook that builds
+        # from its checkout builds exactly what was released.
+        $TagCommit = & git -C $Repo rev-parse 'v1.0.1^{commit}'
+        $Post = Read-HookRecord -RepoPath $Repo -Name 'PostTag'
+        $Post.Version | Should -Be '1.0.1'
+        $Post.Branch | Should -Be 'feature'
+        $Post.RemoteTag | Should -Not -BeNullOrEmpty
+        $Post.Head | Should -Be $TagCommit
+        $Post.RemoteSource | Should -Be $TagCommit
+    }
+
+    It 'runs no hook step in a repo without hooks' {
+        $Repo = Initialize-HookFixture
+        $Result = Invoke-HookRelease -RepoPath $Repo
+        $Result.ExitCode | Should -Be 0 -Because "the child wrote: $($Result.StdErr)"
+        $Result.StdOut | Should -Not -Match 'Step: (PreTag|PostTag) hook'
+    }
+
+    It 'stops the release with nothing merged or tagged when PreTag <Kind>' -ForEach @(
+        @{ Kind = 'throws'; Line = "throw 'pretag broke'"; Message = 'pretag broke' }
+        @{ Kind = 'exits non-zero'; Line = 'exit 3'; Message = 'exited with code 3' }
+    ) {
+        $Repo = Initialize-HookFixture -PreTag @('param([string]$Version)', $Line)
+        $Result = Invoke-HookRelease -RepoPath $Repo
+        $Result.ExitCode | Should -Not -Be 0
+        $Result.StdErr | Should -Match $Message
+
+        & git -C $Repo rev-parse --abbrev-ref HEAD | Should -Be 'feature'
+        & git -C $Repo log main --oneline -1 | Should -Match 'Initial commit'
+        & git -C $Repo tag --list 'v1.0.1' | Should -BeNullOrEmpty
+    }
+
+    It 'reports a failed PostTag with the release already pushed' {
+        $Repo = Initialize-HookFixture -PostTag @('param([string]$Version)', 'exit 3')
+        $Result = Invoke-HookRelease -RepoPath $Repo
+        $Result.ExitCode | Should -Not -Be 0
+        $Result.StdErr | Should -Match 'exited with code 3'
+
+        & git -C $Repo ls-remote --tags origin 'v1.0.1' | Should -Not -BeNullOrEmpty
+        & git -C $Repo rev-parse --abbrev-ref HEAD | Should -Be 'feature'
+    }
+}
+
 Describe 'Push-NewTagToMain unchanged build' -Tag 'integration', 'functional', 'regression' {
     BeforeAll {
         $FixtureParams = @{

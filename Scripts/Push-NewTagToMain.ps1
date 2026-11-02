@@ -32,6 +32,18 @@
     A root build regenerates committed artifacts, which the release commit picks
     up automatically; an output build only touches gitignored Output\.
 
+    A repo can add its own release steps with two optional scripts. Each runs only
+    when it exists, after its own confirmation prompt, and receives -Version with
+    the version being released. A hook stops the release by throwing or by exiting
+    non-zero.
+
+      Build\PreTag.ps1  - Runs on the source branch before anything is merged or
+                          tagged, so a failure leaves nothing to undo.
+      Build\PostTag.ps1 - Runs on the source branch as the last step, after main,
+                          the tag, and the source branch are pushed. The release is
+                          already public by then, so a failure cannot undo it: make
+                          the hook safe to rerun by hand.
+
 .PARAMETER Bump
     Semantic version bump level. One of:
       patch - bug fixes only           (1.4.2 -> 1.4.3)
@@ -118,7 +130,7 @@ $PSNativeCommandUseErrorActionPreference = $true
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
     'PSUseDeclaredVarsMoreThanAssignments', 'ScriptVersion')]
-$ScriptVersion = '2.1.1'
+$ScriptVersion = '2.2.0'
 
 $useBump = $PSCmdlet.ParameterSetName -eq 'Bump'
 $useNoVersion = [bool]$NoVersion
@@ -346,6 +358,34 @@ function Set-ManifestVersion {
     Set-Content -LiteralPath $Path -Value $updated -NoNewline -Encoding utf8
 }
 
+# Locate an optional repo-specific hook script (Build\<Name>.ps1), or $null when
+# the repo does not have one.
+function Find-TagHook {
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][string]$Name
+    )
+    $candidate = Join-Path -Path $RepoRoot -ChildPath "Build\$Name.ps1"
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    return $null
+}
+
+# Run a hook script, passing it the version being released. An 'exit 1' in a script
+# does not throw in its caller, so the exit code is checked here: a non-zero code
+# and a throw both stop the release.
+function Invoke-TagHook {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Version
+    )
+    Write-Run "& `"$Path`" -Version $Version"
+    $global:LASTEXITCODE = 0
+    & $Path -Version $Version
+    if ($LASTEXITCODE -ne 0) {
+        throw "Hook '$Path' exited with code $LASTEXITCODE."
+    }
+}
+
 # --- gather state ----------------------------------------------------------
 
 if ($MyInvocation.InvocationName -eq '.') { return }
@@ -399,6 +439,12 @@ if ($buildScript) {
 else {
     Write-Info "Build" "skipped (no Build.ps1 in the repo root)"
 }
+# The optional hooks are resolved up front too, so their presence is reported
+# before anything changes.
+$preTagScript = if ($repoRoot) { Find-TagHook -RepoRoot $repoRoot -Name 'PreTag' }
+$postTagScript = if ($repoRoot) { Find-TagHook -RepoRoot $repoRoot -Name 'PostTag' }
+Write-Info "PreTag hook" ($preTagScript ?? 'none')
+Write-Info "PostTag hook" ($postTagScript ?? 'none')
 
 # --- working tree status ---------------------------------------------------
 
@@ -535,6 +581,14 @@ if (Invoke-NativeOk git rev-parse --verify --quiet "refs/tags/$targetTag") {
 
 # --- release steps ---------------------------------------------------------
 
+# Before the switch to main, so a failure stops the release with nothing to undo.
+if ($preTagScript) {
+    Write-Section "Step: PreTag hook"
+    Invoke-Step "Run the PreTag hook (Build\PreTag.ps1)?" {
+        Invoke-TagHook -Path $preTagScript -Version $newVersion.ToString()
+    }
+}
+
 Write-Section "Step: switch to main"
 Invoke-Step "Switch from '$source' to 'main'?" {
     Write-Run "git switch main"
@@ -629,6 +683,14 @@ Write-Section "Step: push '$source'"
 Invoke-Step "Push '$source' to origin?" {
     Write-Run "git push origin $source"
     git push origin $source
+}
+
+# Last of all, so a failure cannot strand the repo partway through the release.
+if ($postTagScript) {
+    Write-Section "Step: PostTag hook"
+    Invoke-Step "Run the PostTag hook (Build\PostTag.ps1)?" {
+        Invoke-TagHook -Path $postTagScript -Version $versionStr
+    }
 }
 
 # --- done ------------------------------------------------------------------
